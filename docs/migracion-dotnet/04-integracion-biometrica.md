@@ -50,12 +50,26 @@ El SDK tiene **dos paths** según el estado de `WbioSrvc` (Windows Biometric Ser
 
 ### Decisiones de diseño ya tomadas (respetar)
 
-1. **Ventana visible permanente**: `WindowState.Normal`, `ShowInTaskbar=true`, `Size=300×200`. Funciona con o sin WbioSrvc.
+1. **Ventana visible permanente** (`WindowState.Normal`, `ShowInTaskbar=true`, `Size=300×200`): **aplica solo al sidecar Tauri standalone, NO al puerto MAUI.**
 
-   > **Nota de verificación pendiente — Estado al 29 de julio 2026** — verificar si una prueba posterior de invisibilidad total (Opacity=0 + Activate marshalado) cambió esta conclusión antes de implementar en .NET.
+   > **Actualizado y verificado con hardware real — 2026-08-20.** Prototipo aislado `SmartGym.App/BiometricPrototype/` (`/biometric-test`, ver `07-lecciones-de-proceso.md` para la metodología). `DPFP.Capture.EventHandler` implementado como servicio simple embebido en el proceso MAUI/WinUI3, **sin ningún `Form` WinForms, sin `WindowState` forzado, sin `Activate()` marshalado, sin foco manual**. Dos corridas independientes con lector U.are.U 4500 real, `WbioSrvc` **Stopped** (la condición que antes exigía la ventana visible):
+   >
+   > | Evento | Corrida 1 | Corrida 2 (arranque en frío, build limpio) |
+   > |---|---|---|
+   > | `OnReaderConnect` | 1 | 1 |
+   > | `OnFingerTouch` | 14 | 7 |
+   > | `OnComplete` (Sample: True) | 9 | 6 |
+   > | `OnFingerGone` | 14 | 7 |
+   > | Excepciones | 0 | 0 |
+   >
+   > Touch = Gone en ambas corridas (sin callbacks perdidos), cero excepciones. **Conclusión: en MAUI/WinUI3 + WebView2 el message pump COM que requiere el SDK ya existe de forma implícita (STA thread + message loop del proceso), igual que se documentaba para la versión MAUI previa (§1). La ventana WinForms visible NO se porta al módulo real.**
+   >
+   > Único bloqueo encontrado (no relacionado con ventana/foco): `DPFP.Capture.Capture.MessageEvents.EnsureInitialized()` requiere el ensamblado `System.Windows.Forms` en tiempo de ejecución aunque no se use ningún `Form`. Activar `UseWindowsForms=true` rompe el build (`MC6000`, conflicto del markup compiler WPF de `Microsoft.NET.Sdk.WindowsDesktop` con los `.xaml` de WinUI3/MAUI). Solución: `<FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />` en el `.csproj` — trae el ensamblado sin activar el SDK de escritorio completo.
+   >
+   > No cubierto por esta prueba: enrollment/verification real, prueba con `WbioSrvc` corriendo (control comparativo), estabilidad bajo carga sostenida (hipótesis de contención de hilos, §6 — mitigada de raíz porque el módulo real no necesita servidor HTTP local, ver nota en §6).
 
-2. **No depender de WbioSrvc** — el sidecar no verifica ni inicia el servicio (puede estar deshabilitado por política corporativa).
-3. **Costo aceptado**: icono pequeño permanente en la barra de tareas.
+2. **No depender de WbioSrvc** — el sidecar no verifica ni inicia el servicio (puede estar deshabilitado por política corporativa). Esto se mantiene también en el módulo MAUI: la prueba se hizo justamente con el servicio detenido.
+3. **Costo aceptado (solo aplica al sidecar Tauri standalone)**: icono pequeño permanente en la barra de tareas. No aplica al módulo MAUI embebido — no hay proceso ni icono separado.
 
 ---
 
@@ -92,7 +106,7 @@ En `TrySetModoEnrolamiento` / `TrySetModoIdentificacion`, el cambio de modo **ac
 
 ## 6. Hipótesis de investigación abierta: contención de hilos (HttpListener/ThreadPool vs. message pump COM)
 
-**Estado:** hipótesis abierta, **no confirmada**.
+**Estado:** hipótesis abierta, **no confirmada** — pero la vía recomendada (sin servidor HTTP local) ya se validó con hardware real, ver §3.1.
 
 El síntoma "funciona a veces / deja de funcionar" podría explicarse por **contención de hilos**: los hilos del `ThreadPool` que atienden las peticiones del `HttpListener` compiten o "roban" tiempo/prioridad al message pump COM que el SDK requiere para entregar `OnFingerTouch`/`OnComplete`. Cuando el pump no se despacha a tiempo, los callbacks se pierden o se entregan tarde.
 

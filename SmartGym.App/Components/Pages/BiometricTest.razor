@@ -1,0 +1,48 @@
+@page "/biometric-test"
+@using SmartGym.App.BiometricPrototype
+@inject CapturePrototypeService CaptureService
+@implements IDisposable
+
+<h3>Prototipo biométrico — DPFP.Capture en MAUI Blazor Hybrid (WebView2)</h3>
+<p>Prueba aislada, no productiva. Ver docs/migracion-dotnet/04-integracion-biometrica.md.</p>
+
+<div style="margin-bottom:12px;">
+    <button class="btn btn-primary" @onclick="Iniciar" disabled="@_capturando">Iniciar captura</button>
+    <button class="btn btn-secondary" @onclick="Detener" disabled="@(!_capturando)">Detener</button>
+</div>
+
+<pre style="height:420px;overflow-y:auto;background:#111;color:#0f0;padding:8px;font-family:Consolas,monospace;">@_log</pre>
+
+@code {
+    private bool _capturando;
+    private readonly System.Text.StringBuilder _sb = new();
+    private string _log => _sb.ToString();
+
+    protected override void OnInitialized()
+    {
+        CaptureService.LogLine += OnLog;
+    }
+
+    private void Iniciar()
+    {
+        _capturando = true;
+        CaptureService.StartCapture();
+    }
+
+    private void Detener()
+    {
+        CaptureService.StopCapture();
+        _capturando = false;
+    }
+
+    private void OnLog(string line)
+    {
+        _sb.AppendLine(line);
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        CaptureService.LogLine -= OnLog;
+    }
+}

@@ -7,6 +7,15 @@
         <RootNamespace>SmartGym.App</RootNamespace>
         <UseMaui>true</UseMaui>
         <SingleProject>true</SingleProject>
+
+        <!-- Requerido por DPFP.Capture.Capture.MessageEvents (SDK DigitalPersona): su
+             message pump interno depende de System.Windows.Forms. Sin esto, StartCapture()
+             lanza FileNotFoundException al no poder cargar el ensamblado.
+             NOTA: UseWindowsForms=true rompe el build (MC6000 - el markup compiler WPF
+             de Microsoft.NET.Sdk.WindowsDesktop entra en conflicto con los .xaml de MAUI/
+             WinUI3, App.xaml/MainPage.xaml). Se referencia el shared framework directamente
+             en vez de activar el SDK de escritorio completo. Ver
+             docs/migracion-dotnet/04-integracion-biometrica.md §3 y prototipo /biometric-test. -->
         <ImplicitUsings>enable</ImplicitUsings>
         <EnableDefaultCssItems>false</EnableDefaultCssItems>
         <Nullable>enable</Nullable>
@@ -59,6 +68,38 @@
     <ItemGroup>
         <ProjectReference Include="..\SmartGym.Core\SmartGym.Core.csproj" />
         <ProjectReference Include="..\SmartGym.Data\SmartGym.Data.csproj" />
+    </ItemGroup>
+
+    <!-- Prototipo biometrico (temporal, no productivo): copias verbatim del sidecar
+         Rust como referencia de lectura, excluidas de compilacion porque dependen
+         de Config/HttpServer/Models que no se trajeron. Ver BiometricPrototype/. -->
+    <ItemGroup>
+        <Compile Remove="BiometricPrototype\Reference\**\*.cs" />
+    </ItemGroup>
+
+    <!-- Shared framework de WinForms (solo el ensamblado, sin activar UseWindowsForms/UseWPF) -->
+    <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+        <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+    </ItemGroup>
+
+    <!-- SDK DigitalPersona One Touch (prototipo biometrico) -->
+    <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+        <Reference Include="DPFPDevNET">
+            <HintPath>C:\Program Files\DigitalPersona\One Touch SDK\.NET\Bin\DPFPDevNET.dll</HintPath>
+            <Private>True</Private>
+        </Reference>
+        <Reference Include="DPFPEngNET">
+            <HintPath>C:\Program Files\DigitalPersona\One Touch SDK\.NET\Bin\DPFPEngNET.dll</HintPath>
+            <Private>True</Private>
+        </Reference>
+        <Reference Include="DPFPVerNET">
+            <HintPath>C:\Program Files\DigitalPersona\One Touch SDK\.NET\Bin\DPFPVerNET.dll</HintPath>
+            <Private>True</Private>
+        </Reference>
+        <Reference Include="DPFPShrNET">
+            <HintPath>C:\Program Files\DigitalPersona\One Touch SDK\.NET\Bin\DPFPShrNET.dll</HintPath>
+            <Private>True</Private>
+        </Reference>
     </ItemGroup>
 
 </Project>

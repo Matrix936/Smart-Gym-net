@@ -4,6 +4,7 @@ using SmartGym.Data.Db;
 using SmartGym.Data.Repositories;
 using SmartGym.Data.Storage;
 using SmartGym.App.Services;
+using SmartGym.App.BiometricPrototype;
 using Microsoft.Extensions.Logging;
 using MudBlazor;
 using MudBlazor.Services;
@@ -78,6 +79,9 @@ public static class MauiProgram
 		builder.Services.AddScoped<IAccesoService, AccesoService>();
 		builder.Services.AddScoped<IPosService, PosService>();
 		builder.Services.AddScoped<ICobranzaService, CobranzaService>();
+
+		// ---- Prototipo biometrico (temporal) ----
+		builder.Services.AddSingleton<CapturePrototypeService>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();
