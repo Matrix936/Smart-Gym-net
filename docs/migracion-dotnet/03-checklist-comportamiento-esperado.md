@@ -114,35 +114,68 @@
 - [ ] `obtener_caja_abierta_devuelve_some_cuando_h_abierta_y_none_cuando_no`
 - [ ] `obtener_caja_abierta_no_encuentra_cerradas`
 
-## biometrics.rs — 20 tests
+## biometrics.rs — 20 tests originales → estado real en .NET (actualizado 2026-08-20)
 
-**Parsing de respuestas del sidecar:**
-- [ ] `parse_health_response`
-- [ ] `parse_enroll_status_completado`
-- [ ] `parse_enroll_status_error`
-- [ ] `parse_enroll_status_capturando`
-- [ ] `parse_identify_identificado`
-- [ ] `parse_identify_no_identificado`
+**El sidecar HTTP dejó de existir** (ver `04-integracion-biometrica.md` §3.1: prototipo validado con hardware real, captura embebida en el proceso MAUI sin sidecar separado). Los 20 tests originales asumían ese contrato JSON; se dividen así:
 
-**Sync de templates (enrolamiento/re-enrolamiento):**
-- [ ] `enrollment_sync_desactiva_template_anterior`
-- [ ] `enrollment_sync_dedo_diferente_no_desactiva`
-- [ ] `enrollment_sync_falla_si_socio_no_existe_en_tabla_biometricos`
+**A. Lógica de repositorio/filtrado por sede — sigue 100% válida, portada tal cual (11/20):**
+Cubierta por `SmartGym.Tests/Fase5/BiometricsTests.cs`, contra SQLite real.
 
-**Serialización de eventos:**
-- [ ] `identification_event_serializa_correctamente`
-- [ ] `enrollment_event_serializa_correctamente`
-- [ ] `enrollment_event_con_error_excluye_template`
+- [x] `enrollment_sync_desactiva_template_anterior`
+- [x] `enrollment_sync_dedo_diferente_no_desactiva`
+- [x] `enrollment_sync_falla_si_socio_no_existe_en_tabla_biometricos`
+- [x] `templates_sede_socio_sin_membresia_devuelve_vacio`
+- [x] `templates_sede_socio_con_membresia_activa_devuelve_template`
+- [x] `templates_sede_socio_con_membresia_congelada_devuelve_template`
+- [x] `templates_sede_socio_con_membresia_vencida_no_devuelve_template`
+- [x] `templates_sede_socio_registrado_en_otra_sede_con_membresia_aqui_si_aparece`
+- [x] `templates_sede_socio_con_membresias_en_dos_sedes_aparece_en_ambas`
+- [x] `templates_sede_sin_huellas_registradas_devuelve_vacio`
+- [x] `templates_sede_distinct_evita_duplicados_por_multiples_membresias`
 
-**Selección de templates por sede (membresía):**
-- [ ] `templates_sede_socio_sin_membresia_devuelve_vacio`
-- [ ] `templates_sede_socio_con_membresia_activa_devuelve_template`
-- [ ] `templates_sede_socio_con_membresia_congelada_devuelve_template`
-- [ ] `templates_sede_socio_con_membresia_vencida_no_devuelve_template`
-- [ ] `templates_sede_socio_registrado_en_otra_sede_con_membresia_aqui_si_aparece`
-- [ ] `templates_sede_socio_con_membresias_en_dos_sedes_aparece_en_ambas`
-- [ ] `templates_sede_sin_huellas_registradas_devuelve_vacio`
-- [ ] `templates_sede_distinct_evita_duplicados_por_multiples_membresias`
+**B. Parsing/serialización del contrato JSON del sidecar — eliminados, sin reemplazo (9/20):**
+`SmartGym.Core/Sidecar/SidecarDtos.cs` y `SidecarEvents.cs` se borraron: no hay proceso separado que emita ni consuma ese JSON. No quedó ningún test cubriendo esto porque el comportamiento que verificaban ya no existe en el diseño.
+
+- ~~`parse_health_response`~~ — eliminado (sin sidecar no hay health check HTTP)
+- ~~`parse_enroll_status_completado`~~ — eliminado
+- ~~`parse_enroll_status_error`~~ — eliminado
+- ~~`parse_enroll_status_capturando`~~ — eliminado
+- ~~`parse_identify_identificado`~~ — eliminado
+- ~~`parse_identify_no_identificado`~~ — eliminado
+- ~~`identification_event_serializa_correctamente`~~ — eliminado
+- ~~`enrollment_event_serializa_correctamente`~~ — eliminado
+- ~~`enrollment_event_con_error_excluye_template`~~ — eliminado
+
+## Cobertura del contrato nuevo — `IBiometricCaptureService` (sin equivalente directo en biometrics.rs, ver `04-integracion-biometrica.md` §3.1)
+
+**Automatizado — `SmartGym.Tests/Biometrics/BiometricCaptureArbiterTests.cs` (12 tests, sin hardware):**
+Cubre exclusivamente las **transiciones de modo puras** de `BiometricCaptureArbiter` (`SmartGym.Core`). No ejercita el SDK, no toca el sensor, no valida extracción de features ni matching real.
+
+- [x] `idle_permite_iniciar_enrollment`
+- [x] `idle_permite_iniciar_identification`
+- [x] `enrolling_rechaza_nuevo_enrollment`
+- [x] `enrolling_rechaza_identification`
+- [x] `start_enrollment_interrumpe_identificacion_en_espera`
+- [x] `start_enrollment_no_interrumpe_identificacion_en_curso`
+- [x] `identificacion_vuelve_a_esperando_cuando_el_dedo_se_retira`
+- [x] `on_finger_touch_y_gone_son_no_op_fuera_de_identifying`
+- [x] `finish_enrollment_vuelve_a_idle`
+- [x] `finish_enrollment_es_no_op_si_no_esta_enrolando`
+- [x] `stop_identification_vuelve_a_idle`
+- [x] `stop_identification_es_no_op_si_no_esta_identificando`
+- [x] `despues_de_interrumpir_identificacion_un_segundo_enrollment_es_rechazado`
+
+**Solo prueba manual — `/biometric-test` contra hardware real (NO automatizado, no correr en CI):**
+`BiometricCaptureService` (`SmartGym.App`) está fuertemente acoplado al SDK DigitalPersona real (`DPFP.Capture.Capture`, requiere el ensamblado nativo y — para señal real — el lector U.are.U 4500 conectado). No hay mock del SDK, así que lo siguiente **no tiene cobertura automatizada** y solo se verificó manualmente (ver §3.1 para el log real de la última corrida):
+
+- [ ] Extracción de features con `DataPurpose` dinámico según el modo (`OnComplete`) — el bug original de doc 04 §4
+- [ ] `StartEnrollmentAsync` completa con las N muestras configuradas y devuelve `TemplatePath`
+- [ ] `EnrollmentStatusChanged` reporta progreso (`MuestrasCapturadas`/`MuestrasRequeridas`) en cada muestra
+- [ ] Guardado del archivo `.bin` del template en disco
+- [ ] `StartIdentificationAsync` dispara `IdentificationResultReceived` con match verdadero/falso contra hardware real
+- [ ] El SDK entrega `OnFingerTouch`/`OnComplete`/`OnFingerGone` de forma confiable dentro del proceso MAUI (validado 2026-08-20, dos corridas, ver §3.1 — pero no hay un test automatizado que lo re-verifique en cada build)
+
+**Por qué no hay más automatización:** `DPFP.Capture.Capture` es una clase sellada del SDK que habla con hardware real vía COM/driver — no es inyectable ni mockeable sin envolverla detrás de una interfaz interna adicional (decisión de diseño no tomada todavía). Si se necesita cobertura automatizada de esta capa, el paso siguiente sería extraer una abstracción del capturador (no del arbitraje, que ya está separado) para poder fakearla en tests — evaluar cuando se construya el módulo real de enrolamiento/Kiosco.
 
 ## setup.rs — 17 tests
 

@@ -1,10 +1,10 @@
-﻿using SmartGym.Core.Repositories;
+﻿using SmartGym.Core.Biometrics;
+using SmartGym.Core.Repositories;
 using SmartGym.Core.Services;
 using SmartGym.Data.Db;
 using SmartGym.Data.Repositories;
 using SmartGym.Data.Storage;
 using SmartGym.App.Services;
-using SmartGym.App.BiometricPrototype;
 using Microsoft.Extensions.Logging;
 using MudBlazor;
 using MudBlazor.Services;
@@ -80,8 +80,9 @@ public static class MauiProgram
 		builder.Services.AddScoped<IPosService, PosService>();
 		builder.Services.AddScoped<ICobranzaService, CobranzaService>();
 
-		// ---- Prototipo biometrico (temporal) ----
-		builder.Services.AddSingleton<CapturePrototypeService>();
+		// ---- Biometria (embebida en proceso, sin sidecar HTTP - ver doc 04 §3.1) ----
+		var templatesDir = Path.Combine(dataDir, "Templates");
+		builder.Services.AddSingleton<IBiometricCaptureService>(_ => new BiometricCaptureService(templatesDir));
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();

@@ -1,84 +1,21 @@
-using System.Text.Json;
 using SmartGym.Core.Entities;
-using SmartGym.Core.Sidecar;
 using SmartGym.Tests.Security;
 
 namespace SmartGym.Tests.Fase5;
 
-/// <summary>Port de biometrics.rs (20 tests del checklist 03).</summary>
+/// <summary>
+/// Port de biometrics.rs (checklist 03) — solo la parte de lógica de
+/// repositorio/filtrado por sede, que sigue siendo 100% válida sin sidecar.
+/// Los 9 tests de parsing/serialización del contrato JSON del sidecar
+/// (SidecarHealthResponse/SidecarEnrollStatus/SidecarIdentifyStatus,
+/// EnrollmentEvent/IdentificationEvent) se eliminaron junto con esos DTOs:
+/// el hallazgo del prototipo (docs/migracion-dotnet/04-integracion-biometrica.md
+/// §3.1) confirmó que no hace falta sidecar HTTP separado, así que no hay
+/// JSON que parsear. Ver 03-checklist-comportamiento-esperado.md para el
+/// detalle de qué reemplaza a esos tests (SmartGym.Tests/Biometrics/).
+/// </summary>
 public sealed class BiometricsTests
 {
-    // ── Parsing de respuestas del sidecar ────────────────────────────────────
-
-    [Fact]
-    public void parse_health_response()
-    {
-        const string json = """{"alive":true,"reader_connected":true,"serial":"abc-123"}""";
-
-        var resp = JsonSerializer.Deserialize<SidecarHealthResponse>(json)!;
-
-        Assert.True(resp.Alive);
-        Assert.True(resp.ReaderConnected);
-        Assert.Equal("abc-123", resp.Serial);
-    }
-
-    [Fact]
-    public void parse_enroll_status_completado()
-    {
-        const string json = """{"estado":"completado","template_path":"templates/test.bin"}""";
-
-        var resp = JsonSerializer.Deserialize<SidecarEnrollStatus>(json)!;
-
-        Assert.Equal("completado", resp.Estado);
-        Assert.Equal("templates/test.bin", resp.TemplatePath);
-        Assert.Null(resp.Error);
-    }
-
-    [Fact]
-    public void parse_enroll_status_error()
-    {
-        const string json = """{"estado":"error","error":"lector no encontrado"}""";
-
-        var resp = JsonSerializer.Deserialize<SidecarEnrollStatus>(json)!;
-
-        Assert.Equal("error", resp.Estado);
-        Assert.Equal("lector no encontrado", resp.Error);
-        Assert.Null(resp.TemplatePath);
-    }
-
-    [Fact]
-    public void parse_enroll_status_capturando()
-    {
-        const string json = """{"estado":"capturando","features_needed":3}""";
-
-        var resp = JsonSerializer.Deserialize<SidecarEnrollStatus>(json)!;
-
-        Assert.Equal("capturando", resp.Estado);
-        Assert.Equal(3, resp.FeaturesNeeded);
-    }
-
-    [Fact]
-    public void parse_identify_identificado()
-    {
-        const string json = """{"estado":"identificado","socio_id":"socio-abc"}""";
-
-        var resp = JsonSerializer.Deserialize<SidecarIdentifyStatus>(json)!;
-
-        Assert.Equal("identificado", resp.Estado);
-        Assert.Equal("socio-abc", resp.SocioId);
-    }
-
-    [Fact]
-    public void parse_identify_no_identificado()
-    {
-        const string json = """{"estado":"no_identificado"}""";
-
-        var resp = JsonSerializer.Deserialize<SidecarIdentifyStatus>(json)!;
-
-        Assert.Equal("no_identificado", resp.Estado);
-        Assert.Null(resp.SocioId);
-    }
-
     // ── Sync de templates (enrolamiento / re-enrolamiento) ──────────────────
 
     [Fact]
@@ -121,63 +58,6 @@ public sealed class BiometricsTests
         await ctx.SociosBiometricos.RegistrarTemplateAsync("socio-ghost", "indice_izquierdo", "ghost.bin");
 
         Assert.Equal("ghost.bin", await Fase5Helper.TemplateActivoAsync(ctx, "socio-ghost"));
-    }
-
-    // ── Serialización de eventos ───────────────────────────────────────────────
-
-    [Fact]
-    public void identification_event_serializa_correctamente()
-    {
-        var evt = new IdentificationEvent
-        {
-            Estado = "concedido",
-            SocioNombre = "Juan Perez",
-            IdAcceso = "uuid-123",
-            TipoAcceso = "entrada",
-        };
-
-        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(evt));
-        var root = doc.RootElement;
-
-        Assert.Equal("concedido", root.GetProperty("estado").GetString());
-        Assert.Equal("Juan Perez", root.GetProperty("socio_nombre").GetString());
-        Assert.False(root.TryGetProperty("socio_foto_path", out _));
-        Assert.Equal("uuid-123", root.GetProperty("id_acceso").GetString());
-        Assert.Equal("entrada", root.GetProperty("tipo_acceso").GetString());
-    }
-
-    [Fact]
-    public void enrollment_event_serializa_correctamente()
-    {
-        var evt = new EnrollmentEvent
-        {
-            Estado = "completado",
-            TemplatePath = "path/to/template.bin",
-        };
-
-        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(evt));
-        var root = doc.RootElement;
-
-        Assert.Equal("completado", root.GetProperty("estado").GetString());
-        Assert.Equal("path/to/template.bin", root.GetProperty("template_path").GetString());
-        Assert.False(root.TryGetProperty("features_needed", out _));
-    }
-
-    [Fact]
-    public void enrollment_event_con_error_excluye_template()
-    {
-        var evt = new EnrollmentEvent
-        {
-            Estado = "error",
-            Error = "fallo",
-        };
-
-        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(evt));
-        var root = doc.RootElement;
-
-        Assert.Equal("error", root.GetProperty("estado").GetString());
-        Assert.Equal("fallo", root.GetProperty("error").GetString());
-        Assert.False(root.TryGetProperty("template_path", out _));
     }
 
     // ── Selección de templates por sede (membresía) ───────────────────────────

@@ -1,48 +1,102 @@
 @page "/biometric-test"
-@using SmartGym.App.BiometricPrototype
-@inject CapturePrototypeService CaptureService
+@using SmartGym.Core.Biometrics
+@inject IBiometricCaptureService CaptureService
 @implements IDisposable
 
-<h3>Prototipo biométrico — DPFP.Capture en MAUI Blazor Hybrid (WebView2)</h3>
-<p>Prueba aislada, no productiva. Ver docs/migracion-dotnet/04-integracion-biometrica.md.</p>
+<h3>Prototipo biométrico — IBiometricCaptureService (contrato real, sin sidecar)</h3>
+<p>Herramienta de diagnóstico manual, no productiva. Ver docs/migracion-dotnet/04-integracion-biometrica.md §3.1.</p>
+
+<p>Modo actual: <strong>@CaptureService.CurrentMode</strong> — Lector conectado: <strong>@CaptureService.IsReaderConnected</strong></p>
 
 <div style="margin-bottom:12px;">
-    <button class="btn btn-primary" @onclick="Iniciar" disabled="@_capturando">Iniciar captura</button>
-    <button class="btn btn-secondary" @onclick="Detener" disabled="@(!_capturando)">Detener</button>
+    <button class="btn btn-primary" @onclick="IniciarEnrolamiento" disabled="@(_ocupado)">Enrolar (socio de prueba)</button>
+    <button class="btn btn-secondary" @onclick="CancelarEnrolamiento" disabled="@(!_enrolando)">Cancelar enrolamiento</button>
+    <button class="btn btn-primary" @onclick="IniciarIdentificacion" disabled="@(_ocupado || _ultimoTemplatePath is null)">Identificar</button>
+    <button class="btn btn-secondary" @onclick="DetenerIdentificacion" disabled="@(!_identificando)">Detener identificación</button>
 </div>
 
 <pre style="height:420px;overflow-y:auto;background:#111;color:#0f0;padding:8px;font-family:Consolas,monospace;">@_log</pre>
 
 @code {
-    private bool _capturando;
+    private bool _enrolando;
+    private bool _identificando;
+    private bool _ocupado => _enrolando || _identificando;
+    private string? _ultimoTemplatePath;
     private readonly System.Text.StringBuilder _sb = new();
     private string _log => _sb.ToString();
 
     protected override void OnInitialized()
     {
-        CaptureService.LogLine += OnLog;
+        CaptureService.EnrollmentStatusChanged += OnEnrollmentStatus;
+        CaptureService.IdentificationResultReceived += OnIdentificationResult;
     }
 
-    private void Iniciar()
+    private async Task IniciarEnrolamiento()
     {
-        _capturando = true;
-        CaptureService.StartCapture();
+        _enrolando = true;
+        AppendLog("StartEnrollmentAsync(socio-prueba, indice_derecho, 4)");
+        try
+        {
+            var resultado = await CaptureService.StartEnrollmentAsync("socio-prueba", "indice_derecho", 4);
+            AppendLog($"Resultado final: {resultado.Estado} — {resultado.MuestrasCapturadas}/{resultado.MuestrasRequeridas} — Template: {resultado.TemplatePath} — Error: {resultado.Error}");
+            if (resultado.Estado == EnrollmentStage.Completado)
+            {
+                _ultimoTemplatePath = resultado.TemplatePath;
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog("EXCEPTION: " + ex.Message);
+        }
+        finally
+        {
+            _enrolando = false;
+        }
     }
 
-    private void Detener()
+    private void CancelarEnrolamiento()
     {
-        CaptureService.StopCapture();
-        _capturando = false;
+        CaptureService.CancelEnrollment();
     }
 
-    private void OnLog(string line)
+    private async Task IniciarIdentificacion()
     {
-        _sb.AppendLine(line);
+        if (_ultimoTemplatePath is null)
+        {
+            return;
+        }
+
+        _identificando = true;
+        AppendLog("StartIdentificationAsync([ultimo template enrolado])");
+        await CaptureService.StartIdentificationAsync(new[] { _ultimoTemplatePath });
+    }
+
+    private void DetenerIdentificacion()
+    {
+        CaptureService.StopIdentification();
+        _identificando = false;
+        AppendLog("StopIdentification");
+    }
+
+    private void OnEnrollmentStatus(object? sender, EnrollmentStatusEventArgs e)
+    {
+        AppendLog($"EnrollmentStatusChanged: {e.Estado} ({e.MuestrasCapturadas}/{e.MuestrasRequeridas})");
+    }
+
+    private void OnIdentificationResult(object? sender, IdentificationResultEventArgs e)
+    {
+        AppendLog($"IdentificationResultReceived: Identificado={e.Identificado} IdSocio={e.IdSocio} Template={e.TemplatePath}");
+    }
+
+    private void AppendLog(string line)
+    {
+        _sb.AppendLine($"{DateTime.Now:HH:mm:ss.fff} {line}");
         InvokeAsync(StateHasChanged);
     }
 
     public void Dispose()
     {
-        CaptureService.LogLine -= OnLog;
+        CaptureService.EnrollmentStatusChanged -= OnEnrollmentStatus;
+        CaptureService.IdentificationResultReceived -= OnIdentificationResult;
     }
 }
