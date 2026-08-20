@@ -1,0 +1,18 @@
+@* SidebarHeader (SidebarHeader.tsx): logo de la empresa con animación spin, 64px, borde inferior. *@
+
+<div class="sg-sidebar-header">
+    @if (!string.IsNullOrEmpty(LogoUrl))
+    {
+        <img class="sg-sidebar-logo" src="@LogoUrl" alt="@NombreComercial" />
+    }
+    else
+    {
+        <span class="sg-sidebar-logo sg-sidebar-logo-fallback">SG</span>
+    }
+</div>
+
+@code {
+    [Parameter] public string? LogoUrl { get; set; }
+
+    [Parameter] public string NombreComercial { get; set; } = string.Empty;
+}

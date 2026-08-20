@@ -1,0 +1,401 @@
+@page "/miembros"
+@* Miembros (MembersListPage.tsx): búsqueda, tabla con estados/huella/último acceso y menú de acciones por fila. *@
+@implements IDisposable
+@using System.Globalization
+@using MudBlazor
+@using SmartGym.Core.Common
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Repositories
+@using SmartGym.Core.Services
+@using SmartGym.App.Services
+
+<div class="page-head">
+    <div>
+        <h4>Miembros</h4>
+        <p class="page-sub">Registro y gestión de los socios del gimnasio.</p>
+    </div>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="AbrirNuevo">Nuevo miembro</MudButton>
+</div>
+
+<div class="glass-panel">
+    <div class="page-toolbar">
+        <MudTextField T="string"
+                      Class="search-field"
+                      Placeholder="Buscar por nombre, email o teléfono..."
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Margin="Margin.Dense"
+                      Immediate="true"
+                      Value="@_busqueda"
+                      ValueChanged="OnBusquedaChanged" />
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Teléfono</th>
+                    <th>Email</th>
+                    <th style="text-align: center;">Estado</th>
+                    <th style="text-align: center;">Huella</th>
+                    <th>Último acceso</th>
+                    <th style="text-align: center; width: 56px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_cargando)
+                {
+                    <tr>
+                        <td colspan="7" class="empty-cell">Cargando...</td>
+                    </tr>
+                }
+                else if (_miembros.Count == 0)
+                {
+                    <tr>
+                        <td colspan="7" class="empty-cell">
+                            @(_busqueda.Length > 0 ? "Sin resultados para la búsqueda" : "No hay miembros registrados")
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var socio in _miembros)
+                    {
+                        <tr>
+                            <td><strong>@NombreCompleto(socio)</strong></td>
+                            <td class="muted-cell">@(socio.Telefono ?? "—")</td>
+                            <td class="muted-cell">@(socio.Email ?? "—")</td>
+                            <td style="text-align: center;">
+                                <span class="status-badge @ClaseEstado(socio.Estado)">@EtiquetaEstado(socio.Estado)</span>
+                            </td>
+                            <td style="text-align: center;">
+                                @if (TieneHuella(socio.IdSocio))
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Fingerprint" Size="Size.Small" Class="huella-icon" />
+                                }
+                                else
+                                {
+                                    <span class="muted">—</span>
+                                }
+                            </td>
+                            <td class="muted-cell">@FormatearFecha(socio.FechaUltimoAcceso)</td>
+                            <td style="text-align: center;">
+                                <MudMenu AnchorOrigin="Origin.BottomRight"
+                                         TransformOrigin="Origin.TopRight"
+                                         Class="row-menu">
+                                    <ActivatorContent>
+                                        <MudIconButton Icon="@Icons.Material.Filled.MoreVert"
+                                                       Size="Size.Small"
+                                                       Color="Color.Default"
+                                                       aria-label="Acciones" />
+                                    </ActivatorContent>
+                                    <ChildContent>
+                                        <MudMenuItem OnClick="() => AbrirEditar(socio)">
+                                            <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" /> Editar
+                                        </MudMenuItem>
+
+                                        @if (socio.Estado == SocioEstados.Activo)
+                                        {
+                                            <MudMenuItem OnClick="() => PedirCambioEstado(socio, SocioEstados.Inactivo)">
+                                                <MudIcon Icon="@Icons.Material.Filled.Pause" Size="Size.Small" /> Desactivar
+                                            </MudMenuItem>
+                                        }
+                                        else if (socio.Estado == SocioEstados.Inactivo)
+                                        {
+                                            <MudMenuItem OnClick="() => PedirCambioEstado(socio, SocioEstados.Activo)">
+                                                <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Size="Size.Small" /> Activar
+                                            </MudMenuItem>
+                                        }
+
+                                        @if (socio.Estado == SocioEstados.Bloqueado)
+                                        {
+                                            <MudMenuItem OnClick="() => PedirCambioEstado(socio, SocioEstados.Activo)">
+                                                <MudIcon Icon="@Icons.Material.Filled.LockOpen" Size="Size.Small" /> Desbloquear
+                                            </MudMenuItem>
+                                        }
+                                        else
+                                        {
+                                            <MudMenuItem OnClick="() => PedirCambioEstado(socio, SocioEstados.Bloqueado)">
+                                                <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" /> Bloquear
+                                            </MudMenuItem>
+                                        }
+
+                                        <MudMenuItem OnClick="() => AbrirAccesoManual(socio)">
+                                            <MudIcon Icon="@Icons.Material.Filled.Key" Size="Size.Small" /> Forzar acceso
+                                        </MudMenuItem>
+                                        <MudMenuItem OnClick="() => PedirEliminar(socio)">
+                                            <MudIcon Icon="@Icons.Material.Filled.Delete" Size="Size.Small" /> Eliminar
+                                        </MudMenuItem>
+                                    </ChildContent>
+                                </MudMenu>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (_miembros.Count > 0)
+    {
+        <div class="table-footer">
+            <span class="muted">Mostrando @_miembros.Count miembro(s)</span>
+        </div>
+    }
+</div>
+
+@if (_formAbierto)
+{
+    <MiembroFormDialog Open="true"
+                       Mode="FormModo"
+                       Socio="_socioEnEdicion"
+                       OnClose="CerrarForm"
+                       OnSaved="RecargarDespuesDeGuardar" />
+}
+
+@if (_accesoAbierto)
+{
+    <AccesoManualDialog Open="true"
+                        Socio="_socioAcceso"
+                        OnClose="CerrarAcceso"
+                        OnSaved="RecargarDespuesDeGuardar" />
+}
+
+<ConfirmDialog IsOpen="_confirmar is not null"
+               Titulo="@_confirmar?.Titulo"
+               Mensaje="@(_confirmar?.Mensaje ?? "")"
+               TextoConfirmar="@(_confirmar?.TextoConfirmar ?? "Confirmar")"
+               IsLoading="_confirmarCargando"
+               OnConfirm="EjecutarConfirmar"
+               OnCancel="CancelarConfirmar" />
+
+@code {
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private ISociosService Socios { get; set; } = default!;
+    [Inject] private ISociosBiometricosRepository Biometricos { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    private List<Socio> _miembros = [];
+    private HashSet<string> _sociosConHuella = new(StringComparer.OrdinalIgnoreCase);
+    private bool _cargando;
+    private string _busqueda = "";
+    private CancellationTokenSource? _debounce;
+
+    private bool _formAbierto;
+    private string FormModo { get; set; } = "crear";
+    private Socio? _socioEnEdicion;
+
+    private bool _accesoAbierto;
+    private Socio? _socioAcceso;
+
+    private sealed record ConfirmarTarea(string Titulo, string Mensaje, string TextoConfirmar, Func<Task> Accion);
+    private ConfirmarTarea? _confirmar;
+    private bool _confirmarCargando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        _cargando = true;
+        try
+        {
+            var query = string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda.Trim();
+            _miembros = (await Socios.BuscarAsync(sesion.Token, query)).ToList();
+            _sociosConHuella = (await Biometricos.GetIdsConHuellaAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudieron cargar los miembros");
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task OnBusquedaChanged(string value)
+    {
+        _busqueda = value;
+        _debounce?.Cancel();
+        var cts = _debounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(300, cts.Token);
+            await CargarAsync();
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+    private void AbrirNuevo()
+    {
+        FormModo = "crear";
+        _socioEnEdicion = null;
+        _formAbierto = true;
+    }
+
+    private void AbrirEditar(Socio socio)
+    {
+        FormModo = "editar";
+        _socioEnEdicion = socio;
+        _formAbierto = true;
+    }
+
+    private void CerrarForm()
+    {
+        _formAbierto = false;
+        _socioEnEdicion = null;
+    }
+
+    private void AbrirAccesoManual(Socio socio)
+    {
+        _socioAcceso = socio;
+        _accesoAbierto = true;
+    }
+
+    private void CerrarAcceso()
+    {
+        _accesoAbierto = false;
+        _socioAcceso = null;
+    }
+
+    private async Task RecargarDespuesDeGuardar() => await CargarAsync();
+
+    private void PedirCambioEstado(Socio socio, string estadoNuevo)
+    {
+        var (titulo, mensaje, texto) = estadoNuevo switch
+        {
+            SocioEstados.Inactivo => ("Desactivar miembro",
+                $"Se marcará a {NombreCompleto(socio)} como inactivo. No podrá acceder al gimnasio.",
+                "Desactivar"),
+            SocioEstados.Bloqueado => ("Bloquear miembro",
+                $"Se bloqueará el acceso de {NombreCompleto(socio)}. No podrá acceder al gimnasio.",
+                "Bloquear"),
+            _ => ("Activar miembro", $"Se reactivará a {NombreCompleto(socio)}.", "Activar"),
+        };
+
+        _confirmar = new ConfirmarTarea(titulo, mensaje, texto, () => CambiarEstadoAsync(socio, estadoNuevo));
+        StateHasChanged();
+    }
+
+    private async Task CambiarEstadoAsync(Socio socio, string estadoNuevo)
+    {
+        var sesion = Sesion.Current!;
+        await Socios.CambiarEstadoAsync(sesion.Token, socio.IdSocio, estadoNuevo);
+        var accion = estadoNuevo switch
+        {
+            SocioEstados.Inactivo => "desactivado",
+            SocioEstados.Bloqueado => "bloqueado",
+            _ => "reactivado",
+        };
+        Feedback.ShowSuccess($"Miembro {accion}");
+        await CargarAsync();
+    }
+
+    private void PedirEliminar(Socio socio)
+    {
+        _confirmar = new ConfirmarTarea("Eliminar miembro",
+            $"Se eliminará permanentemente a {NombreCompleto(socio)}. Esta acción no se puede deshacer.",
+            "Eliminar",
+            () => EliminarAsync(socio));
+        StateHasChanged();
+    }
+
+    private async Task EliminarAsync(Socio socio)
+    {
+        var sesion = Sesion.Current!;
+        await Socios.EliminarSocioAsync(sesion.Token, socio.IdSocio);
+        Feedback.ShowSuccess("Miembro eliminado");
+        await CargarAsync();
+    }
+
+    private async Task EjecutarConfirmar()
+    {
+        if (_confirmar is null)
+        {
+            return;
+        }
+
+        _confirmarCargando = true;
+        try
+        {
+            await _confirmar.Accion();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo completar la acción");
+        }
+        finally
+        {
+            _confirmarCargando = false;
+            _confirmar = null;
+            StateHasChanged();
+        }
+    }
+
+    private void CancelarConfirmar()
+    {
+        _confirmar = null;
+        StateHasChanged();
+    }
+
+    private bool TieneHuella(string idSocio) => _sociosConHuella.Contains(idSocio);
+
+    private static string NombreCompleto(Socio socio) =>
+        string.Join(" ", new[] { socio.Nombre, socio.ApellidoPaterno, socio.ApellidoMaterno }
+            .Where(x => !string.IsNullOrWhiteSpace(x)));
+
+    private static string ClaseEstado(string estado) => estado switch
+    {
+        SocioEstados.Activo => "status-success",
+        SocioEstados.Inactivo => "status-warning",
+        SocioEstados.Bloqueado => "status-danger",
+        _ => "status-info",
+    };
+
+    private static string EtiquetaEstado(string estado) => estado switch
+    {
+        SocioEstados.Activo => "Activo",
+        SocioEstados.Inactivo => "Inactivo",
+        SocioEstados.Bloqueado => "Bloqueado",
+        SocioEstados.Suspendido => "Suspendido",
+        _ => estado,
+    };
+
+    private static string FormatearFecha(string? iso)
+    {
+        if (string.IsNullOrWhiteSpace(iso))
+        {
+            return "—";
+        }
+        if (DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dto))
+        {
+            return dto.ToLocalTime().ToString("dd/MM/yyyy HH:mm", CultureInfo.GetCultureInfo("es-MX"));
+        }
+        return iso;
+    }
+
+    public void Dispose() => _debounce?.Cancel();
+}

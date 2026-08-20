@@ -1,0 +1,11 @@
+@* AuthCard (AuthCard.tsx): tarjeta glass (MudPaper + clase auth-card) para Login/Setup. *@
+<MudPaper Elevation="0" Class="auth-card" Style="@($"max-width:{MaxWidth}px;")">
+    <div class="auth-card-body">
+        @ChildContent
+    </div>
+</MudPaper>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public int MaxWidth { get; set; } = 420;
+}

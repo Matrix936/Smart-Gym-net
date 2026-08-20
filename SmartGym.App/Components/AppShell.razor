@@ -1,0 +1,138 @@
+@* AppShell: enruta por estado — Setup pendiente → SetupWizard; sin sesión → Login; autenticado → Router.
+   Proveedores MudBlazor (Theme/Popover/Dialog) y el snackbar global envuelven toda la app. *@
+
+<MudThemeProvider Theme="Tema" IsDarkMode="Theme.IsDark" />
+<MudPopoverProvider />
+
+@if (_loading)
+{
+    <div class="auth-shell">
+        <span class="spinner" style="width: 28px; height: 28px;"></span>
+    </div>
+}
+else if (_setupPendiente)
+{
+    <SetupWizard OnAuthenticated="Refresh" />
+}
+else if (!Session.IsAuthenticated)
+{
+    <Login OnAuthenticated="Refresh" />
+}
+else
+{
+    <Router AppAssembly="typeof(MauiProgram).Assembly" NotFoundPage="typeof(NotFound)">
+        <Found Context="routeData">
+            <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </Found>
+    </Router>
+}
+
+<MudDialogProvider />
+<FeedbackSnackbar />
+
+@code {
+    private static readonly MudTheme Tema = BuildTema();
+
+    [Inject] private ISetupService Setup { get; set; } = default!;
+    [Inject] private ISessionState Session { get; set; } = default!;
+    [Inject] private IThemeState Theme { get; set; } = default!;
+    [Inject] private IAuthService Auth { get; set; } = default!;
+
+    private bool _loading = true;
+    private bool _setupPendiente;
+
+    private static MudTheme BuildTema()
+    {
+        var theme = new MudTheme
+        {
+            LayoutProperties = new LayoutProperties
+            {
+                DefaultBorderRadius = "16px",
+            }
+        };
+
+        var font = new[] { "Hanken Grotesk", "Roboto", "Helvetica", "Arial", "sans-serif" };
+        theme.Typography = new Typography
+        {
+            Default = new DefaultTypography { FontFamily = font },
+            H1 = new H1Typography { FontFamily = font },
+            H2 = new H2Typography { FontFamily = font },
+            H3 = new H3Typography { FontFamily = font },
+            H4 = new H4Typography { FontFamily = font },
+            H5 = new H5Typography { FontFamily = font },
+            H6 = new H6Typography { FontFamily = font },
+            Subtitle1 = new Subtitle1Typography { FontFamily = font },
+            Subtitle2 = new Subtitle2Typography { FontFamily = font },
+            Body1 = new Body1Typography { FontFamily = font },
+            Body2 = new Body2Typography { FontFamily = font },
+            Button = new ButtonTypography { FontFamily = font, TextTransform = "none" },
+            Caption = new CaptionTypography { FontFamily = font },
+            Overline = new OverlineTypography { FontFamily = font },
+        };
+
+        theme.PaletteLight = new PaletteLight
+        {
+            Primary = "#0097b2",
+            Secondary = "#7c4dff",
+            Tertiary = "#0097b2",
+            Success = "#2e7d32",
+            Warning = "#ed6c02",
+            Error = "#d32f2f",
+            Info = "#0097b2",
+            Background = "#f8f9fa",
+            BackgroundGray = "#eef1f4",
+            Surface = "#ffffff",
+            AppbarBackground = "#ffffff",
+            DrawerBackground = "#ffffff",
+            TextPrimary = "#1c2530",
+            TextSecondary = "rgba(28,37,48,0.7)",
+        };
+
+        theme.PaletteDark = new PaletteDark
+        {
+            Primary = "#00d2ff",
+            Secondary = "#7c4dff",
+            Tertiary = "#00d2ff",
+            Success = "#69f0ae",
+            Warning = "#ffab40",
+            Error = "#ff5252",
+            Info = "#00d2ff",
+            Background = "#10141a",
+            BackgroundGray = "#151a21",
+            Surface = "#1a212b",
+            AppbarBackground = "#151a21",
+            DrawerBackground = "#151a21",
+            TextPrimary = "#ffffff",
+            TextSecondary = "rgba(255,255,255,0.7)",
+        };
+
+        return theme;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Theme.Changed += OnThemeChanged;
+        await Refresh();
+    }
+
+    private void OnThemeChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task Refresh()
+    {
+        var estado = await Setup.VerificarEstadoAsync();
+        _setupPendiente = estado.Estado == SetupEstadoResultado.Pendiente;
+        if (!_setupPendiente)
+        {
+            // Restaurar sesión persistida (Ctrl+R / reinicios) solo si el setup está completo.
+            await Auth.RestaurarSesionAsync();
+        }
+        _loading = false;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Theme.Changed -= OnThemeChanged;
+    }
+}

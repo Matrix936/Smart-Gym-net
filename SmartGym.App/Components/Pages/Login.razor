@@ -1,0 +1,111 @@
+@* Login (Login.tsx): MudAutocomplete (cuentas recordadas) + MudTextField contraseña, réplica MUI. *@
+
+<div class="auth-shell">
+    <AuthCard>
+        <h5 style="text-align: center; margin-bottom: 0.25rem;">Smart Gym</h5>
+        <p class="auth-subtitle">Panel de administración</p>
+
+        <form @onsubmit="HandleSubmit">
+            <MudAutocomplete T="string"
+                             Label="Email"
+                             Margin="Margin.Dense"
+                             autocomplete="username"
+                             Value="@_email"
+                             ValueChanged="OnEmailChanged"
+                             SearchFunc="BuscarCuentas"
+                             ToStringFunc="CuentaToString"
+                             CoerceValue="true"
+                             MaxHeight="240" />
+
+            <PasswordField Label="Contraseña"
+                           Autocomplete="current-password"
+                           @bind-Value="_password" />
+
+            <div style="margin-top: 1.5rem;">
+                <AsyncButton Text="Iniciar sesión"
+                             LoadingText="Ingresando..."
+                             ButtonType="submit"
+                             IsLoading="_loading" />
+            </div>
+        </form>
+    </AuthCard>
+    <ThemeToggle Floating="true" />
+</div>
+
+@code {
+    [Inject] private IAuthService Auth { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    [Parameter] public EventCallback OnAuthenticated { get; set; }
+
+    private string _email = "";
+    private string _password = "";
+    private bool _loading;
+
+    private List<CuentaRecordadaLocal> _cuentas = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var cuentas = await Auth.ListarCuentasRecordadasAsync();
+            _cuentas = cuentas.ToList();
+        }
+        catch
+        {
+            _cuentas = [];
+        }
+    }
+
+    private Task<IEnumerable<string>> BuscarCuentas(string? text, CancellationToken ct)
+    {
+        var query = text?.Trim() ?? "";
+        IEnumerable<string> result = string.IsNullOrEmpty(query)
+            ? []
+            : _cuentas.Where(c => c.Email.Contains(query, StringComparison.OrdinalIgnoreCase))
+                      .Take(8)
+                      .Select(c => c.Email);
+        return Task.FromResult(result);
+    }
+
+    private static string? CuentaToString(string? email) => email;
+
+    private async Task OnEmailChanged(string? value)
+    {
+        _email = value ?? "";
+        if (_cuentas.Any(c => string.Equals(c.Email, _email, StringComparison.OrdinalIgnoreCase)))
+        {
+            // Seleccionó una cuenta recordada → enfocar contraseña (como en React).
+            await JS.InvokeVoidAsync("sgUi.focus", "input[autocomplete=\"current-password\"]");
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrEmpty(_password))
+        {
+            Feedback.ShowWarning("Ingresa tu email y contraseña");
+            return;
+        }
+
+        _loading = true;
+        try
+        {
+            await Auth.LoginAsync(_email, _password);
+            await OnAuthenticated.InvokeAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo iniciar sesión");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

@@ -1,0 +1,88 @@
+@* FeedbackSnackbar (FeedbackSnackbar.tsx): canal global IFeedbackService → pill glass
+   abajo-centro con icono/borde por severidad (estilo MUI outlined del proyecto original). *@
+
+@if (_mensaje is not null)
+{
+    <div class="feedback-snackbar @_severityCss @(_visible ? "is-visible" : null)" role="alert">
+        <MudIcon Class="feedback-icon" Icon="@_icono" Size="Size.Small" />
+        <span class="feedback-text">@_mensaje.Text</span>
+        <button type="button" class="feedback-close" @onclick="Cerrar" aria-label="Cerrar notificación">
+            <MudIcon Icon="@Icons.Material.Filled.Close" Size="Size.Small" />
+        </button>
+    </div>
+}
+
+@code {
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    private FeedbackMessage? _mensaje;
+    private bool _visible;
+    private CancellationTokenSource? _cts;
+
+    private string _severityCss => _mensaje?.Severity switch
+    {
+        FeedbackSeverity.Success => "feedback-success",
+        FeedbackSeverity.Info => "feedback-info",
+        FeedbackSeverity.Warning => "feedback-warning",
+        FeedbackSeverity.Error => "feedback-error",
+        _ => "",
+    };
+
+    private string _icono => _mensaje?.Severity switch
+    {
+        FeedbackSeverity.Success => Icons.Material.Filled.CheckCircle,
+        FeedbackSeverity.Info => Icons.Material.Filled.Info,
+        FeedbackSeverity.Warning => Icons.Material.Filled.WarningAmber,
+        FeedbackSeverity.Error => Icons.Material.Filled.ErrorOutline,
+        _ => Icons.Material.Filled.Info,
+    };
+
+    protected override void OnInitialized()
+    {
+        Feedback.Changed += Mostrar;
+    }
+
+    private void Mostrar(FeedbackMessage mensaje)
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        var cts = _cts = new CancellationTokenSource();
+        _ = InvokeAsync(() =>
+        {
+            _mensaje = mensaje;
+            _visible = true;
+            StateHasChanged();
+            _ = AutoCerrarAsync(cts.Token, mensaje.DurationMs);
+        });
+    }
+
+    private async Task AutoCerrarAsync(CancellationToken token, int duracionMs)
+    {
+        try
+        {
+            await Task.Delay(duracionMs, token);
+            if (!token.IsCancellationRequested)
+            {
+                _visible = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+    private void Cerrar()
+    {
+        _cts?.Cancel();
+        _visible = false;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Feedback.Changed -= Mostrar;
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}

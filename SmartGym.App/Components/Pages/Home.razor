@@ -1,0 +1,64 @@
+﻿@page "/"
+
+<h4>Dashboard</h4>
+<p style="color: var(--color-text-muted); margin: 0.35rem 0 1.5rem;">Vista general del gimnasio.</p>
+
+<div class="metric-grid">
+    <div class="glass-panel metric-card">
+        <span class="metric-label">Socios activos</span>
+        <span class="metric-value">0</span>
+        <span class="metric-sub muted">En espera de datos</span>
+    </div>
+    <div class="glass-panel metric-card">
+        <span class="metric-label">Membresías vigentes</span>
+        <span class="metric-value">0</span>
+        <span class="metric-sub muted">En espera de datos</span>
+    </div>
+    <div class="glass-panel metric-card">
+        <span class="metric-label">Ventas hoy</span>
+        <span class="metric-value">$0.00</span>
+        <span class="metric-sub muted">En espera de datos</span>
+    </div>
+    <div class="glass-panel metric-card">
+        <span class="metric-label">Caja</span>
+        <span class="metric-value">Cerrada</span>
+        <span class="metric-sub" style="color: var(--color-text-muted);">En espera de datos</span>
+    </div>
+</div>
+
+<div class="glass-panel">
+    <h6>Próximos pasos de la migración</h6>
+    <div class="table-wrap" style="margin-top: 0.75rem;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Fase</th>
+                    <th>Entregable</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Fase 0</td>
+                    <td>Scaffold .NET MAUI + Blazor Hybrid (solución, capas, tema)</td>
+                    <td><span class="status-badge status-success">Listo</span></td>
+                </tr>
+                <tr>
+                    <td>Fase 1</td>
+                    <td>Setup inicial: DB SQLite + superadmin + plan de negocio</td>
+                    <td><span class="status-badge status-info">Pendiente</span></td>
+                </tr>
+                <tr>
+                    <td>Fase 2</td>
+                    <td>Login + roles y permisos + Topbar/Sidebar con filtro</td>
+                    <td><span class="status-badge status-info">Pendiente</span></td>
+                </tr>
+                <tr>
+                    <td>Fase 3</td>
+                    <td>Socios (altas, acceso, membresías, pagos)</td>
+                    <td><span class="status-badge status-info">Pendiente</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

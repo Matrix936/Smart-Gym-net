@@ -1,0 +1,414 @@
+@* SetupWizard (SetupWizard.tsx): MudStepper 3 pasos (Logo, Empresa, Administrador) + MudDialog confirmación. *@
+@using Microsoft.Maui.Devices
+@using Microsoft.Maui.Storage
+
+<div class="auth-shell">
+    <AuthCard MaxWidth="480">
+        <h5 style="text-align: center; margin-bottom: 1.25rem;">Configuración Inicial</h5>
+
+        <MudStepper @bind-ActiveIndex="_step" CenterLabels="true" Class="sg-wizard-steps">
+            <ChildContent>
+            <MudStep Title="Logo">
+                <div class="logo-step" style="margin-top: 1rem;">
+                    <p class="step-subtitle">Logo de la empresa (opcional)</p>
+
+                    @if (_logoPreview is not null)
+                    {
+                        <div class="logo-preview">
+                            <img src="@_logoPreview" alt="Vista previa del logo" />
+                            <MudIconButton Class="logo-remove" Size="Size.Small" Icon="@Icons.Material.Filled.Close" OnClick="RemoveLogo" aria-label="Quitar logo" />
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="logo-dropzone @(_isDragging ? "is-dragging" : null)"
+                             @onclick="PickLogo"
+                             role="button"
+                             aria-label="Subir logo">
+                            <MudIcon Class="logo-upload-icon" Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" />
+                            <span>Haz clic para subir el logo</span>
+                            <small>PNG, JPG o SVG (máx 3 MB)</small>
+                        </div>
+                    }
+                </div>
+            </MudStep>
+
+            <MudStep Title="Empresa">
+                <div class="wizard-form">
+                    <p class="step-subtitle">Datos del negocio</p>
+                    <FormField Label="Nombre comercial" @bind-Value="_empresa.NombreComercial" />
+                    <div class="form-row">
+                        <FormField Label="Teléfono" @bind-Value="_empresa.Telefono" />
+                        <FormField Label="Código Postal" @bind-Value="_empresa.CodigoPostal" />
+                    </div>
+                    <FormField Label="Dirección" @bind-Value="_empresa.Direccion" />
+                </div>
+            </MudStep>
+
+            <MudStep Title="Administrador">
+                <div class="wizard-form">
+                    <p class="step-subtitle">Superadministrador</p>
+                    <FormField Label="Nombre(s)" @bind-Value="_admin.Nombre" />
+                    <div class="form-row">
+                        <FormField Label="Apellido paterno" @bind-Value="_admin.ApellidoPaterno" />
+                        <FormField Label="Apellido materno" @bind-Value="_admin.ApellidoMaterno" />
+                    </div>
+                    <FormField Label="Email" Type="email" Autocomplete="username" @bind-Value="_admin.Email" />
+                    <PasswordField Label="Contraseña" Autocomplete="new-password" @bind-Value="_admin.Password" />
+                    <PasswordField Label="Confirmar contraseña" Autocomplete="new-password" @bind-Value="_admin.PasswordConfirm" />
+
+                    <div class="glass-panel summary">
+                        <span class="summary-label">Resumen</span>
+                        <div class="summary-row">
+                            @if (_logoPreview is not null)
+                            {
+                                <img class="summary-logo" src="@_logoPreview" alt="Logo" />
+                            }
+                            <div>
+                                <div class="summary-name"><strong>@_empresa.NombreComercial</strong></div>
+                                <div class="summary-email">@_admin.Email</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </MudStep>
+            </ChildContent>
+
+            <ActionContent>
+                <div class="wizard-actions">
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Default"
+                               Disabled="@(_step == 0 || _saving)"
+                               OnClick="Anterior">Anterior</MudButton>
+
+                    @if (_step < 2)
+                    {
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   Disabled="_saving"
+                                   OnClick="Siguiente">Siguiente</MudButton>
+                    }
+                    else
+                    {
+                        <AsyncButton Text="Completar"
+                                     LoadingText="Guardando..."
+                                     ButtonType="button"
+                                     IsLoading="_saving"
+                                     Disabled="IsCompleteDisabled"
+                                     OnClick="OpenConfirm" />
+                    }
+                </div>
+            </ActionContent>
+        </MudStepper>
+
+        <ConfirmDialog IsOpen="_confirmOpen"
+                       Titulo="Confirmar configuración"
+                       Mensaje="Se creará el superadministrador y se inicializará el sistema. Esta acción no se puede deshacer."
+                       TextoConfirmar="Completar"
+                       LoadingText="Guardando..."
+                       IsLoading="_saving"
+                       OnConfirm="ConfirmarConfiguracion"
+                       OnCancel="CloseConfirm" />
+    </AuthCard>
+    <ThemeToggle Floating="true" />
+</div>
+
+@code {
+    private static readonly string[] AcceptedMimes = ["image/png", "image/jpeg", "image/svg+xml"];
+    private const long MaxLogoBytes = 3 * 1024 * 1024;
+
+    private sealed class EmpresaDatos
+    {
+        public string NombreComercial { get; set; } = "";
+        public string Telefono { get; set; } = "";
+        public string Direccion { get; set; } = "";
+        public string CodigoPostal { get; set; } = "";
+    }
+
+    private sealed class AdminDatos
+    {
+        public string Nombre { get; set; } = "";
+        public string ApellidoPaterno { get; set; } = "";
+        public string ApellidoMaterno { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+        public string PasswordConfirm { get; set; } = "";
+    }
+
+    [Inject] private ISetupService Setup { get; set; } = default!;
+    [Inject] private IAuthService Auth { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    [Parameter] public EventCallback OnAuthenticated { get; set; }
+
+    private int _step;
+    private bool _isDragging;
+    private bool _saving;
+    private bool _confirmOpen;
+    private string? _logoPreview;
+    private byte[]? _logoBytes;
+    private string? _logoMime;
+
+    private readonly EmpresaDatos _empresa = new();
+    private readonly AdminDatos _admin = new();
+
+    private static SetupWizard? _current;
+
+    protected override void OnInitialized()
+    {
+        _current = this;
+    }
+
+    private bool IsCompleteDisabled =>
+        string.IsNullOrWhiteSpace(_empresa.NombreComercial) ||
+        string.IsNullOrWhiteSpace(_empresa.Telefono) ||
+        string.IsNullOrWhiteSpace(_empresa.Direccion) ||
+        string.IsNullOrWhiteSpace(_empresa.CodigoPostal) ||
+        string.IsNullOrWhiteSpace(_admin.Nombre) ||
+        string.IsNullOrWhiteSpace(_admin.ApellidoPaterno) ||
+        string.IsNullOrWhiteSpace(_admin.Email) ||
+        !_admin.Email.Contains('@') ||
+        _admin.Password.Length < 8 ||
+        _admin.Password != _admin.PasswordConfirm;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_logoPreview is not null)
+        {
+            return;
+        }
+        try
+        {
+            await JS.InvokeVoidAsync("sgFile.initDropZone");
+        }
+        catch
+        {
+        }
+    }
+
+    // ---------------- Pasos ----------------
+
+    private void Siguiente()
+    {
+        if (_step == 1 && !ValidarPasoEmpresa())
+        {
+            return;
+        }
+        if (_step == 2 && !ValidarPasoAdmin())
+        {
+            return;
+        }
+        _step++;
+    }
+
+    private void Anterior() => _step--;
+
+    private bool ValidarPasoEmpresa()
+    {
+        if (string.IsNullOrWhiteSpace(_empresa.NombreComercial)) { Feedback.ShowWarning("El nombre comercial es requerido"); return false; }
+        if (string.IsNullOrWhiteSpace(_empresa.Telefono)) { Feedback.ShowWarning("El teléfono es requerido"); return false; }
+        if (string.IsNullOrWhiteSpace(_empresa.Direccion)) { Feedback.ShowWarning("La dirección es requerida"); return false; }
+        if (string.IsNullOrWhiteSpace(_empresa.CodigoPostal)) { Feedback.ShowWarning("El código postal es requerido"); return false; }
+        return true;
+    }
+
+    private bool ValidarPasoAdmin()
+    {
+        if (string.IsNullOrWhiteSpace(_admin.Nombre)) { Feedback.ShowWarning("El nombre es requerido"); return false; }
+        if (string.IsNullOrWhiteSpace(_admin.ApellidoPaterno)) { Feedback.ShowWarning("El apellido paterno es requerido"); return false; }
+        if (string.IsNullOrWhiteSpace(_admin.Email) || !_admin.Email.Contains('@')) { Feedback.ShowWarning("El email no es válido"); return false; }
+        if (_admin.Password.Length < 8) { Feedback.ShowWarning("La contraseña debe tener al menos 8 caracteres"); return false; }
+        if (_admin.Password != _admin.PasswordConfirm) { Feedback.ShowWarning("Las contraseñas no coinciden"); return false; }
+        return true;
+    }
+
+    // ---------------- Confirmación ----------------
+
+    private void OpenConfirm()
+    {
+        if (IsCompleteDisabled)
+        {
+            return;
+        }
+        _confirmOpen = true;
+    }
+
+    private void CloseConfirm() => _confirmOpen = false;
+
+    private async Task ConfirmarConfiguracion()
+    {
+        _saving = true;
+        try
+        {
+            var datos = new SetupDatos
+            {
+                NombreComercial = _empresa.NombreComercial.Trim(),
+                Telefono = _empresa.Telefono.Trim(),
+                Direccion = _empresa.Direccion.Trim(),
+                CodigoPostal = _empresa.CodigoPostal.Trim(),
+                RazonSocial = null,
+                Rfc = null,
+                RegimenFiscal = null,
+                NombreAdmin = _admin.Nombre.Trim(),
+                ApellidoPaternoAdmin = _admin.ApellidoPaterno.Trim(),
+                ApellidoMaternoAdmin = string.IsNullOrWhiteSpace(_admin.ApellidoMaterno) ? null : _admin.ApellidoMaterno.Trim(),
+                Email = _admin.Email.Trim(),
+                Password = _admin.Password,
+                LogoBytes = _logoBytes,
+                LogoMime = _logoMime,
+            };
+
+            await Setup.CompletarConfiguracionInicialAsync(datos);
+
+            // Auto-login igual que el flujo Rust (completar_configuracion_inicial devuelve sesión).
+            try
+            {
+                await Auth.LoginAsync(_admin.Email.Trim(), _admin.Password);
+            }
+            catch (BusinessException)
+            {
+                Feedback.ShowWarning("Configuración guardada. Inicia sesión para continuar.");
+            }
+
+            _confirmOpen = false;
+            await Task.Delay(350);
+            await OnAuthenticated.InvokeAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("Error al guardar la configuración");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // ---------------- Logo ----------------
+
+    private async Task PickLogo()
+    {
+        try
+        {
+            var result = await FilePicker.Default.PickAsync(new PickOptions
+            {
+                PickerTitle = "Selecciona el logo",
+                FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+                {
+                    [DevicePlatform.WinUI] = new[] { ".png", ".jpg", ".jpeg", ".svg" },
+                }),
+            });
+            if (result is null)
+            {
+                return;
+            }
+
+            using var stream = await result.OpenReadAsync();
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            SetLogo(ms.ToArray(), MimeFromName(result.FileName));
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo leer el archivo del logo");
+        }
+    }
+
+    [JSInvokable]
+    public static void SetDraggingStatic(bool value) => _current?.SetDragging(value);
+
+    [JSInvokable]
+    public static void OnFileDroppedStatic(string dataUrl, string mime, long size, string name) => _current?.OnFileDropped(dataUrl, mime, size, name);
+
+    [JSInvokable]
+    public void SetDragging(bool value)
+    {
+        _isDragging = value;
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public void OnFileDropped(string dataUrl, string mime, long size, string name)
+    {
+        if (string.IsNullOrEmpty(mime))
+        {
+            mime = MimeFromName(name);
+        }
+        if (!AcceptedMimes.Contains(mime))
+        {
+            Feedback.ShowWarning("Formato no soportado. Usa PNG, JPG o SVG.");
+            InvokeAsync(StateHasChanged);
+            return;
+        }
+        if (size > MaxLogoBytes)
+        {
+            Feedback.ShowWarning("El archivo excede 3 MB.");
+            InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var b64 = dataUrl.Contains(',') ? dataUrl[(dataUrl.IndexOf(',') + 1)..] : dataUrl;
+        byte[] bytes;
+        try
+        {
+            bytes = Convert.FromBase64String(b64);
+        }
+        catch
+        {
+            Feedback.ShowWarning("Archivo de imagen inválido.");
+            InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        SetLogo(bytes, mime);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void SetLogo(byte[] bytes, string? mime)
+    {
+        if (!AcceptedMimes.Contains(mime ?? ""))
+        {
+            Feedback.ShowWarning("Formato no soportado. Usa PNG, JPG o SVG.");
+            return;
+        }
+        if (bytes.Length > MaxLogoBytes)
+        {
+            Feedback.ShowWarning("El archivo excede 3 MB.");
+            return;
+        }
+
+        _logoBytes = bytes;
+        _logoMime = mime;
+        _logoPreview = $"data:{mime};base64,{Convert.ToBase64String(bytes)}";
+        StateHasChanged();
+    }
+
+    private void RemoveLogo()
+    {
+        _logoPreview = null;
+        _logoBytes = null;
+        _logoMime = null;
+        StateHasChanged();
+    }
+
+    private static string MimeFromName(string name) => name.ToLowerInvariant() switch
+    {
+        var n when n.EndsWith(".png") => "image/png",
+        var n when n.EndsWith(".svg") => "image/svg+xml",
+        var n when n.EndsWith(".jpg") || n.EndsWith(".jpeg") => "image/jpeg",
+        _ => "",
+    };
+
+    public void Dispose()
+    {
+        if (_current == this)
+        {
+            _current = null;
+        }
+    }
+}

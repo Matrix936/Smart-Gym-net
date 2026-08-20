@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Smart Gym</title>
+    <base href="/" />
+    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="icon" href="data:,">
+    <script>
+        // Tema persistente — aplicar antes del primer paint (v1 usaba localStorage;
+        // en MAUI se migrará a Preferences vía interop).
+        (function () {
+            var theme = localStorage.getItem('sg-theme');
+            if (theme !== 'light') theme = 'dark';
+            document.documentElement.dataset.theme = theme;
+        })();
+
+        window.sgTheme = {
+            get: function () { return document.documentElement.dataset.theme || 'dark'; },
+            set: function (theme) {
+                document.documentElement.dataset.theme = theme;
+                localStorage.setItem('sg-theme', theme);
+            },
+            toggle: function () {
+                var next = this.get() === 'dark' ? 'light' : 'dark';
+                this.set(next);
+                return next;
+            }
+        };
+
+        window.sgUi = {
+            focus: function (selector) {
+                var el = document.querySelector(selector);
+                if (el) el.focus();
+            }
+        };
+
+        window.sgFile = {
+            initDropZone: function () {
+                var el = document.querySelector('.logo-dropzone');
+                if (!el || el.__sgInit) return;
+                el.__sgInit = true;
+                console.log('[sgFile] initDropZone vinculado');
+                ['dragenter', 'dragover'].forEach(function (ev) {
+                    el.addEventListener(ev, function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') !== -1) {
+                            DotNet.invokeMethodAsync('SmartGym.App', 'SetDraggingStatic', true);
+                        }
+                    });
+                });
+                ['dragleave', 'drop'].forEach(function (ev) {
+                    el.addEventListener(ev, function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        DotNet.invokeMethodAsync('SmartGym.App', 'SetDraggingStatic', false);
+                    });
+                });
+                el.addEventListener('drop', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var files = e.dataTransfer && e.dataTransfer.files;
+                    if (!files || files.length === 0) return;
+                    var file = files[0];
+                    console.log('[sgFile] drop', file.name, file.size);
+                    var reader = new FileReader();
+                    reader.onload = function (event) {
+                        console.log('[sgFile] leido ok', file.name);
+                        DotNet.invokeMethodAsync('SmartGym.App', 'OnFileDroppedStatic', event.target.result, file.type || '', file.size, file.name);
+                    };
+                    reader.onerror = function (event) {
+                        console.log('[sgFile] error lectura', file.name, event);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            },
+            // Arrastre nativo (WinUI → Blazor). WebView2 no entrega dragover/drop
+            // HTML5 para archivos del SO, así que el host lo engancha a nivel nativo.
+            setExternalDrag: function (on) {
+                if (on && !document.querySelector('.logo-dropzone')) return;
+                DotNet.invokeMethodAsync('SmartGym.App', 'SetDraggingStatic', !!on);
+            },
+            setExternalDrop: function (p) {
+                if (!document.querySelector('.logo-dropzone')) return;
+                console.log('[sgFile] drop nativo', p.name, p.size);
+                DotNet.invokeMethodAsync('SmartGym.App', 'OnFileDroppedStatic', p.dataUrl, p.mime, p.size, p.name);
+            },
+        };
+    </script>
+</head>
+
+<body>
+
+    <div class="status-bar-safe-area"></div>
+
+    <div id="app">Loading...</div>
+
+    <div id="blazor-error-ui" data-nosnippet>
+        An unhandled error has occurred.
+        <a href="." class="reload">Reload</a>
+        <span class="dismiss">🗙</span>
+    </div>
+
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    <script src="_framework/blazor.webview.js" autostart="false"></script>
+
+</body>
+
+</html>

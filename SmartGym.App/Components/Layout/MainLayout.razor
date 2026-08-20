@@ -1,0 +1,142 @@
+﻿@* MainLayout (AppLayout.tsx): sidebar colapsable 260↔72 (logo + nav agrupada) y topbar glass
+   con fecha/hora es-MX, badge de sincronización, cambio de tema y avatar con menú de usuario. *@
+@using System.Globalization
+@using SmartGym.Core.Repositories
+@inherits LayoutComponentBase
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ISessionState Session
+@inject IAuthService Auth
+@inject IEmpresaConfigFiscalRepository EmpresaRepo
+@inject ILogoStorage LogoStorage
+
+<div class="sg-shell @(_collapsed ? "sg-shell-collapsed" : null)">
+    <aside class="sg-sidebar">
+        <SidebarHeader LogoUrl="@_logoUrl" NombreComercial="@_nombreEmpresa" />
+        <NavMenu Mini="_collapsed" />
+    </aside>
+
+    <div class="sg-main">
+        <header class="sg-topbar">
+            <button class="sg-topbar-menu" @onclick="ToggleSidebar" aria-label="Alternar menú" title="Alternar menú">
+                <MudIcon Icon="@Icons.Material.Filled.Menu" />
+            </button>
+            <span class="topbar-spacer"></span>
+            <div class="topbar-datetime">
+                <span class="topbar-date">@_fecha</span>
+                <span class="topbar-time">@_hora</span>
+            </div>
+            <div class="sync-badge" title="Estado de sincronización">
+                <span class="sync-dot"></span>
+                <span>Sincronizado</span>
+            </div>
+            <ThemeToggle />
+            <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" PaperClass="sg-user-paper">
+                <ActivatorContent>
+                    <MudIconButton Class="sg-user-button" aria-label="Menú de usuario">
+                        <MudAvatar Class="sg-user-avatar">@_iniciales</MudAvatar>
+                    </MudIconButton>
+                </ActivatorContent>
+                <ChildContent>
+                    <MudMenuItem Disabled="true" Class="sg-user-header">@Session.Current?.Nombre</MudMenuItem>
+                    <MudDivider />
+                    <MudMenuItem OnClick="IrConfiguracion">
+                        <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Small" Class="sg-user-item-icon" />
+                        Configuración
+                    </MudMenuItem>
+                    <MudMenuItem OnClick="Salir">
+                        <MudIcon Icon="@Icons.Material.Filled.Logout" Size="Size.Small" Class="sg-user-item-icon" />
+                        Salir
+                    </MudMenuItem>
+                </ChildContent>
+            </MudMenu>
+        </header>
+
+        <main class="sg-content">
+            <div class="content-pad">
+                @Body
+            </div>
+        </main>
+    </div>
+</div>
+
+@code {
+    private static readonly CultureInfo EsMx = CultureInfo.GetCultureInfo("es-MX");
+
+    private bool _collapsed;
+    private string _logoUrl = string.Empty;
+    private string _nombreEmpresa = "Smart Gym";
+    private string _iniciales = "?";
+    private string _fecha = string.Empty;
+    private string _hora = string.Empty;
+    private Timer? _reloj;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _logoUrl = LogoStorage.LeerDataUrl() ?? string.Empty;
+
+        var empresa = await EmpresaRepo.GetAsync();
+        if (empresa is not null && !string.IsNullOrWhiteSpace(empresa.NombreComercial))
+        {
+            _nombreEmpresa = empresa.NombreComercial;
+        }
+
+        var nombre = Session.Current?.Nombre ?? string.Empty;
+        _iniciales = InicialesDe(nombre);
+
+        try
+        {
+            var estado = await JS.InvokeAsync<string>("localStorage.getItem", "sidebar-open");
+            _collapsed = estado == "true";
+        }
+        catch
+        {
+            _collapsed = false;
+        }
+
+        _reloj = new Timer(_ => InvokeAsync(ActualizarReloj), null, 0, 1000);
+    }
+
+    private static string InicialesDe(string nombre)
+    {
+        var partes = nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (partes.Length == 0)
+        {
+            return "?";
+        }
+
+        return string.Concat(partes.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+    }
+
+    private void ActualizarReloj()
+    {
+        var ahora = DateTime.Now;
+        var fecha = ahora.ToString("dddd, d 'de' MMMM 'de' yyyy", EsMx);
+        _fecha = char.ToUpperInvariant(fecha[0]) + fecha[1..];
+        _hora = ahora.ToString("h:mm tt", EsMx).ToUpperInvariant();
+        StateHasChanged();
+    }
+
+    private async Task ToggleSidebar()
+    {
+        _collapsed = !_collapsed;
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", "sidebar-open", _collapsed ? "true" : "false");
+        }
+        catch
+        {
+            // localStorage no disponible: el estado queda en memoria.
+        }
+    }
+
+    private void IrConfiguracion() => Nav.NavigateTo("/configuracion");
+
+    private async Task Salir()
+    {
+        await Auth.LogoutAsync(Session.Current?.Token ?? string.Empty);
+        Nav.NavigateTo("/", forceLoad: true);
+    }
+
+    public void Dispose() => _reloj?.Dispose();
+}

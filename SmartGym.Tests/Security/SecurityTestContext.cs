@@ -1,0 +1,104 @@
+using SmartGym.Data.Db;
+using SmartGym.Data.Repositories;
+using SmartGym.Data.Storage;
+using SmartGym.Core.Services;
+
+namespace SmartGym.Tests.Security;
+
+/// <summary>
+/// Contexto por test: BD SQLite temporal + repos + servicios listos. Fase 2
+/// requiere aislamiento (login/setup mutan el estado), por eso NO se comparte
+/// la BD entre tests a diferencia de la colección "data".
+/// </summary>
+internal sealed class SecurityTestContext : IDisposable
+{
+    public string DbPath { get; }
+    public string LogosDir { get; }
+
+    public SessionState SessionState { get; } = new();
+
+    public UsuariosRepository Usuarios { get; }
+    public RolesRepository Roles { get; }
+    public SedesRepository Sedes { get; }
+    public PermisosRolRepository Permisos { get; }
+    public EmpresaConfigFiscalRepository Empresa { get; }
+    public SociosRepository Socios { get; }
+    public BitacoraAuditoriaRepository Bitacora { get; }
+
+    public PlanesMembresiaRepository Planes { get; }
+    public CajasSesionesRepository Cajas { get; }
+    public CajaMovimientosRepository Movimientos { get; }
+    public MembresiasRepository Membresias { get; }
+    public MembresiasPagosRepository Pagos { get; }
+    public MembresiasCongelamientosRepository Congelamientos { get; }
+    public CuentasCobrarRepository CuentasCobrar { get; }
+    public CobrosRecordatoriosRepository Recordatorios { get; }
+
+    public AccesosRepository Accesos { get; }
+    public DispositivosAccesoRepository DispositivosAcceso { get; }
+    public SociosBiometricosRepository SociosBiometricos { get; }
+
+    public ProductosRepository Productos { get; }
+    public InventarioSucursalRepository Inventario { get; }
+    public VentasRepository Ventas { get; }
+
+    public AuthService Auth { get; }
+    public AuthorizationService Authz { get; }
+    public SetupService Setup { get; }
+    public SociosService SociosService { get; }
+    public CajaService CajaService { get; }
+    public MembresiasService MembresiasService { get; }
+    public AccesoService AccesoService { get; }
+    public PosService PosService { get; }
+    public CobranzaService CobranzaService { get; }
+
+    public SecurityTestContext()
+    {
+        DbPath = Path.Combine(Path.GetTempPath(), $"smart_gym_sec_{Guid.NewGuid():N}.db");
+        LogosDir = Path.Combine(Path.GetTempPath(), $"smart_gym_logos_{Guid.NewGuid():N}");
+        DbInitializer.Initialize(DbPath);
+
+        var sesiones = new SesionesRepository(DbPath);
+        var cuentas = new CuentasRecordadasRepository(DbPath);
+        var config = new ConfiguracionRepository(DbPath);
+        var logo = new LogoStorage(LogosDir);
+
+        Usuarios = new UsuariosRepository(DbPath);
+        Roles = new RolesRepository(DbPath);
+        Sedes = new SedesRepository(DbPath);
+        Permisos = new PermisosRolRepository(DbPath);
+        Empresa = new EmpresaConfigFiscalRepository(DbPath);
+        Socios = new SociosRepository(DbPath);
+        Bitacora = new BitacoraAuditoriaRepository(DbPath);
+        Planes = new PlanesMembresiaRepository(DbPath);
+        Cajas = new CajasSesionesRepository(DbPath);
+        Movimientos = new CajaMovimientosRepository(DbPath);
+        Membresias = new MembresiasRepository(DbPath);
+        Pagos = new MembresiasPagosRepository(DbPath);
+        Congelamientos = new MembresiasCongelamientosRepository(DbPath);
+        CuentasCobrar = new CuentasCobrarRepository(DbPath);
+        Recordatorios = new CobrosRecordatoriosRepository(DbPath);
+
+        Accesos = new AccesosRepository(DbPath);
+        DispositivosAcceso = new DispositivosAccesoRepository(DbPath);
+        SociosBiometricos = new SociosBiometricosRepository(DbPath);
+
+        Productos = new ProductosRepository(DbPath);
+        Inventario = new InventarioSucursalRepository(DbPath);
+        Ventas = new VentasRepository(DbPath);
+
+        Auth = new AuthService(Usuarios, sesiones, cuentas, SessionState, new SesionStore(LogosDir));
+        Authz = new AuthorizationService(Auth, Roles, Permisos);
+        Setup = new SetupService(Usuarios, Roles, Empresa, config, logo);
+        SociosService = new SociosService(Auth, Authz, Socios, Bitacora, Sedes);
+        CajaService = new CajaService(Auth, Authz, Cajas, Sedes, Bitacora);
+        MembresiasService = new MembresiasService(Auth, Authz, Socios, Planes, Cajas, Membresias, Bitacora);
+        AccesoService = new AccesoService(Authz, Accesos);
+        PosService = new PosService(Auth, Authz, Socios, Cajas, Productos, Inventario, Ventas, Bitacora);
+        CobranzaService = new CobranzaService(Auth, Authz, Socios, Cajas, CuentasCobrar, Recordatorios, Bitacora);
+    }
+
+    public void Dispose()
+    {
+    }
+}

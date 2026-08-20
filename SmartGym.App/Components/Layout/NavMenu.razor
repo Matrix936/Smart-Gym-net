@@ -1,0 +1,164 @@
+﻿@* NavMenu (Sidebar.tsx): navegación agrupada con píldora activa, indicador izquierdo,
+   grupos colapsables (localStorage) y modo mini (solo iconos + tooltips nativos). *@
+@implements IDisposable
+@using System.Text.Json
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div class="sg-nav">
+    @foreach (var (grupo, i) in NAV_GROUPS.Select((g, i) => (g, i)))
+    {
+        if (i > 0)
+        {
+            <div class="sg-nav-divider"></div>
+        }
+
+        var cerrado = _gruposCerrados.Contains(grupo.Label);
+
+        <div class="sg-nav-group">
+            <div class="sg-nav-group-head" @onclick="() => ToggleGrupo(grupo.Label)" role="button" aria-expanded="@(!cerrado)">
+                <span class="sg-nav-group-label">@grupo.Label</span>
+                <svg class="sg-nav-chevron @(cerrado ? "is-closed" : null)" viewBox="0 0 24 24"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            </div>
+            <div class="sg-nav-group-items @(cerrado ? "is-closed" : null)">
+                @foreach (var item in grupo.Items)
+                {
+                    var activo = EsActivo(item.Href);
+                    var tooltip = item.Enabled ? (Mini ? item.Tooltip ?? item.Label : string.Empty) : "Próximamente";
+
+                    <div class="sg-nav-item @(activo ? "active" : null) @(item.Enabled ? null : "disabled")"
+                         @onclick="() => Ir(item)"
+                         role="button"
+                         tabindex="@(item.Enabled ? 0 : -1)"
+                         aria-current="@(activo ? "page" : null)"
+                         title="@tooltip">
+                        <span class="sg-nav-item-indicator"></span>
+                        <span class="sg-nav-item-icon"><IconifyIcon Icon="@item.Icon" /></span>
+                        <span class="sg-nav-item-label">@item.Label</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public bool Mini { get; set; }
+
+    private readonly HashSet<string> _gruposCerrados = new(StringComparer.Ordinal);
+    private string _rutaActual = "";
+
+    private static readonly NavGroup[] NAV_GROUPS =
+    [
+        new("Principal",
+        [
+            new NavItem("Dashboard", "/", "solar:widget-3-line-duotone", true),
+        ]),
+        new("Operación",
+        [
+            new NavItem("Miembros", "/miembros", "solar:users-group-two-rounded-line-duotone", true, "Gestión de miembros"),
+            new NavItem("Membresías", "/membresias", "solar:card-recive-line-duotone", true, "Planes y suscripciones"),
+            new NavItem("Control de Acceso", "/control-acceso", "solar:lock-keyhole-line-duotone", true, "Acceso por huella/RFID"),
+        ]),
+        new("Comercial",
+        [
+            new NavItem("Inventario", "/inventario", "solar:box-minimalistic-line-duotone", true, "Stock y productos"),
+            new NavItem("POS", "/pos", "solar:cart-5-line-duotone", true, "Punto de venta"),
+            new NavItem("Finanzas", "/finanzas", "solar:pie-chart-line-duotone", true, "Reportes financieros"),
+        ]),
+        new("Administración",
+        [
+            new NavItem("Bitácora", "/bitacora", "solar:clipboard-check-line-duotone", true, "Bitácora operativa"),
+            new NavItem("Configuración", "/configuracion", "solar:settings-line-duotone", false),
+        ]),
+    ];
+
+    protected override void OnInitialized()
+    {
+        // El resaltado activo NO debe depender de leer Nav.Uri en el render:
+        // en el WebView de MAUI la URI se aplica de forma asíncrona y el resaltado
+        // quedaba desactualizado (ver 08-problemas-resueltos-blazor.md §5).
+        _rutaActual = RutaNormalizada(Nav.Uri);
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string>("localStorage.getItem", "sidebar-collapsed-groups");
+            if (!string.IsNullOrEmpty(json))
+            {
+                var lista = JsonSerializer.Deserialize<string[]>(json);
+                if (lista is not null)
+                {
+                    foreach (var item in lista)
+                    {
+                        _gruposCerrados.Add(item);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // localStorage no disponible: se ignora.
+        }
+    }
+
+    private async Task ToggleGrupo(string label)
+    {
+        if (Mini)
+        {
+            return;
+        }
+
+        if (!_gruposCerrados.Add(label))
+        {
+            _gruposCerrados.Remove(label);
+        }
+
+        var json = JsonSerializer.Serialize(_gruposCerrados.ToArray());
+        await JS.InvokeVoidAsync("localStorage.setItem", "sidebar-collapsed-groups", json);
+    }
+
+    private void Ir(NavItem item)
+    {
+        if (!item.Enabled)
+        {
+            return;
+        }
+
+        Nav.NavigateTo(item.Href);
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _rutaActual = RutaNormalizada(e.Location);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private string RutaNormalizada(string uri)
+    {
+        var path = Nav.ToBaseRelativePath(uri);
+        return path.StartsWith('/') ? path[1..] : path;
+    }
+
+    private bool EsActivo(string href)
+    {
+        if (href == "/")
+        {
+            return string.IsNullOrEmpty(_rutaActual);
+        }
+
+        return _rutaActual.StartsWith(href.TrimStart('/'), StringComparison.OrdinalIgnoreCase);
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+
+    private sealed record NavItem(string Label, string Href, string Icon, bool Enabled, string? Tooltip = null);
+
+    private sealed record NavGroup(string Label, NavItem[] Items);
+}

@@ -1,0 +1,17 @@
+@* IconifyIcon (IconifyIcon.tsx): renderiza inline un SVG solar line-duotone con currentColor.
+   El color/opacidad se heredan del contexto (text.secondary / primary en el sidebar). *@
+@if (_svg is not null)
+{
+    @((MarkupString)_svg)
+}
+
+@code {
+    [Parameter, EditorRequired] public string Icon { get; set; } = string.Empty;
+
+    private string? _svg;
+
+    protected override void OnParametersSet()
+    {
+        _svg = SolarIconos.Obtener(Icon);
+    }
+}

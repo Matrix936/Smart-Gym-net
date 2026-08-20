@@ -1,0 +1,38 @@
+@* FormField (FormField.tsx): MudTextField outlined con label flotante. *@
+<MudTextField T="string"
+              Variant="Variant.Outlined"
+              Margin="Margin.Dense"
+              Label="@Label"
+              InputType="@InputType"
+              Value="@Value"
+              ValueChanged="OnValueChanged"
+              Placeholder="@Placeholder"
+              autocomplete="@Autocomplete"
+              Disabled="@Disabled"
+              HelperText="@(HasError ? null : HelperText)"
+              Error="@HasError"
+              ErrorText="@Error" />
+
+@code {
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Type { get; set; } = "text";
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public string? Autocomplete { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public string? HelperText { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    private bool HasError => !string.IsNullOrEmpty(Error);
+
+    private InputType InputType => Type.ToLowerInvariant() switch
+    {
+        "email" => InputType.Email,
+        "password" => InputType.Password,
+        "number" => InputType.Number,
+        _ => InputType.Text,
+    };
+
+    private Task OnValueChanged(string value) => ValueChanged.InvokeAsync(value);
+}

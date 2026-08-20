@@ -1,0 +1,55 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+*.tmp
+*.log
+
+## Visual Studio
+.vs/
+.idea/
+.vscode/
+
+## Test results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+coverage.json
+
+## Rider
+.idea/
+.DS_Store
+
+## NuGet
+*.nupkg
+*.snupkg
+.nuget/
+!**/packages/*
+packages/
+
+## MAUI / WinUI
+*.Appx
+*.appxmanifest.xml
+*.msix
+*.appxbundle
+*.appx
+AppPackages/
+Bundles/
+*.winmd
+Generated Files/
+GeneratedFiles/
+
+## Build outputs
+artifacts/
+out/
+dist/
+
+## Local DB
+*.db
+*.db-shm
+*.db-wal
+smart_gym.db

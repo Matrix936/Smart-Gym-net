@@ -1,0 +1,57 @@
+@* ConfirmDialog (ConfirmDialog.tsx): confirmación destructiva (MudDialog). Escape cancela; backdrop no. *@
+<MudDialog Visible="_isOpen"
+           VisibleChanged="HandleVisibleChanged"
+           Options="@(new DialogOptions { BackdropClick = false, CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@Titulo</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2">@Mensaje</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="@IsLoading" OnClick="Cancel">@TextoCancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@IsLoading" OnClick="Confirm">
+            @if (IsLoading)
+            {
+                <MudProgressCircular Class="sg-async-spinner" Size="Size.Small" Color="Color.Inherit" Indeterminate="true" />
+            }
+            @(IsLoading ? LoadingText : TextoConfirmar)
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public string? Titulo { get; set; }
+    [Parameter] public string Mensaje { get; set; } = "";
+    [Parameter] public string TextoConfirmar { get; set; } = "Confirmar";
+    [Parameter] public string TextoCancelar { get; set; } = "Cancelar";
+    [Parameter] public string LoadingText { get; set; } = "Procesando...";
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private bool _isOpen;
+
+    protected override void OnParametersSet()
+    {
+        if (IsOpen != _isOpen)
+        {
+            _isOpen = IsOpen;
+        }
+    }
+
+    private async Task HandleVisibleChanged(bool visible)
+    {
+        _isOpen = visible;
+        if (!visible)
+        {
+            // VisibleChanged solo se dispara cuando el usuario cierra (Escape);
+            // el cierre del padre va por OnParametersSet y no dispara este evento.
+            await OnCancel.InvokeAsync();
+        }
+    }
+
+    private async Task Confirm() => await OnConfirm.InvokeAsync();
+    private async Task Cancel() => await OnCancel.InvokeAsync();
+}

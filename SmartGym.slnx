@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="SmartGym.App/SmartGym.App.csproj" />
+  <Project Path="SmartGym.Core/SmartGym.Core.csproj" />
+  <Project Path="SmartGym.Data/SmartGym.Data.csproj" />
+  <Project Path="SmartGym.Tests/SmartGym.Tests.csproj" />
+</Solution>

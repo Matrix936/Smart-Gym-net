@@ -1,0 +1,31 @@
+@* ThemeToggle (ThemeToggle.tsx): botón flotante dark/light. Cambia sgTheme (CSS vars de app.css)
+   y sincroniza el MudThemeProvider vía IThemeState. *@
+<MudIconButton Class="@(Floating ? "theme-toggle-floating" : null)"
+               Size="Size.Small"
+               Icon="@(IsDark ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+               OnClick="Toggle"
+               aria-label="Cambiar tema"
+               title="Cambiar tema" />
+
+@code {
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private IThemeState Theme { get; set; } = default!;
+
+    [Parameter] public bool Floating { get; set; }
+
+    private bool IsDark { get; set; } = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var theme = await JS.InvokeAsync<string>("sgTheme.get");
+        IsDark = theme != "light";
+        Theme.SetDark(IsDark);
+    }
+
+    private async Task Toggle()
+    {
+        var next = await JS.InvokeAsync<string>("sgTheme.toggle");
+        IsDark = next != "light";
+        Theme.SetDark(IsDark);
+    }
+}
