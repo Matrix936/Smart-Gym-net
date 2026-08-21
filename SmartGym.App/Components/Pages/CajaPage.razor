@@ -1,0 +1,427 @@
+@page "/caja"
+@* CajaPage: apertura/cierre de caja (cash.rs). Sin UI hasta ahora — mismo patrón
+   que Miembros/Kiosco: backend (CajaService/CajasSesionesRepository) completo
+   y probado, esta pantalla es la primera vez que se conecta a algo visible. *@
+@using System.Globalization
+@using MudBlazor
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Repositories
+@using SmartGym.Core.Services
+@using SmartGym.App.Services
+
+<div class="page-head">
+    <div>
+        <h4>Caja</h4>
+        <p class="page-sub">Apertura y cierre de la sesión de caja de la sede.</p>
+    </div>
+</div>
+
+<div class="glass-panel">
+    @if (_cargando)
+    {
+        <p class="muted">Cargando...</p>
+    }
+    else if (_showSede && _sedes.Count > 1)
+    {
+        <MudSelect T="long"
+                   Label="Sede"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Class="page-size-field"
+                   Value="_sedeSeleccionada"
+                   ValueChanged="OnSedeChanged">
+            @foreach (var sede in _sedes)
+            {
+                <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
+            }
+        </MudSelect>
+    }
+
+    @if (!_cargando && _cajaAbierta is null)
+    {
+        <div style="max-width: 360px;" @onkeydown="HandleAperturaKeyDown">
+            <p class="form-section">Abrir caja</p>
+            <MudNumericField T="decimal"
+                              Label="Monto inicial"
+                              Margin="Margin.Dense"
+                              Variant="Variant.Outlined"
+                              Min="0"
+                              Format="F2"
+                              Immediate="true"
+                              @bind-Value="_montoInicial" />
+            <div style="margin-top: 1rem;">
+                <AsyncButton Text="Abrir caja"
+                             LoadingText="Abriendo..."
+                             ButtonType="submit"
+                             IsLoading="_abriendo"
+                             OnClick="AbrirCajaAsync" />
+            </div>
+        </div>
+    }
+    else if (!_cargando && _cajaAbierta is not null)
+    {
+        var caja = _cajaAbierta;
+        <div class="glass-panel summary">
+            <div class="summary-row">
+                <span class="status-badge status-success">Abierta</span>
+                <span class="muted">Desde @FormatearFecha(caja.FechaApertura)</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Monto inicial</span>
+                <span>@FormatearMonto(caja.MontoInicialCentavos)</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Movimientos</span>
+                <span>@_movimientos.Count</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Total esperado ahora</span>
+                <span><strong>@FormatearMonto(caja.MontoInicialCentavos + _netoMovimientos)</strong></span>
+            </div>
+        </div>
+
+        @if (_movimientos.Count > 0)
+        {
+            <div class="table-wrap" style="margin-top: 1rem;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Concepto</th>
+                            <th>Tipo</th>
+                            <th>Método</th>
+                            <th style="text-align: right;">Monto</th>
+                            <th>Hora</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var mov in _movimientos)
+                        {
+                            <tr>
+                                <td>@(mov.Concepto ?? "—")</td>
+                                <td>
+                                    <span class="status-badge @(mov.Tipo == MovimientoTipos.Ingreso ? "status-success" : "status-danger")">
+                                        @(mov.Tipo == MovimientoTipos.Ingreso ? "Ingreso" : "Egreso")
+                                    </span>
+                                </td>
+                                <td class="muted-cell">@mov.MetodoPago</td>
+                                <td style="text-align: right;">@FormatearMonto(mov.MontoCentavos)</td>
+                                <td class="muted-cell">@FormatearHora(mov.CreatedAt)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <div style="margin-top: 1.25rem;">
+            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="AbrirCierre">Cerrar caja</MudButton>
+        </div>
+    }
+</div>
+
+<MudDialog Visible="_cierreAbierto"
+           VisibleChanged="OnCierreVisibleChanged"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Cerrar caja</MudText>
+    </TitleContent>
+    <DialogContent>
+        @* Reautenticación real (no un PIN aparte): confirma que quien cierra la
+           caja sabe la contraseña de su propia cuenta, mismo criterio que
+           MembresiasService.CancelarAsync y la salida del Kiosco. Dos pasos
+           separados (monto, luego contraseña) en vez de un solo formulario —
+           pedirlos juntos confundía qué se estaba confirmando. *@
+        <div @onkeydown="HandleCierreKeyDown">
+            <p class="form-section">Total esperado: @FormatearMonto((_cajaAbierta?.MontoInicialCentavos ?? 0) + _netoMovimientos)</p>
+
+            @if (_cierrePaso == 1)
+            {
+                <MudNumericField T="decimal"
+                                  Label="Monto contado"
+                                  Margin="Margin.Dense"
+                                  Variant="Variant.Outlined"
+                                  Min="0"
+                                  Format="F2"
+                                  Immediate="true"
+                                  @bind-Value="_montoContado" />
+            }
+            else
+            {
+                <p class="muted" style="margin-bottom: 0.5rem;">Monto contado: @FormatearMonto((long)Math.Round(_montoContado * 100, MidpointRounding.AwayFromZero))</p>
+                <PasswordField Label="Confirma tu contraseña" Autocomplete="current-password" @bind-Value="_cierrePassword" />
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        @if (_cierrePaso == 1)
+        {
+            <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="CancelarCierre">Cancelar</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AvanzarAPassword">Continuar</MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_cerrando" OnClick="RegresarAMonto">Atrás</MudButton>
+            <AsyncButton Text="Cerrar caja" LoadingText="Cerrando..." IsLoading="_cerrando" OnClick="CerrarCajaAsync" />
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private IAuthService Auth { get; set; } = default!;
+    [Inject] private ICajaService Caja { get; set; } = default!;
+    [Inject] private ICajaMovimientosRepository Movimientos { get; set; } = default!;
+    [Inject] private ISedesRepository Sedes { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    private bool _cargando = true;
+    private bool _showSede;
+    private long _sedeSeleccionada;
+    private List<Sede> _sedes = [];
+
+    private CajaSesion? _cajaAbierta;
+    private List<CajaMovimiento> _movimientos = [];
+    private long _netoMovimientos;
+
+    private decimal _montoInicial;
+    private bool _abriendo;
+
+    private bool _cierreAbierto;
+    private int _cierrePaso = 1;
+    private decimal _montoContado;
+    private string _cierrePassword = "";
+    private bool _cerrando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _showSede = Sesion.Current?.IdSede is null;
+        if (_showSede)
+        {
+            try
+            {
+                _sedes = (await Sedes.GetActivasAsync()).ToList();
+            }
+            catch
+            {
+                _sedes = [];
+            }
+            var principal = await ObtenerSedePorDefectoAsync();
+            _sedeSeleccionada = principal;
+        }
+
+        await CargarEstadoAsync();
+    }
+
+    private async Task<long> ObtenerSedePorDefectoAsync()
+    {
+        try
+        {
+            var principal = await Sedes.GetPrincipalAsync();
+            if (principal is not null)
+            {
+                return principal.IdSede;
+            }
+        }
+        catch
+        {
+        }
+        return _sedes.FirstOrDefault()?.IdSede ?? 0;
+    }
+
+    private async Task OnSedeChanged(long value)
+    {
+        _sedeSeleccionada = value;
+        await CargarEstadoAsync();
+    }
+
+    private async Task CargarEstadoAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        _cargando = true;
+        try
+        {
+            _cajaAbierta = await Caja.ObtenerCajaAbiertaAsync(sesion.Token, _showSede ? _sedeSeleccionada : null);
+            if (_cajaAbierta is not null)
+            {
+                _movimientos = (await Movimientos.GetBySesionAsync(_cajaAbierta.IdSesion)).ToList();
+                _netoMovimientos = await Movimientos.SumarAfectaEfectivoAsync(_cajaAbierta.IdSesion);
+            }
+            else
+            {
+                _movimientos = [];
+                _netoMovimientos = 0;
+            }
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo cargar el estado de caja");
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void HandleAperturaKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_abriendo)
+        {
+            _ = AbrirCajaAsync();
+        }
+    }
+
+    private async Task AbrirCajaAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _abriendo)
+        {
+            return;
+        }
+
+        _abriendo = true;
+        try
+        {
+            var montoCentavos = (long)Math.Round(_montoInicial * 100, MidpointRounding.AwayFromZero);
+            await Caja.AbrirCajaAsync(sesion.Token, montoCentavos, _showSede ? _sedeSeleccionada : null);
+            Feedback.ShowSuccess("Caja abierta");
+            _montoInicial = 0;
+            await CargarEstadoAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo abrir la caja");
+        }
+        finally
+        {
+            _abriendo = false;
+        }
+    }
+
+    private void AbrirCierre()
+    {
+        _montoContado = 0;
+        _cierrePassword = "";
+        _cierrePaso = 1;
+        _cierreAbierto = true;
+    }
+
+    private Task OnCierreVisibleChanged(bool visible)
+    {
+        _cierreAbierto = visible;
+        return Task.CompletedTask;
+    }
+
+    private void CancelarCierre()
+    {
+        if (_cerrando)
+        {
+            return;
+        }
+        _cierreAbierto = false;
+    }
+
+    private void AvanzarAPassword()
+    {
+        if (_montoContado < 0)
+        {
+            Feedback.ShowWarning("El monto contado no puede ser negativo");
+            return;
+        }
+        _cierrePaso = 2;
+    }
+
+    private void RegresarAMonto()
+    {
+        if (_cerrando)
+        {
+            return;
+        }
+        _cierrePaso = 1;
+    }
+
+    private void HandleCierreKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            CancelarCierre();
+        }
+        else if (e.Key == "Enter" && _cierrePaso == 1)
+        {
+            AvanzarAPassword();
+        }
+    }
+
+    private async Task CerrarCajaAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _cajaAbierta is null || _cerrando)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(_cierrePassword))
+        {
+            Feedback.ShowWarning("Ingresa tu contraseña");
+            return;
+        }
+
+        _cerrando = true;
+        try
+        {
+            await Auth.ReautorizarAsync(sesion.Token, _cierrePassword);
+
+            var montoCentavos = (long)Math.Round(_montoContado * 100, MidpointRounding.AwayFromZero);
+            await Caja.CerrarCajaAsync(sesion.Token, _cajaAbierta.IdSesion, montoCentavos);
+
+            Feedback.ShowSuccess("Caja cerrada");
+            _cierreAbierto = false;
+            await CargarEstadoAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo cerrar la caja");
+        }
+        finally
+        {
+            _cerrando = false;
+        }
+    }
+
+    private static string FormatearMonto(long centavos) =>
+        (centavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("es-MX"));
+
+    private static string FormatearFecha(string iso)
+    {
+        if (DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dto))
+        {
+            return dto.ToLocalTime().ToString("dd/MM/yyyy HH:mm", CultureInfo.GetCultureInfo("es-MX"));
+        }
+        return iso;
+    }
+
+    private static string FormatearHora(string iso)
+    {
+        if (DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dto))
+        {
+            return dto.ToLocalTime().ToString("HH:mm", CultureInfo.GetCultureInfo("es-MX"));
+        }
+        return iso;
+    }
+}
