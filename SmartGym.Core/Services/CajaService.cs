@@ -11,6 +11,7 @@ public sealed class CajaService : ICajaService
     private readonly IAuthService _auth;
     private readonly IAuthorizationService _authz;
     private readonly ICajasSesionesRepository _cajas;
+    private readonly ICajaMovimientosRepository _movimientos;
     private readonly ISedeResolutionService _sedeResolution;
     private readonly IBitacoraAuditoriaRepository _bitacora;
 
@@ -18,12 +19,14 @@ public sealed class CajaService : ICajaService
         IAuthService auth,
         IAuthorizationService authz,
         ICajasSesionesRepository cajas,
+        ICajaMovimientosRepository movimientos,
         ISedeResolutionService sedeResolution,
         IBitacoraAuditoriaRepository bitacora)
     {
         _auth = auth;
         _authz = authz;
         _cajas = cajas;
+        _movimientos = movimientos;
         _sedeResolution = sedeResolution;
         _bitacora = bitacora;
     }
@@ -80,6 +83,67 @@ public sealed class CajaService : ICajaService
         }
 
         return await _cajas.GetAbiertaPorSedeAsync(sede.Value, ct);
+    }
+
+    public async Task<CajaMovimiento> RegistrarMovimientoManualAsync(
+        string token,
+        string tipo,
+        string concepto,
+        long montoCentavos,
+        string metodoPago,
+        long? idSedeFrontend = null,
+        CancellationToken ct = default)
+    {
+        var info = await _auth.ValidarSesionAsync(token, ct);
+        await _authz.RequierePermisoAsync(token, PermisoCatalogo.CajaAbrir, ct);
+
+        var tipoTrim = tipo.Trim().ToLowerInvariant();
+        if (tipoTrim is not MovimientoTipos.Ingreso and not MovimientoTipos.Egreso)
+        {
+            throw BusinessException.Validation("Tipo de movimiento inválido", "tipo_movimiento_invalido");
+        }
+
+        var conceptoTrim = concepto.Trim();
+        if (string.IsNullOrWhiteSpace(conceptoTrim))
+        {
+            throw BusinessException.Validation("El concepto es requerido", "concepto_requerido");
+        }
+
+        if (montoCentavos <= 0)
+        {
+            throw BusinessException.Validation("El monto debe ser mayor a cero", "monto_invalido");
+        }
+
+        var metodoPagoTrim = metodoPago.Trim().ToLowerInvariant();
+        if (!MetodosPago.Todos.Contains(metodoPagoTrim))
+        {
+            throw BusinessException.Validation("Método de pago inválido", "metodo_pago_invalido");
+        }
+
+        var idSede = await _sedeResolution.ResolverIdSedeAsync(info, idSedeFrontend, ct);
+        var caja = await _cajas.GetAbiertaPorSedeAsync(idSede, ct)
+            ?? throw BusinessException.Conflict("No hay caja abierta para registrar el movimiento", "caja_no_abierta");
+
+        var ahora = DateHelper.NowIsoUtc();
+        var movimiento = new CajaMovimiento
+        {
+            IdMovimiento = UuidHelper.NewV4(),
+            IdSesion = caja.IdSesion,
+            Tipo = tipoTrim,
+            Concepto = conceptoTrim,
+            MontoCentavos = montoCentavos,
+            MetodoPago = metodoPagoTrim,
+            AfectaEfectivo = metodoPagoTrim == MetodosPago.Efectivo,
+            CreatedAt = ahora,
+            UpdatedAt = ahora,
+        };
+
+        await _movimientos.InsertAsync(movimiento, ct);
+        await _bitacora.InsertAsync(
+            RegistrarBitacora(info, $"caja.{tipoTrim}_manual", movimiento.IdMovimiento, idSede, null, $"{conceptoTrim}:{montoCentavos}"),
+            ct);
+
+        return movimiento;
     }
 
     public async Task<CajaSesion> CerrarCajaAsync(

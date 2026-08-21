@@ -170,4 +170,100 @@ public sealed class CashTests
         var abierta = await ctx.CajaService.ObtenerCajaAbiertaAsync(token, sedeId);
         Assert.Null(abierta);
     }
+
+    [Fact]
+    public async Task ingreso_manual_exitoso_afecta_efectivo_y_bitacora()
+    {
+        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
+        await ctx.CajaService.AbrirCajaAsync(token, 10000, sedeId);
+
+        var mov = await ctx.CajaService.RegistrarMovimientoManualAsync(
+            token, MovimientoTipos.Ingreso, "fondo extra", 5000, MetodosPago.Efectivo, sedeId);
+
+        Assert.Equal(MovimientoTipos.Ingreso, mov.Tipo);
+        Assert.Equal(5000, mov.MontoCentavos);
+        Assert.True(mov.AfectaEfectivo);
+
+        // El neto de efectivo debe reflejarlo (10000 inicial + 5000).
+        var caja = await ctx.CajaService.ObtenerCajaAbiertaAsync(token, sedeId);
+        Assert.NotNull(caja);
+    }
+
+    [Fact]
+    public async Task egreso_manual_con_tarjeta_no_afecta_efectivo()
+    {
+        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
+        await ctx.CajaService.AbrirCajaAsync(token, 10000, sedeId);
+
+        var mov = await ctx.CajaService.RegistrarMovimientoManualAsync(
+            token, MovimientoTipos.Egreso, "compra de insumos", 3000, MetodosPago.Tarjeta, sedeId);
+
+        Assert.Equal(MovimientoTipos.Egreso, mov.Tipo);
+        Assert.False(mov.AfectaEfectivo);
+    }
+
+    [Fact]
+    public async Task movimiento_manual_sin_caja_abierta_da_conflict()
+    {
+        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
+
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.CajaService.RegistrarMovimientoManualAsync(
+                token, MovimientoTipos.Ingreso, "prueba", 1000, MetodosPago.Efectivo, sedeId));
+        Assert.Equal(BusinessError.Conflict, ex.Error);
+        Assert.Equal("caja_no_abierta", ex.Code);
+    }
+
+    [Fact]
+    public async Task movimiento_manual_tipo_invalido_da_validation()
+    {
+        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
+        await ctx.CajaService.AbrirCajaAsync(token, 0, sedeId);
+
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.CajaService.RegistrarMovimientoManualAsync(
+                token, "transferencia_interna", "prueba", 1000, MetodosPago.Efectivo, sedeId));
+        Assert.Equal("tipo_movimiento_invalido", ex.Code);
+    }
+
+    [Fact]
+    public async Task movimiento_manual_concepto_vacio_da_validation()
+    {
+        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
+        await ctx.CajaService.AbrirCajaAsync(token, 0, sedeId);
+
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.CajaService.RegistrarMovimientoManualAsync(
+                token, MovimientoTipos.Ingreso, "   ", 1000, MetodosPago.Efectivo, sedeId));
+        Assert.Equal("concepto_requerido", ex.Code);
+    }
+
+    [Fact]
+    public async Task movimiento_manual_monto_cero_o_negativo_da_validation()
+    {
+        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
+        await ctx.CajaService.AbrirCajaAsync(token, 0, sedeId);
+
+        var exCero = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.CajaService.RegistrarMovimientoManualAsync(
+                token, MovimientoTipos.Ingreso, "prueba", 0, MetodosPago.Efectivo, sedeId));
+        Assert.Equal("monto_invalido", exCero.Code);
+
+        var exNegativo = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.CajaService.RegistrarMovimientoManualAsync(
+                token, MovimientoTipos.Egreso, "prueba", -500, MetodosPago.Efectivo, sedeId));
+        Assert.Equal("monto_invalido", exNegativo.Code);
+    }
+
+    [Fact]
+    public async Task movimiento_manual_metodo_invalido_da_validation()
+    {
+        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
+        await ctx.CajaService.AbrirCajaAsync(token, 0, sedeId);
+
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.CajaService.RegistrarMovimientoManualAsync(
+                token, MovimientoTipos.Ingreso, "prueba", 1000, "vale", sedeId));
+        Assert.Equal("metodo_pago_invalido", ex.Code);
+    }
 }

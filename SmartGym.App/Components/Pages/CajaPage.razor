@@ -73,50 +73,18 @@
                 <span>@FormatearMonto(caja.MontoInicialCentavos)</span>
             </div>
             <div class="summary-row">
-                <span class="summary-label">Movimientos</span>
-                <span>@_movimientos.Count</span>
-            </div>
-            <div class="summary-row">
                 <span class="summary-label">Total esperado ahora</span>
                 <span><strong>@FormatearMonto(caja.MontoInicialCentavos + _netoMovimientos)</strong></span>
             </div>
         </div>
 
-        @if (_movimientos.Count > 0)
-        {
-            <div class="table-wrap" style="margin-top: 1rem;">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Concepto</th>
-                            <th>Tipo</th>
-                            <th>Método</th>
-                            <th style="text-align: right;">Monto</th>
-                            <th>Hora</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var mov in _movimientos)
-                        {
-                            <tr>
-                                <td>@(mov.Concepto ?? "—")</td>
-                                <td>
-                                    <span class="status-badge @(mov.Tipo == MovimientoTipos.Ingreso ? "status-success" : "status-danger")">
-                                        @(mov.Tipo == MovimientoTipos.Ingreso ? "Ingreso" : "Egreso")
-                                    </span>
-                                </td>
-                                <td class="muted-cell">@mov.MetodoPago</td>
-                                <td style="text-align: right;">@FormatearMonto(mov.MontoCentavos)</td>
-                                <td class="muted-cell">@FormatearHora(mov.CreatedAt)</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-
-        <div style="margin-top: 1.25rem;">
-            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="AbrirCierre">Cerrar caja</MudButton>
+        @* El detalle de movimientos vive en Ventas (/ventas), que unifica ventas,
+           cancelaciones, membresías y abonos. Aquí solo queda la operación:
+           registrar ingresos/egresos manuales de caja. *@
+        <div style="margin-top: 1.25rem; display: flex; gap: 0.75rem;">
+            <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick='() => AbrirMovimiento(MovimientoTipos.Ingreso)'>Registrar ingreso</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick='() => AbrirMovimiento(MovimientoTipos.Egreso)'>Registrar egreso</MudButton>
+            <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="AbrirCierre">Cerrar caja</MudButton>
         </div>
     }
 </div>
@@ -169,6 +137,53 @@
     </DialogActions>
 </MudDialog>
 
+<MudDialog Visible="_movimientoAbierto"
+           VisibleChanged="v => _movimientoAbierto = v"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Registrar @(_tipoMovimiento == MovimientoTipos.Ingreso ? "ingreso" : "egreso")</MudText>
+    </TitleContent>
+    <DialogContent>
+        @* Un solo paso (a diferencia del cierre): no hay reautorización de por
+            medio, solo un asiento manual en la caja abierta. Solo efectivo
+            afecta el conteo físico — misma regla que las ventas. *@
+        <div @onkeydown="HandleMovimientoKeyDown">
+            <MudTextField T="string"
+                          Label="Concepto"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Immediate="true"
+                          @bind-Value="_concepto" />
+            <MudNumericField T="decimal"
+                             Label="Monto"
+                             Variant="Variant.Outlined"
+                             Margin="Margin.Dense"
+                             Min="0"
+                             Format="F2"
+                             HideSpinButtons="true"
+                             @bind-Value="_montoMovimiento" />
+            <MudSelect T="string"
+                       Label="Método de pago"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Value="_metodoMovimiento"
+                       ValueChanged="v => _metodoMovimiento = v">
+                @foreach (var m in MetodosPago.Todos)
+                {
+                    <MudSelectItem Value="@m">@Capitalizar(m)</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_registrando" OnClick="CerrarMovimiento">Cancelar</MudButton>
+        <AsyncButton Text="Registrar"
+                     LoadingText="Registrando..."
+                     IsLoading="_registrando"
+                     OnClick="RegistrarMovimientoAsync" />
+    </DialogActions>
+</MudDialog>
+
 @code {
     [Inject] private ISessionState Sesion { get; set; } = default!;
     [Inject] private IAuthService Auth { get; set; } = default!;
@@ -183,8 +198,15 @@
     private List<Sede> _sedes = [];
 
     private CajaSesion? _cajaAbierta;
-    private List<CajaMovimiento> _movimientos = [];
     private long _netoMovimientos;
+
+    // Diálogo de movimiento manual (ingreso/egreso).
+    private bool _movimientoAbierto;
+    private string _tipoMovimiento = MovimientoTipos.Ingreso;
+    private string _concepto = "";
+    private decimal _montoMovimiento;
+    private string _metodoMovimiento = MetodosPago.Efectivo;
+    private bool _registrando;
 
     private decimal _montoInicial;
     private bool _abriendo;
@@ -251,12 +273,10 @@
             _cajaAbierta = await Caja.ObtenerCajaAbiertaAsync(sesion.Token, _showSede ? _sedeSeleccionada : null);
             if (_cajaAbierta is not null)
             {
-                _movimientos = (await Movimientos.GetBySesionAsync(_cajaAbierta.IdSesion)).ToList();
                 _netoMovimientos = await Movimientos.SumarAfectaEfectivoAsync(_cajaAbierta.IdSesion);
             }
             else
             {
-                _movimientos = [];
                 _netoMovimientos = 0;
             }
         }
@@ -279,6 +299,75 @@
         if (e.Key == "Enter" && !_abriendo)
         {
             _ = AbrirCajaAsync();
+        }
+    }
+
+    private void AbrirMovimiento(string tipo)
+    {
+        _tipoMovimiento = tipo;
+        _concepto = "";
+        _montoMovimiento = 0;
+        _metodoMovimiento = MetodosPago.Efectivo;
+        _movimientoAbierto = true;
+    }
+
+    private void CerrarMovimiento()
+    {
+        if (!_registrando)
+        {
+            _movimientoAbierto = false;
+        }
+    }
+
+    private void HandleMovimientoKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_registrando)
+        {
+            _ = RegistrarMovimientoAsync();
+        }
+    }
+
+    private async Task RegistrarMovimientoAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _cajaAbierta is null || _registrando)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_concepto))
+        {
+            Feedback.ShowWarning("Ingresa el concepto del movimiento");
+            return;
+        }
+        if (_montoMovimiento <= 0)
+        {
+            Feedback.ShowWarning("El monto debe ser mayor a cero");
+            return;
+        }
+
+        _registrando = true;
+        try
+        {
+            var montoCentavos = (long)Math.Round(_montoMovimiento * 100, MidpointRounding.AwayFromZero);
+            await Caja.RegistrarMovimientoManualAsync(
+                sesion.Token, _tipoMovimiento, _concepto.Trim(), montoCentavos, _metodoMovimiento,
+                _showSede ? _sedeSeleccionada : null);
+            Feedback.ShowSuccess(_tipoMovimiento == MovimientoTipos.Ingreso ? "Ingreso registrado" : "Egreso registrado");
+            _movimientoAbierto = false;
+            await CargarEstadoAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo registrar el movimiento");
+        }
+        finally
+        {
+            _registrando = false;
         }
     }
 
@@ -419,12 +508,6 @@
         return iso;
     }
 
-    private static string FormatearHora(string iso)
-    {
-        if (DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dto))
-        {
-            return dto.ToLocalTime().ToString("HH:mm", CultureInfo.GetCultureInfo("es-MX"));
-        }
-        return iso;
-    }
+    private static string Capitalizar(string texto) =>
+        string.IsNullOrEmpty(texto) ? texto : char.ToUpperInvariant(texto[0]) + texto[1..];
 }

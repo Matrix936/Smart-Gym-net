@@ -13,5 +13,14 @@ public interface ICajaService
     /// <summary>Sesión abierta de la sede resuelta (verificar en UI antes de vender).</summary>
     Task<CajaSesion?> ObtenerCajaAbiertaAsync(string token, long? idSede = null, CancellationToken ct = default);
 
+    Task<CajaMovimiento> RegistrarMovimientoManualAsync(
+        string token,
+        string tipo,
+        string concepto,
+        long montoCentavos,
+        string metodoPago,
+        long? idSedeFrontend = null,
+        CancellationToken ct = default);
+
     Task<CajaSesion> CerrarCajaAsync(string token, string idSesion, long montoFinalContadoCentavos, CancellationToken ct = default);
 }
