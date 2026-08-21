@@ -90,6 +90,19 @@ public sealed class AccessTests
     }
 
     [Fact]
+    public async Task kiosko_socio_suspendido_denegado()
+    {
+        var (ctx, token, sedeId, idSocio, _planId, idDispositivo) = await Fase5Helper.BaseAccessAsync();
+        await ctx.SociosService.CambiarEstadoAsync(token, idSocio, SocioEstados.Suspendido, "prueba");
+
+        var res = await ctx.AccesoService.RegistrarAccesoKioskoAsync(idSocio, sedeId, idDispositivo);
+
+        Assert.Equal(AccesoEstados.Denegado, res.Estado);
+        Assert.Equal(MotivosDenegacionAcceso.SocioSuspendido, res.MotivoDenegacion);
+        Assert.Null(res.Socio);
+    }
+
+    [Fact]
     public async Task kiosko_socio_inexistente()
     {
         var (ctx, _token, sedeId, _idSocio, _planId, idDispositivo) = await Fase5Helper.BaseAccessAsync();

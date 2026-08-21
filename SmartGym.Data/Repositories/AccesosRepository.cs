@@ -69,45 +69,25 @@ public sealed class AccesosRepository : RepositoryBase, IAccesosRepository
                 throw BusinessException.NotFound("socio no encontrado", "socio_no_encontrado");
             }
 
-            // Socio bloqueado/inactivo deniega sin consultar membresía (sin detalles sensibles).
-            string estadoAcceso;
-            string? motivo;
-            switch (socio!.Estado)
+            // Socio bloqueado/inactivo/suspendido deniega sin consultar membresía
+            // (sin detalles sensibles). Decisión delegada a AccesoDecisor (lógica
+            // pura, testeable sin transacción ni SQLite) para que el estado del
+            // socio se maneje explícitamente y no caiga en un default silencioso.
+            string? estadoMembresia = null;
+            if (socio!.Estado == SocioEstados.Activo)
             {
-                case "bloqueado":
-                    estadoAcceso = AccesoEstados.Denegado;
-                    motivo = "socio_bloqueado";
-                    break;
-                case "inactivo":
-                    estadoAcceso = AccesoEstados.Denegado;
-                    motivo = "socio_inactivo";
-                    break;
-                default:
-                    var estadoMembresia = await conn.QuerySingleOrDefaultAsync<string?>(new CommandDefinition(
-                        "SELECT m.estado FROM membresias m " +
-                        "WHERE m.id_socio = @idSocio AND m.id_sede = @idSede AND m.deleted_at IS NULL " +
-                        "AND m.estado IN ('activa', 'congelada') " +
-                        "AND date(m.fecha_fin) >= date('now') " +
-                        "ORDER BY m.fecha_fin DESC LIMIT 1",
-                        new { idSocio, idSede }, tx, cancellationToken: ct));
-
-                    switch (estadoMembresia)
-                    {
-                        case "congelada":
-                            estadoAcceso = AccesoEstados.Denegado;
-                            motivo = "membresia_congelada";
-                            break;
-                        case "activa":
-                            estadoAcceso = AccesoEstados.Concedido;
-                            motivo = null;
-                            break;
-                        default:
-                            estadoAcceso = AccesoEstados.Denegado;
-                            motivo = "membresia_vencida";
-                            break;
-                    }
-                    break;
+                estadoMembresia = await conn.QuerySingleOrDefaultAsync<string?>(new CommandDefinition(
+                    "SELECT m.estado FROM membresias m " +
+                    "WHERE m.id_socio = @idSocio AND m.id_sede = @idSede AND m.deleted_at IS NULL " +
+                    "AND m.estado IN ('activa', 'congelada') " +
+                    "AND date(m.fecha_fin) >= date('now') " +
+                    "ORDER BY m.fecha_fin DESC LIMIT 1",
+                    new { idSocio, idSede }, tx, cancellationToken: ct));
             }
+
+            var decision = AccesoDecisor.Decidir(socio.Estado, estadoMembresia);
+            var estadoAcceso = decision.Estado;
+            var motivo = decision.MotivoDenegacion;
 
             // Alternancia entorno/salida respecto al último registro del día para ese socio.
             var ultimoTipo = await conn.QuerySingleOrDefaultAsync<string?>(new CommandDefinition(
