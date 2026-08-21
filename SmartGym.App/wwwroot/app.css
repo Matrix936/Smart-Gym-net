@@ -1315,12 +1315,17 @@ table.data-table {
     gap: 1rem;
     padding: 2rem;
     max-width: 640px;
+    /* Entrada con rebote sutil en cada cambio de estado (cada rama del
+       @switch de KioscoPage monta DOM nuevo, así que la animación se
+       dispara sola — sin JS interop). */
+    animation: kiosco-enter 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .kiosco-title {
     font-size: 2.25rem;
     font-weight: 700;
     margin: 0;
+    animation: kiosco-title-in 300ms ease-out 80ms backwards;
 }
 
 .kiosco-subtitle {
@@ -1351,10 +1356,29 @@ table.data-table {
     height: 1em;
 }
 
-.kiosco-icon-idle { color: var(--color-primary); }
-.kiosco-icon-ok { color: var(--color-success); }
-.kiosco-icon-error { color: var(--color-error); }
-.kiosco-icon-warn { color: var(--color-warning); }
+.kiosco-icon-idle {
+    color: var(--color-primary);
+    /* Respiración sutil en bucle mientras se espera el dedo (halo + escala). */
+    animation: kiosco-breathe 2.4s ease-in-out infinite;
+}
+
+.kiosco-icon-ok {
+    color: var(--color-success);
+    /* Pop con rebote + anillo de luz que se expande y desvanece una vez. */
+    animation:
+        kiosco-pop 450ms cubic-bezier(0.34, 1.56, 0.64, 1),
+        kiosco-ring-ok 700ms ease-out;
+}
+
+.kiosco-icon-error {
+    color: var(--color-error);
+    animation: kiosco-shake 400ms ease-in-out;
+}
+
+.kiosco-icon-warn {
+    color: var(--color-warning);
+    animation: kiosco-wobble 400ms ease-in-out;
+}
 
 .kiosco-sede-list {
     display: flex;
@@ -1378,4 +1402,60 @@ table.data-table {
 
 .kiosco-sede-btn:hover {
     border-color: var(--color-primary);
+}
+
+/* Animaciones del Kiosco — CSS puro, sin JS interop. Los halos/anillos usan
+   drop-shadow porque MudIcon renderiza <svg>, que no soporta ::after. Colores
+   rgba fijos derivados de --color-success/-error/-warning (hex en :root). */
+@keyframes kiosco-enter {
+    from { opacity: 0; transform: scale(0.92); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes kiosco-title-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes kiosco-pop {
+    0% { transform: scale(0); }
+    60% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+}
+
+@keyframes kiosco-ring-ok {
+    0% { filter: drop-shadow(0 0 0 rgba(105, 240, 174, 0.55)); }
+    100% { filter: drop-shadow(0 0 28px rgba(105, 240, 174, 0)); }
+}
+
+@keyframes kiosco-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+}
+
+@keyframes kiosco-wobble {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-4deg); }
+    75% { transform: rotate(4deg); }
+}
+
+@keyframes kiosco-breathe {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(0, 210, 255, 0)); }
+    50% { transform: scale(1.05); filter: drop-shadow(0 0 18px rgba(0, 210, 255, 0.35)); }
+}
+
+/* Accesibilidad: si el sistema pide menos movimiento, todo apagado — la
+   retroalimentación esencial (mensaje + sonido) no depende de la animación. */
+@media (prefers-reduced-motion: reduce) {
+    .kiosco-center,
+    .kiosco-title,
+    .kiosco-icon-idle,
+    .kiosco-icon-ok,
+    .kiosco-icon-error,
+    .kiosco-icon-warn {
+        animation: none;
+    }
 }
