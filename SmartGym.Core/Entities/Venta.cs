@@ -50,6 +50,9 @@ public sealed class DetalleVentaInfo
     public long Cantidad { get; set; }
     public long PrecioUnitarioCentavos { get; set; }
     public long SubtotalCentavos { get; set; }
+
+    /// <summary>Descripción resuelta para UI (null cuando no se consulta el producto).</summary>
+    public string? DescripcionProducto { get; set; }
 }
 
 public sealed class VentaInfo

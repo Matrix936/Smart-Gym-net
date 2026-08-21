@@ -6,6 +6,16 @@ public static class MovimientoTipos
     public const string Egreso = "egreso";
 }
 
+/// <summary>metodo_pago — texto libre en el schema (sin CHECK), este catálogo es solo para la UI.</summary>
+public static class MetodosPago
+{
+    public const string Efectivo = "efectivo";
+    public const string Tarjeta = "tarjeta";
+    public const string Transferencia = "transferencia";
+
+    public static readonly IReadOnlyList<string> Todos = [Efectivo, Tarjeta, Transferencia];
+}
+
 /// <summary>referencia_tipo polimórfica de caja_movimientos (NO es una FK real).</summary>
 public static class CajaReferenciaTipos
 {

@@ -83,6 +83,7 @@ public static class MauiProgram
 		builder.Services.AddScoped<IAccesoService, AccesoService>();
 		builder.Services.AddScoped<IPosService, PosService>();
 		builder.Services.AddScoped<ICobranzaService, CobranzaService>();
+		builder.Services.AddScoped<IVentasService, VentasService>();
 
 		// ---- Biometria (embebida en proceso, sin sidecar HTTP - ver doc 04 §3.1) ----
 		var templatesDir = Path.Combine(dataDir, "Templates");

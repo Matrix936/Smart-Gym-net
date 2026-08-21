@@ -1,0 +1,632 @@
+@page "/ventas"
+@* VentasPage: historial unificado de lo que mueve dinero en caja — ventas POS,
+   cancelaciones, pagos de membresía y abonos. Fuente: caja_movimientos con
+   joins polimórficos (ver CajaMovimientosRepository.BuscarHistorialAsync).
+   Solo lectura salvo cancelar venta POS completada (reutiliza
+   PosService.CancelarVentaAsync con reautorización por contraseña). *@
+@using System.Globalization
+@using MudBlazor
+@using SmartGym.Core.Authorization
+@using SmartGym.Core.Common
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Repositories
+@using SmartGym.Core.Services
+@using SmartGym.App.Services
+
+<div class="page-head">
+    <div>
+        <h4>Ventas</h4>
+        <p class="page-sub">Historial de ventas, cancelaciones, membresías y abonos de la sede.</p>
+    </div>
+</div>
+
+<div class="glass-panel">
+    <div class="form-fields" style="max-width: none; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end;">
+        @if (_showSede && _sedes.Count > 1)
+        {
+            <MudSelect T="long"
+                       Label="Sede"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       OuterClass="filter-field"
+                       RelativeWidth="DropdownWidth.Adaptive"
+                       Value="_sedeSeleccionada"
+                       ValueChanged="OnSedeChangedAsync">
+                @foreach (var sede in _sedes)
+                {
+                    <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        <MudDatePicker T="DateTime?"
+                       Label="Desde"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       @bind-Value="_desde" />
+        <MudDatePicker T="DateTime?"
+                       Label="Hasta"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       @bind-Value="_hasta" />
+        <MudAutocomplete T="Socio"
+                         Label="Socio"
+                         Variant="Variant.Outlined"
+                         Margin="Margin.Dense"
+                         SearchFunc="@BuscarSociosAsync"
+                         ToStringFunc="@(s => s is null ? "" : $"{s.Nombre} {s.ApellidoPaterno}".Trim())"
+                         MaxItems="10"
+                         MinCharacters="0"
+                         ResetValueOnEmptyText="true"
+                         Clearable="true"
+                         Value="_socioSeleccionado"
+                         ValueChanged="OnSocioChangedAsync" />
+        <MudSelect T="long?"
+                   Label="Vendedor"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Clearable="true"
+                   Value="_idVendedor"
+                   ValueChanged="OnVendedorChangedAsync">
+            <MudSelectItem T="long?" Value="null">Todos</MudSelectItem>
+            @foreach (var u in _vendedores)
+            {
+                <MudSelectItem Value="@((long?)u.IdUsuario)">@($"{u.Nombre} {u.ApellidoPaterno}".Trim())</MudSelectItem>
+            }
+        </MudSelect>
+        <MudSelect T="string?"
+                   Label="Tipo"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Clearable="true"
+                   Value="_tipo"
+                   ValueChanged="OnTipoChangedAsync">
+            <MudSelectItem T="string?" Value="null">Todos</MudSelectItem>
+            <MudSelectItem T="string?" Value="@CajaReferenciaTipos.Venta">Venta</MudSelectItem>
+            <MudSelectItem T="string?" Value="@CajaReferenciaTipos.CancelacionVenta">Cancelación</MudSelectItem>
+            <MudSelectItem T="string?" Value="@CajaReferenciaTipos.PagoMembresia">Membresía</MudSelectItem>
+            <MudSelectItem T="string?" Value="@CajaReferenciaTipos.Abono">Abono</MudSelectItem>
+        </MudSelect>
+        <MudSelect T="string?"
+                   Label="Método"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Clearable="true"
+                   Value="_metodoPago"
+                   ValueChanged="OnMetodoChangedAsync">
+            <MudSelectItem T="string?" Value="null">Todos</MudSelectItem>
+            @foreach (var m in MetodosPago.Todos)
+            {
+                <MudSelectItem T="string?" Value="@m">@Capitalizar(m)</MudSelectItem>
+            }
+        </MudSelect>
+        <MudSelect T="string?"
+                   Label="Estado venta"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Clearable="true"
+                   Value="_estadoVenta"
+                   ValueChanged="OnEstadoChangedAsync">
+            <MudSelectItem T="string?" Value="null">Todos</MudSelectItem>
+            <MudSelectItem T="string?" Value="@VentaEstados.Completada">Completada</MudSelectItem>
+            <MudSelectItem T="string?" Value="@VentaEstados.Cancelada">Cancelada</MudSelectItem>
+        </MudSelect>
+    </div>
+
+    @if (_cargando)
+    {
+        <p class="muted">Cargando...</p>
+    }
+    else if (_filas.Count == 0)
+    {
+        <p class="muted" style="margin-top: 1rem;">Sin movimientos para los filtros actuales.</p>
+    }
+    else
+    {
+        <div class="table-wrap" style="margin-top: 1rem;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Concepto</th>
+                        <th>Socio</th>
+                        <th>Método</th>
+                        <th style="text-align: right;">Monto</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in _filas)
+                    {
+                        <tr>
+                            <td class="muted-cell">@FormatearFecha(f.Fecha)</td>
+                            <td><span class="status-badge @ClaseBadge(f)">@EtiquetaTipo(f)</span></td>
+                            <td>@(string.IsNullOrEmpty(f.Concepto) ? "—" : f.Concepto)</td>
+                            <td class="muted-cell">@(f.NombreSocio ?? "—")</td>
+                            <td class="muted-cell">@Capitalizar(f.MetodoPago)</td>
+                            <td style="text-align: right; @(f.MontoCentavos < 0 ? "color: var(--color-error);" : "")">
+                                @(f.MontoCentavos < 0 ? "−" : "")@FormatearMonto(Math.Abs(f.MontoCentavos))
+                            </td>
+                            <td>
+                                @if (f.ReferenciaTipo == CajaReferenciaTipos.Venta || f.ReferenciaTipo == CajaReferenciaTipos.CancelacionVenta)
+                                {
+                                    <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick='() => VerDetalleAsync(f)'>Detalle</MudButton>
+                                    if (f.EsVentaCancelable && TienePermisoCancelar)
+                                    {
+                                        <MudButton Variant="Variant.Text" Color="Color.Error" OnClick='() => AbrirCancelacion(f)'>Cancelar</MudButton>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="muted-cell">—</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="table-footer">
+            <span class="muted">Mostrando @_filas.Count de @_totalRegistros movimiento(s)</span>
+            <div class="pagination-controls">
+                <MudSelect T="int"
+                           Label="Ver"
+                           Margin="Margin.Dense"
+                           Variant="Variant.Outlined"
+                           OuterClass="page-size-field"
+                           RelativeWidth="DropdownWidth.Adaptive"
+                           Value="_tamanoPagina"
+                           ValueChanged="OnTamanoPaginaChangedAsync">
+                    @foreach (var tamano in TamanosPagina.Validos)
+                    {
+                        <MudSelectItem Value="@tamano">@tamano</MudSelectItem>
+                    }
+                </MudSelect>
+                @if (_totalPaginas > 1)
+                {
+                    <MudPagination Count="_totalPaginas"
+                                   Selected="_pagina"
+                                   SelectedChanged="OnPaginaChangedAsync"
+                                   Color="Color.Primary"
+                                   Size="Size.Small" />
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<MudDialog Visible="_detalleAbierto"
+           VisibleChanged="v => _detalleAbierto = v"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Detalle de venta</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_detalleCargando)
+        {
+            <p class="muted">Cargando...</p>
+        }
+        else if (_detalleVenta is not null)
+        {
+            <div class="summary-row"><span class="summary-label">Folio</span><span class="muted">@_detalleVenta.IdVenta</span></div>
+            <div class="summary-row">
+                <span class="summary-label">Estado</span>
+                <span class="status-badge @(_detalleVenta.Estado == VentaEstados.Completada ? "status-success" : "status-danger")">
+                    @Capitalizar(_detalleVenta.Estado)
+                </span>
+            </div>
+            <div class="summary-row"><span class="summary-label">Método</span><span>@Capitalizar(_detalleVenta.MetodoPago)</span></div>
+            <div class="table-wrap" style="margin-top: 1rem;">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Producto</th><th>Cant.</th><th style="text-align: right;">P. unitario</th><th style="text-align: right;">Subtotal</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _detalleVenta.Items)
+                        {
+                            <tr>
+                                <td>@(item.DescripcionProducto ?? $"#{item.IdProducto}")</td>
+                                <td>@item.Cantidad</td>
+                                <td style="text-align: right;">@FormatearMonto(item.PrecioUnitarioCentavos)</td>
+                                <td style="text-align: right;">@FormatearMonto(item.SubtotalCentavos)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="form-section" style="text-align: right; margin-top: 0.75rem;">Total: @FormatearMonto(_detalleVenta.TotalCentavos)</p>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="() => _detalleAbierto = false">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog Visible="_cancelacionAbierta"
+           VisibleChanged="v => _cancelacionAbierta = v"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Cancelar venta</MudText>
+    </TitleContent>
+    <DialogContent>
+        @* Mismo criterio que el cierre de caja: confirmación en dos pasos y
+            reautorización por contraseña (la validación real vive en
+            PosService.CancelarVentaAsync, que además regresa stock y genera
+            el egreso en caja). *@
+        <div>
+            <p class="form-section">Se anulará la venta @(_filaCancelando?.ReferenciaId) y se generará un egreso en caja.</p>
+            @if (_cancelacionPaso == 1)
+            {
+                <p class="muted">¿Deseas continuar?</p>
+            }
+            else
+            {
+                <PasswordField Label="Confirma tu contraseña" Autocomplete="current-password" @bind-Value="_cancelacionPassword" />
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        @if (_cancelacionPaso == 1)
+        {
+            <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="CerrarCancelacion">No</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="() => _cancelacionPaso = 2">Sí, continuar</MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_cancelando" OnClick="() => _cancelacionPaso = 1">Atrás</MudButton>
+            <AsyncButton Text="Cancelar venta" LoadingText="Cancelando..." IsLoading="_cancelando" OnClick="CancelarVentaAsync" />
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private IVentasService Ventas { get; set; } = default!;
+    [Inject] private IPosService Pos { get; set; } = default!;
+    [Inject] private IAuthorizationService Authz { get; set; } = default!;
+    [Inject] private ISociosRepository SociosRepo { get; set; } = default!;
+    [Inject] private IUsuariosRepository UsuariosRepo { get; set; } = default!;
+    [Inject] private ISedesRepository Sedes { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    private bool _cargando = true;
+    private bool _showSede;
+    private long _sedeSeleccionada;
+    private List<Sede> _sedes = [];
+    private List<Usuario> _vendedores = [];
+
+    private DateTime? _desde;
+    private DateTime? _hasta;
+    private Socio? _socioSeleccionado;
+    private long? _idVendedor;
+    private string? _tipo;
+    private string? _metodoPago;
+    private string? _estadoVenta;
+
+    private List<MovimientoHistorialDto> _filas = [];
+    private int _pagina = 1;
+    private int _tamanoPagina = TamanosPagina.Default;
+    private int _totalRegistros;
+    private int _totalPaginas;
+
+    // El permiso de cancelar se consulta una sola vez (no por fila).
+    private bool _tienePermisoCancelar;
+    private bool TienePermisoCancelar => _tienePermisoCancelar;
+
+    private bool _detalleAbierto;
+    private bool _detalleCargando;
+    private VentaInfo? _detalleVenta;
+
+    private MovimientoHistorialDto? _filaCancelando;
+    private bool _cancelacionAbierta;
+    private int _cancelacionPaso = 1;
+    private string _cancelacionPassword = "";
+    private bool _cancelando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Authz.RequierePermisoAsync(sesion.Token, PermisoCatalogo.PosVerHistorial);
+        }
+        catch (BusinessException)
+        {
+            Feedback.ShowError("No tienes permiso para ver el historial de ventas");
+            return;
+        }
+
+        try
+        {
+            await Authz.RequierePermisoAsync(sesion.Token, PermisoCatalogo.PosCancelarVenta);
+            _tienePermisoCancelar = true;
+        }
+        catch (BusinessException)
+        {
+            // Sin permiso de cancelación: solo se oculta el botón.
+        }
+
+        _desde = DateTime.Today.AddDays(-7);
+        _showSede = sesion.IdSede is null;
+        if (_showSede)
+        {
+            try
+            {
+                _sedes = (await Sedes.GetActivasAsync()).ToList();
+            }
+            catch
+            {
+                _sedes = [];
+            }
+            _sedeSeleccionada = _sedes.FirstOrDefault()?.IdSede ?? 0;
+        }
+
+        try
+        {
+            _vendedores = (await UsuariosRepo.GetActivosAsync()).ToList();
+        }
+        catch
+        {
+            _vendedores = [];
+        }
+
+        await CargarAsync();
+    }
+
+    private Task OnSedeChangedAsync(long value) => EjecutarConSedeAsync(value);
+
+    private async Task EjecutarConSedeAsync(long value)
+    {
+        _sedeSeleccionada = value;
+        await CargarAsync();
+    }
+
+    private async Task<IEnumerable<Socio?>> BuscarSociosAsync(string arg, CancellationToken ct)
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return [];
+        }
+        var pagina = await SociosRepo.SearchAsync(string.IsNullOrWhiteSpace(arg) ? null : arg.Trim(), pagina: 1, tamanoPagina: 10, ct: ct);
+        return pagina.Items.Cast<Socio?>();
+    }
+
+    private async Task OnSocioChangedAsync(Socio? socio)
+    {
+        _socioSeleccionado = socio;
+        await CargarAsync();
+    }
+
+    private Task OnVendedorChangedAsync(long? value) => CambiarFiltroAsync(() => _idVendedor = value == 0 ? null : value);
+
+    private Task OnTipoChangedAsync(string? value) => CambiarFiltroAsync(() => _tipo = NormalizarNulo(value));
+
+    private Task OnMetodoChangedAsync(string? value) => CambiarFiltroAsync(() => _metodoPago = NormalizarNulo(value));
+
+    private Task OnEstadoChangedAsync(string? value) => CambiarFiltroAsync(() => _estadoVenta = NormalizarNulo(value));
+
+    private async Task OnTamanoPaginaChangedAsync(int value)
+    {
+        _tamanoPagina = value;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnPaginaChangedAsync(int value)
+    {
+        _pagina = value;
+        await CargarAsync();
+    }
+
+    /// <summary>MudSelect dispara ValueChanged con el valor placeholder ("Todos")
+    /// como item real: normalizamos ese caso a null antes de filtrar.</summary>
+    private static string? NormalizarNulo(string? valor) => string.IsNullOrWhiteSpace(valor) ? null : valor;
+
+    private async Task CambiarFiltroAsync(Action setter)
+    {
+        setter();
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private HistorialFiltros ConstruirFiltros()
+    {
+        return new HistorialFiltros
+        {
+            Desde = AIsoUtcInicioDia(_desde),
+            Hasta = AIsoUtcFinDia(_hasta),
+            TipoReferencia = _tipo,
+            MetodoPago = _metodoPago,
+            EstadoVenta = _estadoVenta,
+            IdSocio = _socioSeleccionado?.IdSocio,
+            IdVendedor = _idVendedor,
+        };
+    }
+
+    private async Task CargarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        _cargando = true;
+        try
+        {
+            var resultado = await Ventas.BuscarHistorialAsync(
+                sesion.Token,
+                ConstruirFiltros(),
+                _pagina,
+                _tamanoPagina,
+                _showSede ? _sedeSeleccionada : null);
+            _filas = resultado.Items.ToList();
+            _totalRegistros = resultado.TotalRegistros;
+            _totalPaginas = resultado.TotalPaginas;
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo cargar el historial");
+        }
+        finally
+        {
+            _cargando = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task VerDetalleAsync(MovimientoHistorialDto fila)
+    {
+        if (fila.ReferenciaId is null)
+        {
+            return;
+        }
+
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        _detalleAbierto = true;
+        _detalleCargando = true;
+        _detalleVenta = null;
+        StateHasChanged();
+        try
+        {
+            _detalleVenta = await Ventas.ObtenerDetalleVentaAsync(
+                sesion.Token,
+                fila.ReferenciaId,
+                _showSede ? _sedeSeleccionada : null);
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+            _detalleAbierto = false;
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo cargar el detalle de la venta");
+            _detalleAbierto = false;
+        }
+        finally
+        {
+            _detalleCargando = false;
+            StateHasChanged();
+        }
+    }
+
+    private void AbrirCancelacion(MovimientoHistorialDto fila)
+    {
+        _filaCancelando = fila;
+        _cancelacionPassword = "";
+        _cancelacionPaso = 1;
+        _cancelacionAbierta = true;
+    }
+
+    private void CerrarCancelacion()
+    {
+        if (!_cancelando)
+        {
+            _cancelacionAbierta = false;
+        }
+    }
+
+    private async Task CancelarVentaAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _filaCancelando?.ReferenciaId is null || _cancelando)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(_cancelacionPassword))
+        {
+            Feedback.ShowWarning("Ingresa tu contraseña");
+            return;
+        }
+
+        _cancelando = true;
+        try
+        {
+            await Pos.CancelarVentaAsync(sesion.Token, new CancelarVentaInput
+            {
+                IdVenta = _filaCancelando.ReferenciaId,
+                PasswordConfirmacion = _cancelacionPassword,
+            }, _showSede ? _sedeSeleccionada : null);
+            Feedback.ShowSuccess("Venta cancelada");
+            _cancelacionAbierta = false;
+            await CargarAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo cancelar la venta");
+        }
+        finally
+        {
+            _cancelando = false;
+        }
+    }
+
+    private static string ClaseBadge(MovimientoHistorialDto f) => f.ReferenciaTipo switch
+    {
+        CajaReferenciaTipos.Venta => f.EstadoVenta == VentaEstados.Cancelada ? "status-danger" : "status-success",
+        CajaReferenciaTipos.CancelacionVenta => "status-danger",
+        CajaReferenciaTipos.PagoMembresia => "status-info",
+        CajaReferenciaTipos.Abono => "status-warning",
+        _ => "status-info",
+    };
+
+    private static string EtiquetaTipo(MovimientoHistorialDto f) => f.ReferenciaTipo switch
+    {
+        CajaReferenciaTipos.Venta => "Venta",
+        CajaReferenciaTipos.CancelacionVenta => "Cancelación",
+        CajaReferenciaTipos.PagoMembresia => "Membresía",
+        CajaReferenciaTipos.Abono => "Abono",
+        _ => f.TipoMovimiento,
+    };
+
+    private static string Capitalizar(string texto) =>
+        string.IsNullOrEmpty(texto) ? texto : char.ToUpperInvariant(texto[0]) + texto[1..];
+
+    private static string FormatearMonto(long centavos) =>
+        (centavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("es-MX"));
+
+    private static string FormatearFecha(string iso)
+    {
+        if (DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dto))
+        {
+            return dto.ToLocalTime().ToString("dd/MM/yyyy HH:mm", CultureInfo.GetCultureInfo("es-MX"));
+        }
+        return iso;
+    }
+
+    /// <summary>Inicio del día local → ISO UTC, mismo formato strftime que usa la DB.</summary>
+    private static string? AIsoUtcInicioDia(DateTime? fechaLocal) =>
+        fechaLocal is null ? null : ToIsoUtc(fechaLocal.Value.Date);
+
+    /// <summary>Fin del día local (23:59:59.999) → ISO UTC inclusivo.</summary>
+    private static string? AIsoUtcFinDia(DateTime? fechaLocal) =>
+        fechaLocal is null ? null : ToIsoUtc(fechaLocal.Value.Date.AddDays(1).AddMilliseconds(-1));
+
+    private static string ToIsoUtc(DateTime local)
+    {
+        var utc = local.Kind == DateTimeKind.Utc ? local : local.ToUniversalTime();
+        return utc.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
+    }
+}

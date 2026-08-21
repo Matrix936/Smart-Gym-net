@@ -58,4 +58,16 @@ public sealed class UsuariosRepository : RepositoryBase, IUsuariosRepository
                 "FROM usuarios WHERE id_usuario = @id",
                 new { id = idUsuario }, cancellationToken: ct));
     }
+
+    public async Task<IReadOnlyList<Usuario>> GetActivosAsync(CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        var rows = await conn.QueryAsync<Usuario>(
+            new CommandDefinition(
+                "SELECT id_usuario, nombre, apellido_paterno, apellido_materno, email, password_hash, " +
+                "id_rol, id_sede, es_activo, updated_at, sincronizado, deleted_at, created_at " +
+                "FROM usuarios WHERE es_activo = 1 AND deleted_at IS NULL ORDER BY nombre, apellido_paterno",
+                cancellationToken: ct));
+        return rows.ToList();
+    }
 }
