@@ -18,7 +18,8 @@ public sealed class SociosRepository : RepositoryBase, ISociosRepository
         "WHERE deleted_at IS NULL " +
         "AND (@query IS NULL OR nombre LIKE '%' || @query || '%' COLLATE NOCASE " +
         "OR email LIKE '%' || @query || '%' COLLATE NOCASE " +
-        "OR telefono LIKE '%' || @query || '%' COLLATE NOCASE) ";
+        "OR telefono LIKE '%' || @query || '%' COLLATE NOCASE) " +
+        "AND (@estado IS NULL OR estado = @estado COLLATE NOCASE) ";
 
     public SociosRepository(string dbPath) : base(dbPath)
     {
@@ -57,7 +58,7 @@ public sealed class SociosRepository : RepositoryBase, ISociosRepository
                 new { id = idSocio }, cancellationToken: ct));
     }
 
-    public async Task<PagedResult<Socio>> SearchAsync(string? query, int pagina, int tamanoPagina, CancellationToken ct = default)
+    public async Task<PagedResult<Socio>> SearchAsync(string? query = null, string? estado = null, int pagina = 1, int tamanoPagina = TamanosPagina.Default, CancellationToken ct = default)
     {
         if (!TamanosPagina.EsValido(tamanoPagina))
         {
@@ -72,14 +73,14 @@ public sealed class SociosRepository : RepositoryBase, ISociosRepository
         var total = await conn.ExecuteScalarAsync<int>(
             new CommandDefinition(
                 "SELECT COUNT(*) FROM socios " + SearchWhere,
-                new { query }, cancellationToken: ct));
+                new { query, estado }, cancellationToken: ct));
 
         var rows = await conn.QueryAsync<Socio>(
             new CommandDefinition(
                 Select + SearchWhere +
                 "ORDER BY nombre, apellido_paterno " +
                 "LIMIT @tamanoPagina OFFSET @offset",
-                new { query, tamanoPagina, offset }, cancellationToken: ct));
+                new { query, estado, tamanoPagina, offset }, cancellationToken: ct));
 
         return new PagedResult<Socio>
         {

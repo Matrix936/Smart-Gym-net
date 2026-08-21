@@ -20,7 +20,7 @@ public static class TamanosPagina
 
     public static readonly IReadOnlyList<int> Validos = [Diez, VeinteYCinco, Cincuenta];
 
-    public const int Default = VeinteYCinco;
+    public const int Default = Diez;
 
     public static bool EsValido(int tamanoPagina) => Validos.Contains(tamanoPagina);
 }

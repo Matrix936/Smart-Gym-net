@@ -31,6 +31,20 @@
                       Immediate="true"
                       Value="@_busqueda"
                       ValueChanged="OnBusquedaChanged" />
+        <MudSelect T="string"
+                   OuterClass="filter-field"
+                   RelativeWidth="DropdownWidth.Adaptive"
+                   Label="Estado"
+                   Margin="Margin.Dense"
+                   Variant="Variant.Outlined"
+                   Value="@_filtroEstado"
+                   ValueChanged="OnFiltroEstadoChanged">
+            <MudSelectItem Value="@("")">Todos</MudSelectItem>
+            @foreach (var estado in SocioEstados.Validos)
+            {
+                <MudSelectItem Value="@estado">@EtiquetaEstado(estado)</MudSelectItem>
+            }
+        </MudSelect>
     </div>
 
     <div class="table-wrap">
@@ -57,7 +71,7 @@
                 {
                     <tr>
                         <td colspan="7" class="empty-cell">
-                            @(_busqueda.Length > 0 ? "Sin resultados para la búsqueda" : "No hay miembros registrados")
+                            @(_busqueda.Length > 0 || _filtroEstado.Length > 0 ? "Sin resultados para los filtros aplicados" : "No hay miembros registrados")
                         </td>
                     </tr>
                 }
@@ -158,7 +172,8 @@
                            Label="Ver"
                            Margin="Margin.Dense"
                            Variant="Variant.Outlined"
-                           Class="page-size-field"
+                           OuterClass="page-size-field"
+                           RelativeWidth="DropdownWidth.Adaptive"
                            Value="_tamanoPagina"
                            ValueChanged="OnTamanoPaginaChanged">
                     @foreach (var tamano in TamanosPagina.Validos)
@@ -223,6 +238,7 @@
     private HashSet<string> _sociosConHuella = new(StringComparer.OrdinalIgnoreCase);
     private bool _cargando;
     private string _busqueda = "";
+    private string _filtroEstado = "";
     private CancellationTokenSource? _debounce;
 
     private int _pagina = 1;
@@ -261,7 +277,8 @@
         try
         {
             var query = string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda.Trim();
-            var resultado = await Socios.BuscarAsync(sesion.Token, query, _pagina, _tamanoPagina);
+            var estado = string.IsNullOrWhiteSpace(_filtroEstado) ? null : _filtroEstado;
+            var resultado = await Socios.BuscarAsync(sesion.Token, query, estado, _pagina, _tamanoPagina);
             _miembros = resultado.Items.ToList();
             _totalRegistros = resultado.TotalRegistros;
             _totalPaginas = resultado.TotalPaginas;
@@ -295,6 +312,13 @@
         catch (TaskCanceledException)
         {
         }
+    }
+
+    private async Task OnFiltroEstadoChanged(string value)
+    {
+        _filtroEstado = value ?? "";
+        _pagina = 1;
+        await CargarAsync();
     }
 
     private async Task OnTamanoPaginaChanged(int value)

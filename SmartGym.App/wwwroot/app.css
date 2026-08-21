@@ -418,8 +418,13 @@ table.data-table {
     margin-bottom: 1rem;
 }
 
-.search-field { max-width: 360px; width: 100%; }
-.page-size-field { max-width: 140px; }
+/* flex: 0 0 auto explícito: MudBlazor le pone flex:1 1 auto a todo
+   .mud-input-control por defecto, lo que hacía que el buscador y el filtro
+   compitieran por crecer en la fila en vez de quedarse en su ancho propio —
+   el margin-left:auto del filtro no alcanzaba a separarlo del buscador. */
+.search-field { max-width: 360px; width: 100%; flex: 0 0 auto; }
+.filter-field { width: fit-content; margin-left: auto; flex: 0 0 auto; }
+.page-size-field { width: fit-content; flex: 0 0 auto; }
 
 .table-footer {
     margin-top: 0.75rem;

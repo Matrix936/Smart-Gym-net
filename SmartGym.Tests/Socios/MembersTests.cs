@@ -175,6 +175,45 @@ public sealed class MembersTests
     }
 
     [Fact]
+    public async Task search_members_filtra_por_estado()
+    {
+        var (ctx, token, sedeId) = await SuperadminAsync();
+        var activo = await ctx.SociosService.CrearSocioAsync(token, Datos("EstadoActivo"), sedeId);
+        var inactivo = await ctx.SociosService.CrearSocioAsync(token, Datos("EstadoInactivo"), sedeId);
+        var bloqueado = await ctx.SociosService.CrearSocioAsync(token, Datos("EstadoBloqueado"), sedeId);
+        await ctx.SociosService.CambiarEstadoAsync(token, inactivo.IdSocio, SocioEstados.Inactivo);
+        await ctx.SociosService.CambiarEstadoAsync(token, bloqueado.IdSocio, SocioEstados.Bloqueado);
+
+        var activos = (await ctx.SociosService.BuscarAsync(token, estado: SocioEstados.Activo)).Items;
+        var inactivos = (await ctx.SociosService.BuscarAsync(token, estado: SocioEstados.Inactivo)).Items;
+        var bloqueados = (await ctx.SociosService.BuscarAsync(token, estado: SocioEstados.Bloqueado)).Items;
+        var suspendidos = (await ctx.SociosService.BuscarAsync(token, estado: SocioEstados.Suspendido)).Items;
+
+        Assert.Single(inactivos, s => s.IdSocio == inactivo.IdSocio);
+        Assert.Single(bloqueados, s => s.IdSocio == bloqueado.IdSocio);
+        Assert.DoesNotContain(inactivos, s => s.IdSocio == activo.IdSocio);
+        Assert.DoesNotContain(bloqueados, s => s.IdSocio == activo.IdSocio);
+        Assert.Empty(suspendidos);
+
+        // El filtro es case-insensitive y combina con la búsqueda por nombre.
+        var porMayusculas = (await ctx.SociosService.BuscarAsync(token, estado: "INACTIVO")).Items;
+        Assert.Single(porMayusculas, s => s.IdSocio == inactivo.IdSocio);
+        var combinado = (await ctx.SociosService.BuscarAsync(token, "EstadoBloqueado", estado: SocioEstados.Bloqueado)).Items;
+        Assert.Single(combinado, s => s.IdSocio == bloqueado.IdSocio);
+    }
+
+    [Fact]
+    public async Task search_members_estado_invalido_es_rechazado()
+    {
+        var (ctx, token, _) = await SuperadminAsync();
+
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.SociosService.BuscarAsync(token, estado: "desconocido"));
+        Assert.Equal(BusinessError.Validation, ex.Error);
+        Assert.Equal("estado_invalido", ex.Code);
+    }
+
+    [Fact]
     public async Task update_member_actualiza_campos_seleccionados_y_preserva_id_sede_y_id()
     {
         var (ctx, token, sedeId) = await SuperadminAsync();
@@ -304,6 +343,26 @@ public sealed class MembersTests
         Assert.Equal(5, resultado.TotalRegistros);
         Assert.Equal(5, resultado.Items.Count);
         Assert.DoesNotContain(resultado.Items, s => s.Nombre == "NoCoincide");
+    }
+
+    [Fact]
+    public async Task paginacion_conteo_total_respeta_el_filtro_de_estado_no_solo_la_pagina()
+    {
+        var (ctx, token, sedeId) = await SuperadminAsync();
+        for (var i = 0; i < 3; i++)
+        {
+            await ctx.SociosService.CrearSocioAsync(token, Datos($"ConEstado{i}"), sedeId);
+        }
+        var inactivo = await ctx.SociosService.CrearSocioAsync(token, Datos("ConEstadoInactivo"), sedeId);
+        await ctx.SociosService.CambiarEstadoAsync(token, inactivo.IdSocio, SocioEstados.Inactivo);
+
+        var activos = await ctx.Socios.SearchAsync(estado: SocioEstados.Activo, pagina: 1, tamanoPagina: TamanosPagina.Diez);
+        var inactivos = await ctx.Socios.SearchAsync(estado: SocioEstados.Inactivo, pagina: 1, tamanoPagina: TamanosPagina.Diez);
+
+        Assert.Equal(3, activos.TotalRegistros);
+        Assert.All(activos.Items, s => Assert.Equal(SocioEstados.Activo, s.Estado));
+        Assert.Equal(1, inactivos.TotalRegistros);
+        Assert.All(inactivos.Items, s => Assert.Equal(SocioEstados.Inactivo, s.Estado));
     }
 
     [Fact]

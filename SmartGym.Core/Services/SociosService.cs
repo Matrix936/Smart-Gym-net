@@ -70,13 +70,29 @@ public sealed class SociosService : ISociosService
     {
         await _auth.ValidarSesionAsync(token, ct);
         return await _socios.GetByIdAsync(idSocio, ct)
-            ?? throw BusinessException.NotFound("socio no encontrado", "socio_no_encontrado");
+            ?? throw BusinessException.NotFound("Socio no encontrado", "socio_no_encontrado");
     }
 
-    public async Task<PagedResult<Socio>> BuscarAsync(string token, string? query = null, int pagina = 1, int tamanoPagina = TamanosPagina.Default, CancellationToken ct = default)
+    public async Task<PagedResult<Socio>> BuscarAsync(string token, string? query = null, string? estado = null, int pagina = 1, int tamanoPagina = TamanosPagina.Default, CancellationToken ct = default)
     {
         await _auth.ValidarSesionAsync(token, ct);
-        return await _socios.SearchAsync(string.IsNullOrWhiteSpace(query) ? null : query.Trim(), pagina, tamanoPagina, ct);
+
+        string? estadoFiltro = null;
+        if (!string.IsNullOrWhiteSpace(estado))
+        {
+            estadoFiltro = estado.Trim().ToLowerInvariant();
+            if (!SocioEstados.EsValido(estadoFiltro))
+            {
+                throw BusinessException.Validation($"Estado inválido: {estado}. Valores permitidos: {string.Join(", ", SocioEstados.Validos)}.", "estado_invalido");
+            }
+        }
+
+        return await _socios.SearchAsync(
+            string.IsNullOrWhiteSpace(query) ? null : query.Trim(),
+            estadoFiltro,
+            pagina,
+            tamanoPagina,
+            ct);
     }
 
     public async Task<Socio> ActualizarSocioAsync(string token, ActualizarSocioDatos datos, CancellationToken ct = default)

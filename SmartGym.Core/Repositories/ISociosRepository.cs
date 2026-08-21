@@ -20,11 +20,12 @@ public interface ISociosRepository
 
     /// <summary>
     /// Búsqueda LIKE por nombre, email o teléfono, paginada. Query null → todos los no
-    /// borrados. tamanoPagina debe estar en TamanosPagina.Validos (10/25/50); cualquier
-    /// otro valor lanza ArgumentException. pagina fuera de rango (más allá del total)
-    /// devuelve Items vacío, no error.
+    /// borrados. Estado null → sin filtro por estado; si viene valor debe ser uno de
+    /// SocioEstados.Validos. tamanoPagina debe estar en TamanosPagina.Validos (10/25/50);
+    /// cualquier otro valor lanza ArgumentException. pagina fuera de rango (más allá del
+    /// total) devuelve Items vacío, no error.
     /// </summary>
-    Task<PagedResult<Socio>> SearchAsync(string? query, int pagina, int tamanoPagina, CancellationToken ct = default);
+    Task<PagedResult<Socio>> SearchAsync(string? query = null, string? estado = null, int pagina = 1, int tamanoPagina = TamanosPagina.Default, CancellationToken ct = default);
 
     /// <summary>Actualiza campos editables preservando id_socio e id_sede_registro.</summary>
     Task UpdateAsync(Socio socio, CancellationToken ct = default);

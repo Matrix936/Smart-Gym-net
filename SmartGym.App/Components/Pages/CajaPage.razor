@@ -27,7 +27,8 @@
                    Label="Sede"
                    Variant="Variant.Outlined"
                    Margin="Margin.Dense"
-                   Class="page-size-field"
+                   OuterClass="page-size-field"
+                   RelativeWidth="DropdownWidth.Adaptive"
                    Value="_sedeSeleccionada"
                    ValueChanged="OnSedeChanged">
             @foreach (var sede in _sedes)
@@ -47,6 +48,7 @@
                               Variant="Variant.Outlined"
                               Min="0"
                               Format="F2"
+                              HideSpinButtons="true"
                               Immediate="true"
                               @bind-Value="_montoInicial" />
             <div style="margin-top: 1rem;">
@@ -142,6 +144,7 @@
                                   Variant="Variant.Outlined"
                                   Min="0"
                                   Format="F2"
+                                  HideSpinButtons="true"
                                   Immediate="true"
                                   @bind-Value="_montoContado" />
             }
