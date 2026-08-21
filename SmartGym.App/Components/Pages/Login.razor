@@ -28,6 +28,10 @@
                              IsLoading="_loading" />
             </div>
         </form>
+
+        <button type="button" class="login-kiosco-link" @onclick="() => KioscoWindow.Abrir()">
+            Modo Kiosco
+        </button>
     </AuthCard>
     <ThemeToggle Floating="true" />
 </div>
@@ -36,6 +40,7 @@
     [Inject] private IAuthService Auth { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private IKioscoWindowService KioscoWindow { get; set; } = default!;
 
     [Parameter] public EventCallback OnAuthenticated { get; set; }
 

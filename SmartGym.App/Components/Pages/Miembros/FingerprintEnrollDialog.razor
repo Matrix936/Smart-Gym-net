@@ -42,7 +42,7 @@
         {
             <AsyncButton Text="Iniciar captura"
                          LoadingText="Iniciando..."
-                         Disabled="@(CaptureService.CurrentMode != BiometricCaptureMode.Idle)"
+                         Disabled="@(CaptureService.CurrentMode == BiometricCaptureMode.Enrolling)"
                          OnClick="IniciarCapturaAsync" />
         }
     </DialogActions>

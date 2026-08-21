@@ -1,0 +1,429 @@
+@* KioscoPage: identificación continua por huella, pantalla completa, pensada para que la
+   lea un socio parado frente a la tablet, no un administrador sentado. Vive en su propia
+   ventana MAUI (ver IKioscoWindowService) — RootComponent directo del BlazorWebView de esa
+   ventana, sin pasar por Router/MainLayout, así que no necesita @page ni @layout. Salir del
+   Kiosco es cerrar la ventana (X / Alt+F4), interceptado y confirmado a nivel nativo — ver
+   KioscoWindowService.OnWindowCreated. *@
+@implements IDisposable
+@using MudBlazor
+@using SmartGym.Core.Biometrics
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Errors
+@using SmartGym.Core.Repositories
+@using SmartGym.Core.Services
+
+<div class="kiosco-shell">
+    @switch (_estado)
+    {
+        case KioscoEstado.Cargando:
+            <div class="kiosco-center">
+                <span class="spinner" style="width: 48px; height: 48px;"></span>
+            </div>
+            break;
+
+        case KioscoEstado.SeleccionarSede:
+            <div class="kiosco-center">
+                <h2 class="kiosco-title">Selecciona la sede de este equipo</h2>
+                <p class="kiosco-subtitle">Esta configuración se guarda una sola vez en esta terminal.</p>
+
+                @if (_sedesDisponibles.Count == 0)
+                {
+                    <p class="kiosco-message kiosco-error">No hay sedes activas configuradas. Contacta al administrador.</p>
+                }
+                else
+                {
+                    <div class="kiosco-sede-list">
+                        @foreach (var sede in _sedesDisponibles)
+                        {
+                            <button class="kiosco-sede-btn" @onclick="() => SeleccionarSedeAsync(sede)">@sede.Nombre</button>
+                        }
+                    </div>
+                }
+            </div>
+            break;
+
+        case KioscoEstado.Esperando:
+            <div class="kiosco-center">
+                @if (!string.IsNullOrEmpty(_nombreSede))
+                {
+                    <p class="kiosco-sede-label">@_nombreSede</p>
+                }
+                <MudIcon Icon="@Icons.Material.Filled.Fingerprint" Class="kiosco-icon kiosco-icon-idle" />
+                <h1 class="kiosco-title">Coloca tu dedo en el lector</h1>
+            </div>
+            break;
+
+        case KioscoEstado.LectorOcupado:
+            <div class="kiosco-center">
+                <MudIcon Icon="@Icons.Material.Filled.HourglassEmpty" Class="kiosco-icon kiosco-icon-warn" />
+                <h1 class="kiosco-title">El lector está en uso</h1>
+                <p class="kiosco-subtitle">Espera un momento, la identificación se reanuda automáticamente.</p>
+            </div>
+            break;
+
+        case KioscoEstado.SinSociosRegistrados:
+            <div class="kiosco-center">
+                <MudIcon Icon="@Icons.Material.Filled.PersonOff" Class="kiosco-icon kiosco-icon-warn" />
+                <h1 class="kiosco-title">No hay socios con acceso configurado en esta sede</h1>
+                <p class="kiosco-subtitle">Verifica que existan socios con huella y membresía activa en esta sede. Se reintenta automáticamente.</p>
+            </div>
+            break;
+
+        case KioscoEstado.ErrorInesperado:
+            <div class="kiosco-center">
+                <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Class="kiosco-icon kiosco-icon-error" />
+                <h1 class="kiosco-title">Ocurrió un error inesperado</h1>
+                <p class="kiosco-subtitle">Contacta al administrador si el problema persiste.</p>
+            </div>
+            break;
+
+        case KioscoEstado.Resultado:
+            <div class="kiosco-center">
+                @if (_resultadoEsConcedido)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="kiosco-icon kiosco-icon-ok" />
+                }
+                else if (_resultadoEsNoIdentificado)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.HelpOutline" Class="kiosco-icon kiosco-icon-warn" />
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Cancel" Class="kiosco-icon kiosco-icon-error" />
+                }
+                <h1 class="kiosco-title">@_mensajeResultado</h1>
+            </div>
+            break;
+    }
+</div>
+
+@code {
+    private enum KioscoEstado { Cargando, SeleccionarSede, Esperando, LectorOcupado, SinSociosRegistrados, ErrorInesperado, Resultado }
+
+    [Inject] private IAccesoService Acceso { get; set; } = default!;
+    [Inject] private ISedesRepository Sedes { get; set; } = default!;
+    [Inject] private ISociosBiometricosRepository Biometricos { get; set; } = default!;
+    [Inject] private ITerminalConfigStore TerminalConfig { get; set; } = default!;
+    [Inject] private IBiometricCaptureService CaptureService { get; set; } = default!;
+
+    private KioscoEstado _estado = KioscoEstado.Cargando;
+    // volatile: se lee desde el hilo del ThreadPool del Timer y se escribe
+    // desde el dispatcher de Blazor (Dispose) — sin esto, la lectura del
+    // hilo del Timer no tiene garantía de ver la escritura a tiempo.
+    private volatile bool _disposed;
+
+    private long? _idSede;
+    private string _nombreSede = "";
+    private List<string> _templatePaths = [];
+    private List<Sede> _sedesDisponibles = [];
+
+    private bool _resultadoEsConcedido;
+    private bool _resultadoEsNoIdentificado;
+    private string? _mensajeResultado;
+    private CancellationTokenSource? _resultadoCts;
+
+    private Timer? _pollTimer;
+    private Timer? _reintentoTemplatesTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CaptureService.IdentificationResultReceived += OnIdentificationResult;
+
+        _idSede = await TerminalConfig.ObtenerIdSedeAsync();
+        if (_idSede is null)
+        {
+            try
+            {
+                _sedesDisponibles = (await Sedes.GetActivasAsync()).ToList();
+            }
+            catch
+            {
+                _sedesDisponibles = [];
+            }
+            _estado = KioscoEstado.SeleccionarSede;
+            return;
+        }
+
+        await CargarSedeYArrancarAsync(_idSede.Value);
+    }
+
+    private async Task SeleccionarSedeAsync(Sede sede)
+    {
+        await TerminalConfig.GuardarIdSedeAsync(sede.IdSede);
+        _idSede = sede.IdSede;
+        _estado = KioscoEstado.Cargando;
+        StateHasChanged();
+        await CargarSedeYArrancarAsync(sede.IdSede);
+    }
+
+    private async Task CargarSedeYArrancarAsync(long idSede)
+    {
+        try
+        {
+            var sede = await Sedes.GetByIdAsync(idSede);
+            _nombreSede = sede?.Nombre ?? "";
+            _templatePaths = (await Biometricos.GetTemplatePathsBySedeAsync(idSede)).ToList();
+        }
+        catch
+        {
+            _templatePaths = [];
+        }
+
+        await IntentarIniciarIdentificacionAsync();
+
+        // El callback del Timer corre en un hilo del ThreadPool, no en el
+        // dispatcher de Blazor — el chequeo de _disposed aquí es un atajo de
+        // buena fe (evita un InvokeAsync innecesario); la guarda real, la que
+        // importa para no mutar estado, vive dentro de PollCurrentMode, que sí
+        // corre en el dispatcher.
+        _pollTimer = new Timer(_ =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+            _ = InvokeAsync(PollCurrentMode);
+        }, null, 1000, 1000);
+
+        // Timer independiente para KioscoEstado.SinSociosRegistrados: CurrentMode
+        // nunca cambia en ese caso (nunca llegó a iniciarse una identificación),
+        // así que PollCurrentMode no lo puede destrabar. Cadencia más lenta
+        // porque implica una consulta real a la base de datos.
+        _reintentoTemplatesTimer = new Timer(_ =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+            _ = InvokeAsync(ReintentarCargarTemplatesAsync);
+        }, null, 5000, 5000);
+    }
+
+    private async Task IntentarIniciarIdentificacionAsync()
+    {
+        try
+        {
+            await CaptureService.StartIdentificationAsync(_templatePaths);
+
+            // El componente pudo desmontarse durante el await (ej. el usuario
+            // salió del Kiosco justo cuando el admin terminó de enrolar y el
+            // polling reintentó). Dispose() ya corrió y no va a volver a
+            // llamar StopIdentification para ESTA sesión nueva — si no la
+            // cerramos aquí, el lector queda escuchando indefinidamente sin
+            // que nadie lo detenga.
+            if (_disposed)
+            {
+                CaptureService.StopIdentification();
+                return;
+            }
+
+            _estado = KioscoEstado.Esperando;
+        }
+        catch (InvalidOperationException)
+        {
+            // Arbitraje: el lector está genuinamente ocupado (ej. un admin abrió
+            // el enrolamiento en otra sesión). Se reintenta automáticamente vía
+            // PollCurrentMode cuando CurrentMode vuelva a Idle.
+            if (_disposed)
+            {
+                return;
+            }
+            _estado = KioscoEstado.LectorOcupado;
+        }
+        catch (ArgumentException)
+        {
+            // No es un problema de arbitraje del lector — es que no hay templates
+            // que cargar (ningún socio con huella + membresía activa en esta
+            // sede). CurrentMode nunca cambia en este caso, así que no se puede
+            // depender del polling de arbitraje para reintentar; lo hace
+            // ReintentarCargarTemplatesAsync por su cuenta.
+            if (_disposed)
+            {
+                return;
+            }
+            _estado = KioscoEstado.SinSociosRegistrados;
+        }
+        catch
+        {
+            // Cualquier otra excepción no contemplada: no la escondas detrás de
+            // "lector ocupado", que sería un mensaje falso. Mostrar un error
+            // genérico visible es preferible a mentir sobre la causa.
+            if (_disposed)
+            {
+                return;
+            }
+            _estado = KioscoEstado.ErrorInesperado;
+        }
+        StateHasChanged();
+    }
+
+    private async Task ReintentarCargarTemplatesAsync()
+    {
+        if (_disposed || _estado != KioscoEstado.SinSociosRegistrados || _idSede is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _templatePaths = (await Biometricos.GetTemplatePathsBySedeAsync(_idSede.Value)).ToList();
+        }
+        catch
+        {
+            return;
+        }
+
+        if (_disposed || _estado != KioscoEstado.SinSociosRegistrados || _templatePaths.Count == 0)
+        {
+            return;
+        }
+
+        await IntentarIniciarIdentificacionAsync();
+    }
+
+    private void PollCurrentMode()
+    {
+        if (_disposed || _estado == KioscoEstado.Resultado || _estado == KioscoEstado.SeleccionarSede
+            || _estado == KioscoEstado.Cargando || _estado == KioscoEstado.SinSociosRegistrados
+            || _estado == KioscoEstado.ErrorInesperado)
+        {
+            return;
+        }
+
+        var modo = CaptureService.CurrentMode;
+        if (modo == BiometricCaptureMode.Enrolling && _estado != KioscoEstado.LectorOcupado)
+        {
+            _estado = KioscoEstado.LectorOcupado;
+            StateHasChanged();
+        }
+        else if (modo == BiometricCaptureMode.Idle && _estado == KioscoEstado.LectorOcupado)
+        {
+            _ = IntentarIniciarIdentificacionAsync();
+        }
+    }
+
+    private void OnIdentificationResult(object? sender, IdentificationResultEventArgs e)
+    {
+        // El SDK invoca este evento desde su propio hilo de mensajes, no el de
+        // Blazor — InvokeAsync es obligatorio (mismo criterio que
+        // FingerprintEnrollDialog/BiometricCaptureService).
+        _ = InvokeAsync(async () =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+            await ProcesarResultadoAsync(e);
+        });
+    }
+
+    private async Task ProcesarResultadoAsync(IdentificationResultEventArgs e)
+    {
+        if (!e.Identificado || e.IdSocio is null)
+        {
+            MostrarResultado(concedido: false, noIdentificado: true, mensaje: "Huella no reconocida. Intenta de nuevo o contacta a recepción.");
+            return;
+        }
+
+        if (_idSede is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var resultado = await Acceso.RegistrarAccesoKioskoAsync(e.IdSocio, _idSede.Value);
+            if (_disposed)
+            {
+                // El acceso ya quedó registrado en bitácora (eso es correcto,
+                // no se cancela) — solo evitamos mutar UI de un componente
+                // desmontado.
+                return;
+            }
+
+            if (resultado.Estado == AccesoEstados.Concedido)
+            {
+                var nombre = resultado.Socio?.Nombre ?? "";
+                MostrarResultado(concedido: true, noIdentificado: false, mensaje: $"Bienvenido, {nombre}");
+            }
+            else
+            {
+                MostrarResultado(concedido: false, noIdentificado: false, mensaje: MotivoMensaje(resultado.MotivoDenegacion));
+            }
+        }
+        catch (BusinessException ex)
+        {
+            MostrarResultado(concedido: false, noIdentificado: false, mensaje: ex.Message);
+        }
+        catch
+        {
+            MostrarResultado(concedido: false, noIdentificado: false, mensaje: "No se pudo registrar el acceso. Intenta de nuevo.");
+        }
+    }
+
+    private static string MotivoMensaje(string? motivo) => motivo switch
+    {
+        MotivosDenegacionAcceso.SocioBloqueado => "Acceso bloqueado. Contacta a recepción.",
+        MotivosDenegacionAcceso.SocioInactivo => "Tu membresía está inactiva. Contacta a recepción.",
+        MotivosDenegacionAcceso.SocioSuspendido => "Tu cuenta está suspendida. Contacta a recepción.",
+        MotivosDenegacionAcceso.MembresiaVencida => "Tu membresía venció. Renueva para continuar.",
+        MotivosDenegacionAcceso.MembresiaCongelada => "Tu membresía está congelada.",
+        _ => "Acceso denegado.",
+    };
+
+    private void MostrarResultado(bool concedido, bool noIdentificado, string mensaje)
+    {
+        _resultadoCts?.Cancel();
+        var cts = _resultadoCts = new CancellationTokenSource();
+
+        _resultadoEsConcedido = concedido;
+        _resultadoEsNoIdentificado = noIdentificado;
+        _mensajeResultado = mensaje;
+        _estado = KioscoEstado.Resultado;
+        StateHasChanged();
+
+        _ = LimpiarDespuesAsync(cts.Token);
+    }
+
+    private async Task LimpiarDespuesAsync(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(4000, ct);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        if (ct.IsCancellationRequested || _disposed)
+        {
+            return;
+        }
+
+        _mensajeResultado = null;
+        _estado = KioscoEstado.Esperando;
+        StateHasChanged();
+
+        // Si mientras se mostraba el resultado el lector quedó ocupado, refleja eso.
+        PollCurrentMode();
+    }
+
+    private void DetenerIdentificacionSiActiva()
+    {
+        if (CaptureService.CurrentMode == BiometricCaptureMode.Identifying)
+        {
+            CaptureService.StopIdentification();
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _pollTimer?.Dispose();
+        _reintentoTemplatesTimer?.Dispose();
+        _resultadoCts?.Cancel();
+        CaptureService.IdentificationResultReceived -= OnIdentificationResult;
+        DetenerIdentificacionSiActiva();
+    }
+}

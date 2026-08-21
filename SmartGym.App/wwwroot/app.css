@@ -1231,3 +1231,113 @@ table.data-table {
 .sg-user-item-icon {
     margin-right: 0.75rem;
 }
+
+/* ---------- Login: enlace a Modo Kiosco ---------- */
+.login-kiosco-link {
+    display: block;
+    width: 100%;
+    margin-top: 1rem;
+    padding: 0.5rem;
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    font-family: var(--font-family);
+    font-size: 0.85rem;
+    text-align: center;
+    cursor: pointer;
+}
+
+.login-kiosco-link:hover {
+    color: var(--color-primary);
+    text-decoration: underline;
+}
+
+/* ---------- Kiosco ----------
+   Pantalla completa, legible a distancia — la lee un socio parado frente a
+   la tablet, no un administrador sentado. Vive en su propia ventana MAUI
+   (IKioscoWindowService), sin chrome admin. Salir es cerrar la ventana. */
+.kiosco-shell {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-family);
+    z-index: 100;
+}
+
+.kiosco-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 1rem;
+    padding: 2rem;
+    max-width: 640px;
+}
+
+.kiosco-title {
+    font-size: 2.25rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.kiosco-subtitle {
+    font-size: 1.1rem;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.kiosco-sede-label {
+    font-size: 1rem;
+    color: var(--color-text-muted);
+    margin: 0 0 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.kiosco-message {
+    font-size: 1.25rem;
+}
+
+.kiosco-message.kiosco-error {
+    color: var(--color-error);
+}
+
+.kiosco-icon {
+    font-size: 7rem !important;
+    width: 1em;
+    height: 1em;
+}
+
+.kiosco-icon-idle { color: var(--color-primary); }
+.kiosco-icon-ok { color: var(--color-success); }
+.kiosco-icon-error { color: var(--color-error); }
+.kiosco-icon-warn { color: var(--color-warning); }
+
+.kiosco-sede-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 420px;
+}
+
+.kiosco-sede-btn {
+    padding: 1.25rem;
+    font-size: 1.25rem;
+    font-family: var(--font-family);
+    font-weight: 600;
+    color: var(--color-text);
+    background: var(--color-surface-2);
+    border: var(--glass-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+}
+
+.kiosco-sede-btn:hover {
+    border-color: var(--color-primary);
+}

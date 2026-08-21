@@ -4,6 +4,7 @@
 @using System.Text.Json
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject IKioscoWindowService KioscoWindow
 
 <div class="sg-nav">
     @foreach (var (grupo, i) in NAV_GROUPS.Select((g, i) => (g, i)))
@@ -59,7 +60,7 @@
             new NavItem("Miembros", "/miembros", "solar:users-group-two-rounded-line-duotone", true, "Gestión de miembros"),
             new NavItem("Membresías", "/membresias", "solar:card-recive-line-duotone", true, "Planes y suscripciones"),
             new NavItem("Caja", "/caja", "solar:wallet-money-line-duotone", true, "Apertura y cierre de caja"),
-            new NavItem("Control de Acceso", "/control-acceso", "solar:lock-keyhole-line-duotone", true, "Acceso por huella/RFID"),
+            new NavItem("Control de Acceso", "/control-acceso", "solar:lock-keyhole-line-duotone", true, "Acceso por huella/RFID", AbreVentana: true),
         ]),
         new("Comercial",
         [
@@ -130,6 +131,14 @@
             return;
         }
 
+        if (item.AbreVentana)
+        {
+            // Control de Acceso ya no es una ruta del Router — abre el Kiosco en su
+            // propia ventana MAUI (ver IKioscoWindowService), la ventana admin sigue intacta.
+            KioscoWindow.Abrir();
+            return;
+        }
+
         Nav.NavigateTo(item.Href);
     }
 
@@ -160,7 +169,7 @@
         Nav.LocationChanged -= OnLocationChanged;
     }
 
-    private sealed record NavItem(string Label, string Href, string Icon, bool Enabled, string? Tooltip = null);
+    private sealed record NavItem(string Label, string Href, string Icon, bool Enabled, string? Tooltip = null, bool AbreVentana = false);
 
     private sealed record NavGroup(string Label, NavItem[] Items);
 }

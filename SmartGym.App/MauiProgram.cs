@@ -40,6 +40,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton(dbPath);
 		builder.Services.AddScoped<ILogoStorage>(_ => new LogoStorage(dataDir));
 		builder.Services.AddScoped<ISesionStore>(_ => new SesionStore(dataDir));
+		builder.Services.AddScoped<ITerminalConfigStore>(_ => new TerminalConfigStore(dataDir));
 
 		builder.Services.AddScoped<ISedesRepository>(_ => new SedesRepository(dbPath));
 		builder.Services.AddScoped<IRolesRepository>(_ => new RolesRepository(dbPath));
@@ -84,6 +85,9 @@ public static class MauiProgram
 		// ---- Biometria (embebida en proceso, sin sidecar HTTP - ver doc 04 §3.1) ----
 		var templatesDir = Path.Combine(dataDir, "Templates");
 		builder.Services.AddSingleton<IBiometricCaptureService>(_ => new BiometricCaptureService(templatesDir));
+
+		// ---- Kiosco como ventana MAUI separada (ver docs/migracion-dotnet) ----
+		builder.Services.AddSingleton<IKioscoWindowService, KioscoWindowService>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();
