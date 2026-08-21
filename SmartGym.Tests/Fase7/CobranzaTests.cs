@@ -53,6 +53,21 @@ public sealed class CobranzaTests
     }
 
     [Fact]
+    public async Task registrar_abono_sede_inactiva_es_rechazada()
+    {
+        var (ctx, token, _, _, idCuenta) = await Fase7Helper.CuentaConSaldoAsync();
+        var idSedeInactiva = await Fase4Helper.InsertarSedeInactivaAsync(ctx);
+
+        // Antes de unificar ResolverIdSedeAsync, CobranzaService no validaba
+        // la sede en absoluto (solo verificaba caja abierta) — este caso no
+        // tenía cobertura y el comportamiento viejo lo habría permitido.
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.CobranzaService.RegistrarAbonoAsync(token, idCuenta, 1000, "efectivo", idSedeInactiva));
+        Assert.Equal(BusinessError.Validation, ex.Error);
+        Assert.Equal("sede_invalida", ex.Code);
+    }
+
+    [Fact]
     public async Task registrar_abono_sin_caja_abierta_da_conflict()
     {
         var (ctx, token, sedeId, _, idCuenta) = await Fase7Helper.CuentaConSaldoAsync();

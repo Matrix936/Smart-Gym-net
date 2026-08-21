@@ -73,6 +73,7 @@ public static class MauiProgram
 		builder.Services.AddScoped<ISetupService, SetupService>();
 		builder.Services.AddScoped<IFeedbackService, FeedbackService>();
 		builder.Services.AddScoped<IThemeState, ThemeState>();
+		builder.Services.AddScoped<ISedeResolutionService, SedeResolutionService>();
 		builder.Services.AddScoped<ISociosService, SociosService>();
 		builder.Services.AddScoped<ICajaService, CajaService>();
 		builder.Services.AddScoped<IMembresiasService, MembresiasService>();

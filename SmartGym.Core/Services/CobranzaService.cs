@@ -15,6 +15,7 @@ public sealed class CobranzaService : ICobranzaService
     private readonly ICuentasCobrarRepository _cuentas;
     private readonly ICobrosRecordatoriosRepository _recordatorios;
     private readonly IBitacoraAuditoriaRepository _bitacora;
+    private readonly ISedeResolutionService _sedeResolution;
 
     public CobranzaService(
         IAuthService auth,
@@ -23,7 +24,8 @@ public sealed class CobranzaService : ICobranzaService
         ICajasSesionesRepository cajas,
         ICuentasCobrarRepository cuentas,
         ICobrosRecordatoriosRepository recordatorios,
-        IBitacoraAuditoriaRepository bitacora)
+        IBitacoraAuditoriaRepository bitacora,
+        ISedeResolutionService sedeResolution)
     {
         _auth = auth;
         _authz = authz;
@@ -32,6 +34,7 @@ public sealed class CobranzaService : ICobranzaService
         _cuentas = cuentas;
         _recordatorios = recordatorios;
         _bitacora = bitacora;
+        _sedeResolution = sedeResolution;
     }
 
     public async Task<CuentaCobrar> RegistrarAbonoAsync(
@@ -69,7 +72,7 @@ public sealed class CobranzaService : ICobranzaService
             throw BusinessException.Validation("el monto excede el saldo pendiente", "monto_excesivo");
         }
 
-        var idSede = await ResolverIdSedeAsync(info, idSedeFrontend, ct);
+        var idSede = await _sedeResolution.ResolverIdSedeAsync(info, idSedeFrontend, ct);
         var caja = await _cajas.GetAbiertaPorSedeAsync(idSede, ct)
             ?? throw BusinessException.Conflict("no hay caja abierta en esta sede", "caja_no_abierta");
 
@@ -162,27 +165,6 @@ public sealed class CobranzaService : ICobranzaService
             ct);
 
         return recordatorio;
-    }
-
-    private async Task<long> ResolverIdSedeAsync(SessionInfo info, long? idSedeFrontend, CancellationToken ct)
-    {
-        if (info.IdSede is not null)
-        {
-            return info.IdSede.Value;
-        }
-
-        if (idSedeFrontend is null)
-        {
-            throw BusinessException.Validation("se requiere una sede para el abono", "sede_requerida");
-        }
-
-        var caja = await _cajas.GetAbiertaPorSedeAsync(idSedeFrontend.Value, ct);
-        if (caja is null)
-        {
-            throw BusinessException.Conflict("no hay caja abierta en esta sede", "caja_no_abierta");
-        }
-
-        return idSedeFrontend.Value;
     }
 
     private static BitacoraAuditoria RegistrarBitacora(

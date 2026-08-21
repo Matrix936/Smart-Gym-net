@@ -95,6 +95,25 @@ public sealed class MembersTests
     }
 
     [Fact]
+    public async Task create_member_sede_inactiva_es_rechazada()
+    {
+        var (ctx, token, _) = await SuperadminAsync();
+        var idSedeInactiva = await ctx.Sedes.InsertAsync(new Sede
+        {
+            Nombre = "Sede Inactiva",
+            EsActiva = false,
+            UpdatedAt = DateHelper.NowIsoUtc(),
+        });
+
+        // Antes de unificar ResolverIdSedeAsync, SociosService solo validaba
+        // existencia (no EsActiva) — este caso no tenía cobertura.
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.SociosService.CrearSocioAsync(token, Datos("Sede Inactiva Test"), idSedeInactiva));
+        Assert.Equal(BusinessError.Validation, ex.Error);
+        Assert.Equal("sede_invalida", ex.Code);
+    }
+
+    [Fact]
     public async Task create_member_con_sesion_local_ignora_id_sede_del_frontend()
     {
         var (ctx, token, sedeId) = await UsuarioConSedeAsync();

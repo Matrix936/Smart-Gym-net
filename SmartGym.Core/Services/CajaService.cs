@@ -11,20 +11,20 @@ public sealed class CajaService : ICajaService
     private readonly IAuthService _auth;
     private readonly IAuthorizationService _authz;
     private readonly ICajasSesionesRepository _cajas;
-    private readonly ISedesRepository _sedes;
+    private readonly ISedeResolutionService _sedeResolution;
     private readonly IBitacoraAuditoriaRepository _bitacora;
 
     public CajaService(
         IAuthService auth,
         IAuthorizationService authz,
         ICajasSesionesRepository cajas,
-        ISedesRepository sedes,
+        ISedeResolutionService sedeResolution,
         IBitacoraAuditoriaRepository bitacora)
     {
         _auth = auth;
         _authz = authz;
         _cajas = cajas;
-        _sedes = sedes;
+        _sedeResolution = sedeResolution;
         _bitacora = bitacora;
     }
 
@@ -42,7 +42,7 @@ public sealed class CajaService : ICajaService
             throw BusinessException.Validation("el monto inicial no puede ser negativo", "monto_negativo");
         }
 
-        var idSede = await ResolverIdSedeAsync(info, idSedeFrontend, ct);
+        var idSede = await _sedeResolution.ResolverIdSedeAsync(info, idSedeFrontend, ct);
 
         if (await _cajas.ExisteAbiertaEnSedeAsync(idSede, ct))
         {
@@ -112,28 +112,6 @@ public sealed class CajaService : ICajaService
             ct);
 
         return (await _cajas.GetByIdAsync(idSesion, ct))!;
-    }
-
-    private async Task<long> ResolverIdSedeAsync(SessionInfo info, long? idSedeFrontend, CancellationToken ct)
-    {
-        // Misma regla que socios: la sesión local gana sobre el id_sede del frontend.
-        if (info.IdSede is not null)
-        {
-            return info.IdSede.Value;
-        }
-
-        if (idSedeFrontend is null)
-        {
-            throw BusinessException.Validation("se requiere una sede para la caja", "sede_requerida");
-        }
-
-        var sede = await _sedes.GetByIdAsync(idSedeFrontend.Value, ct);
-        if (sede is null || !sede.EsActiva)
-        {
-            throw BusinessException.Validation("la sede indicada no existe o no está activa", "sede_invalida");
-        }
-
-        return idSedeFrontend.Value;
     }
 
     private static BitacoraAuditoria RegistrarBitacora(SessionInfo info, string accion, string idRegistro, long idSede, string? anterior, string? nuevo) =>

@@ -12,20 +12,20 @@ public sealed class SociosService : ISociosService
     private readonly IAuthorizationService _authz;
     private readonly ISociosRepository _socios;
     private readonly IBitacoraAuditoriaRepository _bitacora;
-    private readonly ISedesRepository _sedes;
+    private readonly ISedeResolutionService _sedeResolution;
 
     public SociosService(
         IAuthService auth,
         IAuthorizationService authz,
         ISociosRepository socios,
         IBitacoraAuditoriaRepository bitacora,
-        ISedesRepository sedes)
+        ISedeResolutionService sedeResolution)
     {
         _auth = auth;
         _authz = authz;
         _socios = socios;
         _bitacora = bitacora;
-        _sedes = sedes;
+        _sedeResolution = sedeResolution;
     }
 
     public async Task<Socio> CrearSocioAsync(string token, CrearSocioDatos datos, long? idSedeFrontend = null, CancellationToken ct = default)
@@ -40,7 +40,7 @@ public sealed class SociosService : ISociosService
         }
 
         // Resolución de id_sede: la sesión local gana sobre el id_sede enviado.
-        var idSede = await ResolverIdSedeAsync(info, idSedeFrontend, ct);
+        var idSede = await _sedeResolution.ResolverIdSedeAsync(info, idSedeFrontend, ct);
 
         var ahora = DateHelper.NowIsoUtc();
         var socio = new Socio
@@ -168,29 +168,6 @@ public sealed class SociosService : ISociosService
         {
             throw BusinessException.Validation("el nombre es obligatorio", "nombre_vacio");
         }
-    }
-
-    private async Task<long> ResolverIdSedeAsync(SessionInfo info, long? idSedeFrontend, CancellationToken ct)
-    {
-        // Regla members.rs: la sesión local gana sobre el id_sede del frontend.
-        if (info.IdSede is not null)
-        {
-            return info.IdSede.Value;
-        }
-
-        // SUPERADMIN sin sede: usa el id_sede del frontend tras validar existencia.
-        if (idSedeFrontend is null)
-        {
-            throw BusinessException.Validation("se requiere una sede para registrar el socio", "sede_requerida");
-        }
-
-        var sede = await _sedes.GetByIdAsync(idSedeFrontend.Value, ct);
-        if (sede is null)
-        {
-            throw BusinessException.Validation("la sede indicada no existe", "sede_invalida");
-        }
-
-        return idSedeFrontend.Value;
     }
 
     private static BitacoraAuditoria RegistrarBitacora(SessionInfo info, string accion, string idRegistro, long? idSede, string? anterior, string? nuevo) =>

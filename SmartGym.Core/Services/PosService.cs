@@ -16,6 +16,7 @@ public sealed class PosService : IPosService
     private readonly IInventarioSucursalRepository _inventario;
     private readonly IVentasRepository _ventas;
     private readonly IBitacoraAuditoriaRepository _bitacora;
+    private readonly ISedeResolutionService _sedeResolution;
 
     public PosService(
         IAuthService auth,
@@ -25,7 +26,8 @@ public sealed class PosService : IPosService
         IProductosRepository productos,
         IInventarioSucursalRepository inventario,
         IVentasRepository ventas,
-        IBitacoraAuditoriaRepository bitacora)
+        IBitacoraAuditoriaRepository bitacora,
+        ISedeResolutionService sedeResolution)
     {
         _auth = auth;
         _authz = authz;
@@ -35,6 +37,7 @@ public sealed class PosService : IPosService
         _inventario = inventario;
         _ventas = ventas;
         _bitacora = bitacora;
+        _sedeResolution = sedeResolution;
     }
 
     public async Task<VentaInfo> RegistrarVentaAsync(
@@ -57,7 +60,7 @@ public sealed class PosService : IPosService
             throw BusinessException.Validation("metodo_pago es obligatorio", "metodo_pago_obligatorio");
         }
 
-        var idSede = await ResolverIdSedeAsync(info, idSedeFrontend, ct);
+        var idSede = await _sedeResolution.ResolverIdSedeAsync(info, idSedeFrontend, ct);
         var caja = await _cajas.GetAbiertaPorSedeAsync(idSede, ct)
             ?? throw BusinessException.Conflict("no hay caja abierta para la sede — abre caja antes de vender", "caja_no_abierta");
 
@@ -203,7 +206,7 @@ public sealed class PosService : IPosService
             throw BusinessException.Conflict("la venta ya esta cancelada", "venta_ya_cancelada");
         }
 
-        var idSede = await ResolverIdSedeAsync(info, idSedeFrontend, ct);
+        var idSede = await _sedeResolution.ResolverIdSedeAsync(info, idSedeFrontend, ct);
         var caja = await _cajas.GetAbiertaPorSedeAsync(idSede, ct)
             ?? throw BusinessException.Conflict("no hay caja abierta para procesar la devolucion", "caja_no_abierta");
 
@@ -235,27 +238,6 @@ public sealed class PosService : IPosService
                 VentaEstados.Completada,
                 VentaEstados.Cancelada),
             ct);
-    }
-
-    private async Task<long> ResolverIdSedeAsync(SessionInfo info, long? idSedeFrontend, CancellationToken ct)
-    {
-        if (info.IdSede is not null)
-        {
-            return info.IdSede.Value;
-        }
-
-        if (idSedeFrontend is null)
-        {
-            throw BusinessException.Validation("se requiere una sede para la venta", "sede_requerida");
-        }
-
-        var caja = await _cajas.GetAbiertaPorSedeAsync(idSedeFrontend.Value, ct);
-        if (caja is null)
-        {
-            throw BusinessException.Conflict("no hay caja abierta en esta sede", "caja_no_abierta");
-        }
-
-        return idSedeFrontend.Value;
     }
 
     private static BitacoraAuditoria RegistrarBitacora(

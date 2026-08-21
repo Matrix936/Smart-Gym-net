@@ -57,6 +57,25 @@ public sealed class PosTests
     }
 
     [Fact]
+    public async Task registrar_venta_sede_inactiva_es_rechazada()
+    {
+        var (ctx, token, _, idProducto) = await Fase6Helper.BaseAsync();
+        var idSedeInactiva = await Fase4Helper.InsertarSedeInactivaAsync(ctx);
+
+        // Antes de unificar ResolverIdSedeAsync, PosService no validaba la
+        // sede en absoluto (solo verificaba caja abierta) — este caso no
+        // tenía cobertura y el comportamiento viejo lo habría permitido.
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.PosService.RegistrarVentaAsync(token, new RegistrarVentaInput
+            {
+                Items = [new VentaItem { IdProducto = idProducto, Cantidad = 1 }],
+                MetodoPago = "efectivo",
+            }, idSedeInactiva));
+        Assert.Equal(BusinessError.Validation, ex.Error);
+        Assert.Equal("sede_invalida", ex.Code);
+    }
+
+    [Fact]
     public async Task registrar_venta_sin_items_da_validation()
     {
         var (ctx, token, sedeId, _) = await Fase6Helper.BaseAsync();

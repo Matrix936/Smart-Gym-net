@@ -66,6 +66,22 @@ public sealed class MembershipsTests
     }
 
     [Fact]
+    public async Task vender_membresia_sede_inactiva_es_rechazada()
+    {
+        var (ctx, token, sedeId, planId) = await EscenarioAsync();
+        var socio = await ctx.SociosService.CrearSocioAsync(token, Fase4Helper.DatosSocio("SedeInactiva"), sedeId);
+        var idSedeInactiva = await Fase4Helper.InsertarSedeInactivaAsync(ctx);
+
+        // Antes de unificar ResolverIdSedeAsync, MembresiasService no validaba
+        // la sede en absoluto (solo verificaba caja abierta) — este caso no
+        // tenía cobertura y el comportamiento viejo lo habría permitido.
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.MembresiasService.VenderAsync(token, socio.IdSocio, planId, Fase4Helper.MetodoPago, Precio, idSedeInactiva));
+        Assert.Equal(BusinessError.Validation, ex.Error);
+        Assert.Equal("sede_invalida", ex.Code);
+    }
+
+    [Fact]
     public async Task vender_membresia_sin_caja_abierta_da_error_claro()
     {
         var (ctx, token, sedeId, planId) = await EscenarioAsync();

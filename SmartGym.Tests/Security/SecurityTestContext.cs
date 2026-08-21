@@ -45,6 +45,7 @@ internal sealed class SecurityTestContext : IDisposable
     public AuthService Auth { get; }
     public AuthorizationService Authz { get; }
     public SetupService Setup { get; }
+    public SedeResolutionService SedeResolution { get; }
     public SociosService SociosService { get; }
     public CajaService CajaService { get; }
     public MembresiasService MembresiasService { get; }
@@ -90,12 +91,13 @@ internal sealed class SecurityTestContext : IDisposable
         Auth = new AuthService(Usuarios, sesiones, cuentas, SessionState, new SesionStore(LogosDir));
         Authz = new AuthorizationService(Auth, Roles, Permisos);
         Setup = new SetupService(Usuarios, Roles, Empresa, config, logo);
-        SociosService = new SociosService(Auth, Authz, Socios, Bitacora, Sedes);
-        CajaService = new CajaService(Auth, Authz, Cajas, Sedes, Bitacora);
-        MembresiasService = new MembresiasService(Auth, Authz, Socios, Planes, Cajas, Membresias, Bitacora);
+        SedeResolution = new SedeResolutionService(Sedes);
+        SociosService = new SociosService(Auth, Authz, Socios, Bitacora, SedeResolution);
+        CajaService = new CajaService(Auth, Authz, Cajas, SedeResolution, Bitacora);
+        MembresiasService = new MembresiasService(Auth, Authz, Socios, Planes, Cajas, Membresias, Bitacora, SedeResolution);
         AccesoService = new AccesoService(Authz, Accesos);
-        PosService = new PosService(Auth, Authz, Socios, Cajas, Productos, Inventario, Ventas, Bitacora);
-        CobranzaService = new CobranzaService(Auth, Authz, Socios, Cajas, CuentasCobrar, Recordatorios, Bitacora);
+        PosService = new PosService(Auth, Authz, Socios, Cajas, Productos, Inventario, Ventas, Bitacora, SedeResolution);
+        CobranzaService = new CobranzaService(Auth, Authz, Socios, Cajas, CuentasCobrar, Recordatorios, Bitacora, SedeResolution);
     }
 
     public void Dispose()

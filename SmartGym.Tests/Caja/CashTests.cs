@@ -57,6 +57,18 @@ public sealed class CashTests
     }
 
     [Fact]
+    public async Task abrir_caja_sede_inactiva_es_rechazada()
+    {
+        var (ctx, token, _) = await Fase4Helper.SuperadminAsync();
+        var idSedeInactiva = await Fase4Helper.InsertarSedeInactivaAsync(ctx);
+
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.CajaService.AbrirCajaAsync(token, 0, idSedeInactiva));
+        Assert.Equal(BusinessError.Validation, ex.Error);
+        Assert.Equal("sede_invalida", ex.Code);
+    }
+
+    [Fact]
     public async Task abrir_caja_superadmin_con_param_sede_valida_funciona_si_sede_activa()
     {
         var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();

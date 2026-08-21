@@ -87,6 +87,15 @@ internal static class Fase4Helper
         ApellidoPaterno = "García",
     };
 
+    /// <summary>Sede inactiva (es_activa=false) — para probar el rechazo unificado de ISedeResolutionService.</summary>
+    public static Task<long> InsertarSedeInactivaAsync(SecurityTestContext ctx) =>
+        ctx.Sedes.InsertAsync(new Sede
+        {
+            Nombre = "Sede Inactiva",
+            EsActiva = false,
+            UpdatedAt = DateHelper.NowIsoUtc(),
+        });
+
     /// <summary>Inserta un movimiento de caja directo (útil para montos mixtos del cierre).</summary>
     public static async Task InsertarMovimientoAsync(
         SecurityTestContext ctx,
