@@ -1325,6 +1325,8 @@ table.data-table {
     font-size: 2.25rem;
     font-weight: 700;
     margin: 0;
+    /* Los mensajes de dos renglones usan "\n" en el string (ver KioscoPage). */
+    white-space: pre-line;
     animation: kiosco-title-in 300ms ease-out 80ms backwards;
 }
 
