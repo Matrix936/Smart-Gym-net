@@ -50,31 +50,31 @@ public sealed class CobranzaService : ICobranzaService
 
         if (montoCentavos <= 0)
         {
-            throw BusinessException.Validation("el monto debe ser mayor a 0", "monto_invalido");
+            throw BusinessException.Validation("El monto debe ser mayor a 0", "monto_invalido");
         }
 
         var metodoPagoTrim = metodoPago.Trim();
         if (metodoPagoTrim.Length == 0)
         {
-            throw BusinessException.Validation("metodo_pago es obligatorio", "metodo_pago_obligatorio");
+            throw BusinessException.Validation("Metodo_pago es obligatorio", "metodo_pago_obligatorio");
         }
 
         var cuenta = await _cuentas.GetByIdAsync(idCuenta, ct)
-            ?? throw BusinessException.NotFound("cuenta no encontrada", "cuenta_no_encontrada");
+            ?? throw BusinessException.NotFound("Cuenta no encontrada", "cuenta_no_encontrada");
 
         if (cuenta.Estado == CuentaCobrarEstados.Cobrada || cuenta.Estado == CuentaCobrarEstados.Incobrable)
         {
-            throw BusinessException.Conflict($"la cuenta ya está {cuenta.Estado}", "cuenta_no_activa");
+            throw BusinessException.Conflict($"La cuenta ya está {cuenta.Estado}", "cuenta_no_activa");
         }
 
         if (montoCentavos > cuenta.SaldoPendienteCentavos)
         {
-            throw BusinessException.Validation("el monto excede el saldo pendiente", "monto_excesivo");
+            throw BusinessException.Validation("El monto excede el saldo pendiente", "monto_excesivo");
         }
 
         var idSede = await _sedeResolution.ResolverIdSedeAsync(info, idSedeFrontend, ct);
         var caja = await _cajas.GetAbiertaPorSedeAsync(idSede, ct)
-            ?? throw BusinessException.Conflict("no hay caja abierta en esta sede", "caja_no_abierta");
+            ?? throw BusinessException.Conflict("No hay caja abierta en esta sede", "caja_no_abierta");
 
         var nuevoSaldo = cuenta.SaldoPendienteCentavos - montoCentavos;
         var nuevoEstado = nuevoSaldo == 0 ? CuentaCobrarEstados.Cobrada : CuentaCobrarEstados.Parcial;
@@ -130,12 +130,12 @@ public sealed class CobranzaService : ICobranzaService
 
         if (!CobroRecordatorioTipos.EsValido(tipo))
         {
-            throw BusinessException.Validation("tipo de recordatorio inválido", "tipo_invalido");
+            throw BusinessException.Validation("Tipo de recordatorio inválido", "tipo_invalido");
         }
 
         if (!await _socios.ExistsAsync(idSocio, ct))
         {
-            throw BusinessException.NotFound("socio no encontrado", "socio_no_encontrado");
+            throw BusinessException.NotFound("Socio no encontrado", "socio_no_encontrado");
         }
 
         var ahora = DateHelper.NowIsoUtc();

@@ -119,7 +119,7 @@ public sealed class PosTests
                 MetodoPago = "efectivo",
             }, sedeId));
         Assert.Equal(BusinessError.Conflict, ex.Error);
-        Assert.Contains("stock", ex.Message);
+        Assert.Contains("Stock", ex.Message);
     }
 
     [Fact]

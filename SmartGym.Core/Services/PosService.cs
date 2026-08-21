@@ -51,18 +51,18 @@ public sealed class PosService : IPosService
 
         if (input.Items.Count == 0)
         {
-            throw BusinessException.Validation("debe haber al menos un item en la venta", "items_vacios");
+            throw BusinessException.Validation("Debe haber al menos un item en la venta", "items_vacios");
         }
 
         var metodoPago = input.MetodoPago.Trim();
         if (metodoPago.Length == 0)
         {
-            throw BusinessException.Validation("metodo_pago es obligatorio", "metodo_pago_obligatorio");
+            throw BusinessException.Validation("Metodo_pago es obligatorio", "metodo_pago_obligatorio");
         }
 
         var idSede = await _sedeResolution.ResolverIdSedeAsync(info, idSedeFrontend, ct);
         var caja = await _cajas.GetAbiertaPorSedeAsync(idSede, ct)
-            ?? throw BusinessException.Conflict("no hay caja abierta para la sede — abre caja antes de vender", "caja_no_abierta");
+            ?? throw BusinessException.Conflict("No hay caja abierta para la sede — abre caja antes de vender", "caja_no_abierta");
 
         string? idSocio = null;
         if (input.IdSocio is not null)
@@ -70,12 +70,12 @@ public sealed class PosService : IPosService
             idSocio = input.IdSocio.Trim();
             if (idSocio.Length == 0)
             {
-                throw BusinessException.Validation("id_socio no puede ser vacio", "id_socio_vacio");
+                throw BusinessException.Validation("Id_socio no puede ser vacio", "id_socio_vacio");
             }
 
             if (!await _socios.ExistsAsync(idSocio, ct))
             {
-                throw BusinessException.NotFound("socio no encontrado", "socio_no_encontrado");
+                throw BusinessException.NotFound("Socio no encontrado", "socio_no_encontrado");
             }
         }
 
@@ -86,13 +86,13 @@ public sealed class PosService : IPosService
             if (item.Cantidad <= 0)
             {
                 throw BusinessException.Validation(
-                    $"cantidad del producto {item.IdProducto} debe ser mayor a 0",
+                    $"Cantidad del producto {item.IdProducto} debe ser mayor a 0",
                     "cantidad_invalida");
             }
 
             var producto = await _productos.GetByIdAsync(item.IdProducto, ct)
                 ?? throw BusinessException.NotFound(
-                    $"producto {item.IdProducto} no encontrado o inactivo",
+                    $"Producto {item.IdProducto} no encontrado o inactivo",
                     "producto_no_encontrado");
 
             var subtotal = producto.PrecioVentaCentavos * item.Cantidad;
@@ -111,7 +111,7 @@ public sealed class PosService : IPosService
             if (stock < cantidad)
             {
                 throw BusinessException.Conflict(
-                    $"stock insuficiente para producto {idProducto}: disponible {stock}, solicitado {cantidad}",
+                    $"Stock insuficiente para producto {idProducto}: disponible {stock}, solicitado {cantidad}",
                     "stock_insuficiente");
             }
         }
@@ -199,16 +199,16 @@ public sealed class PosService : IPosService
         await _auth.ReautorizarAsync(token, input.PasswordConfirmacion, ct);
 
         var venta = await _ventas.GetByIdAsync(input.IdVenta, ct)
-            ?? throw BusinessException.NotFound("venta no encontrada", "venta_no_encontrada");
+            ?? throw BusinessException.NotFound("Venta no encontrada", "venta_no_encontrada");
 
         if (venta.Estado == VentaEstados.Cancelada)
         {
-            throw BusinessException.Conflict("la venta ya esta cancelada", "venta_ya_cancelada");
+            throw BusinessException.Conflict("La venta ya esta cancelada", "venta_ya_cancelada");
         }
 
         var idSede = await _sedeResolution.ResolverIdSedeAsync(info, idSedeFrontend, ct);
         var caja = await _cajas.GetAbiertaPorSedeAsync(idSede, ct)
-            ?? throw BusinessException.Conflict("no hay caja abierta para procesar la devolucion", "caja_no_abierta");
+            ?? throw BusinessException.Conflict("No hay caja abierta para procesar la devolucion", "caja_no_abierta");
 
         var ahora = DateHelper.NowIsoUtc();
         var movimiento = new CajaMovimiento

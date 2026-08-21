@@ -39,14 +39,14 @@ public sealed class CajaService : ICajaService
 
         if (montoInicialCentavos < 0)
         {
-            throw BusinessException.Validation("el monto inicial no puede ser negativo", "monto_negativo");
+            throw BusinessException.Validation("El monto inicial no puede ser negativo", "monto_negativo");
         }
 
         var idSede = await _sedeResolution.ResolverIdSedeAsync(info, idSedeFrontend, ct);
 
         if (await _cajas.ExisteAbiertaEnSedeAsync(idSede, ct))
         {
-            throw BusinessException.Conflict("ya existe una caja abierta en esta sede", "caja_ya_abierta");
+            throw BusinessException.Conflict("Ya existe una caja abierta en esta sede", "caja_ya_abierta");
         }
 
         var ahora = DateHelper.NowIsoUtc();
@@ -93,15 +93,15 @@ public sealed class CajaService : ICajaService
 
         if (montoFinalContadoCentavos < 0)
         {
-            throw BusinessException.Validation("el monto final no puede ser negativo", "monto_negativo");
+            throw BusinessException.Validation("El monto final no puede ser negativo", "monto_negativo");
         }
 
         var existente = await _cajas.GetByIdAsync(idSesion, ct)
-            ?? throw BusinessException.NotFound("caja no encontrada", "caja_no_encontrada");
+            ?? throw BusinessException.NotFound("Caja no encontrada", "caja_no_encontrada");
 
         if (existente.Estado != CajaEstados.Abierta)
         {
-            throw BusinessException.Conflict("la caja ya está cerrada", "caja_ya_cerrada");
+            throw BusinessException.Conflict("La caja ya está cerrada", "caja_ya_cerrada");
         }
 
         await _cajas.CerrarConBitacoraAsync(

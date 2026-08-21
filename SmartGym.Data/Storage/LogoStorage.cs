@@ -23,12 +23,12 @@ public sealed class LogoStorage : ILogoStorage
     {
         if (!ExtensionesPermitidas.Contains(extension, StringComparer.OrdinalIgnoreCase))
         {
-            throw BusinessException.Validation("tipo de archivo de logo no permitido", "logo_mime_no_permitido");
+            throw BusinessException.Validation("Tipo de archivo de logo no permitido", "logo_mime_no_permitido");
         }
 
         if (bytes.Length == 0 || bytes.Length > MaxBytes)
         {
-            throw BusinessException.Validation("el archivo de logo excede el tamaño máximo (512 KB)", "logo_tamanio_excesivo");
+            throw BusinessException.Validation("El archivo de logo excede el tamaño máximo (512 KB)", "logo_tamanio_excesivo");
         }
 
         var dir = Path.Combine(_baseDir, "logos");

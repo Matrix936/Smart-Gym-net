@@ -51,31 +51,31 @@ public sealed class MembresiasService : IMembresiasService
 
         if (!await _socios.ExistsAsync(idSocio, ct))
         {
-            throw BusinessException.NotFound("socio no encontrado", "socio_no_encontrado");
+            throw BusinessException.NotFound("Socio no encontrado", "socio_no_encontrado");
         }
 
         var plan = await _planes.GetByIdAsync(idPlan, ct)
-            ?? throw BusinessException.NotFound("plan no encontrado", "plan_no_encontrado");
+            ?? throw BusinessException.NotFound("Plan no encontrado", "plan_no_encontrado");
 
         if (!plan.EsActivo)
         {
-            throw BusinessException.Validation("el plan no está activo", "plan_inactivo");
+            throw BusinessException.Validation("El plan no está activo", "plan_inactivo");
         }
 
         if (montoRecibidoCentavos < 0)
         {
-            throw BusinessException.Validation("el monto recibido no puede ser negativo", "monto_invalido");
+            throw BusinessException.Validation("El monto recibido no puede ser negativo", "monto_invalido");
         }
 
         if (montoRecibidoCentavos > plan.PrecioCentavos)
         {
-            throw BusinessException.Validation("el monto recibido excede el precio del plan", "monto_excesivo");
+            throw BusinessException.Validation("El monto recibido excede el precio del plan", "monto_excesivo");
         }
 
         var idSede = await _sedeResolution.ResolverIdSedeAsync(info, idSedeFrontend, ct);
 
         var caja = await _cajas.GetAbiertaPorSedeAsync(idSede, ct)
-            ?? throw BusinessException.Conflict("no hay caja abierta en esta sede", "caja_no_abierta");
+            ?? throw BusinessException.Conflict("No hay caja abierta en esta sede", "caja_no_abierta");
 
         // Renovación: no se pierden días — fecha_inicio = max(fecha_fin anterior, hoy).
         var hoy = DateTime.UtcNow;
@@ -166,28 +166,28 @@ public sealed class MembresiasService : IMembresiasService
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.MembresiasCongelar, ct);
 
         var existente = await _membresias.GetByIdAsync(idMembresia, ct)
-            ?? throw BusinessException.NotFound("membresía no encontrada", "membresia_no_encontrada");
+            ?? throw BusinessException.NotFound("Membresía no encontrada", "membresia_no_encontrada");
 
         if (existente.Estado != MembresiaEstados.Activa)
         {
-            throw BusinessException.Conflict("solo se puede congelar una membresía activa", "membresia_no_activa");
+            throw BusinessException.Conflict("Solo se puede congelar una membresía activa", "membresia_no_activa");
         }
 
         var desde = DateHelper.ParseIsoUtc(fechaInicio);
         var hasta = DateHelper.ParseIsoUtc(fechaFin);
         if (hasta <= desde)
         {
-            throw BusinessException.Validation("el rango de congelamiento es inválido", "fechas_invalidas");
+            throw BusinessException.Validation("El rango de congelamiento es inválido", "fechas_invalidas");
         }
 
         var diasCongelacion = (hasta - desde).Days;
         var plan = await _planes.GetByIdAsync(existente.IdPlan, ct)
-            ?? throw BusinessException.NotFound("plan no encontrado", "plan_no_encontrado");
+            ?? throw BusinessException.NotFound("Plan no encontrado", "plan_no_encontrado");
 
         if (diasCongelacion > plan.DiasCongelamientoMax)
         {
             throw BusinessException.Validation(
-                $"el congelamiento excede los días máximos del plan ({plan.DiasCongelamientoMax})",
+                $"El congelamiento excede los días máximos del plan ({plan.DiasCongelamientoMax})",
                 "dias_congelamiento_excedido");
         }
 
@@ -226,11 +226,11 @@ public sealed class MembresiasService : IMembresiasService
         await _auth.ReautorizarAsync(token, password, ct);
 
         var existente = await _membresias.GetByIdAsync(idMembresia, ct)
-            ?? throw BusinessException.NotFound("membresía no encontrada", "membresia_no_encontrada");
+            ?? throw BusinessException.NotFound("Membresía no encontrada", "membresia_no_encontrada");
 
         if (existente.Estado == MembresiaEstados.Cancelada)
         {
-            throw BusinessException.Conflict("la membresía ya está cancelada", "membresia_ya_cancelada");
+            throw BusinessException.Conflict("La membresía ya está cancelada", "membresia_ya_cancelada");
         }
 
         await _membresias.CancelarAsync(

@@ -105,7 +105,7 @@ public sealed class CajasSesionesRepository : RepositoryBase, ICajasSesionesRepo
 
             if (affected == 0)
             {
-                throw BusinessException.Conflict("la caja ya está cerrada o no existe", "caja_ya_cerrada");
+                throw BusinessException.Conflict("La caja ya está cerrada o no existe", "caja_ya_cerrada");
             }
 
             await conn.ExecuteAsync(

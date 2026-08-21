@@ -40,11 +40,11 @@ public sealed class SetupService : ISetupService
         var yaExiste = await _usuarios.GetByIdAsync(1, ct) is not null;
         if (yaExiste)
         {
-            throw BusinessException.Conflict("la configuración inicial ya fue completada", "setup_ya_completado");
+            throw BusinessException.Conflict("La configuración inicial ya fue completada", "setup_ya_completado");
         }
 
         var rol = await _roles.GetByNameAsync("SUPERADMIN", ct)
-            ?? throw BusinessException.Conflict("el rol SUPERADMIN no existe en el seed", "rol_superadmin_faltante");
+            ?? throw BusinessException.Conflict("El rol SUPERADMIN no existe en el seed", "rol_superadmin_faltante");
 
         var ahora = Core.Common.DateHelper.NowIsoUtc();
         await _usuarios.InsertAsync(new Usuario
@@ -83,7 +83,7 @@ public sealed class SetupService : ISetupService
 
     public async Task<EmpresaConfigFiscal> ObtenerDatosEmpresaAsync(CancellationToken ct = default) =>
         await _empresa.GetAsync(ct)
-            ?? throw BusinessException.NotFound("empresa no configurada", "empresa_no_configurada");
+            ?? throw BusinessException.NotFound("Empresa no configurada", "empresa_no_configurada");
 
     public async Task<string> GuardarLogoAsync(byte[] bytes, string mime, CancellationToken ct = default)
     {
@@ -97,7 +97,7 @@ public sealed class SetupService : ISetupService
         var extension = MimeToExtension(mime);
         if (extension is null)
         {
-            throw BusinessException.Validation("tipo de imagen de logo no permitido", "logo_mime_no_permitido");
+            throw BusinessException.Validation("Tipo de imagen de logo no permitido", "logo_mime_no_permitido");
         }
 
         var path = _logoStorage.Guardar(bytes, extension);
@@ -109,24 +109,24 @@ public sealed class SetupService : ISetupService
     {
         if (string.IsNullOrWhiteSpace(datos.NombreComercial))
         {
-            throw BusinessException.Validation("el nombre comercial es obligatorio", "nombre_comercial_vacio");
+            throw BusinessException.Validation("El nombre comercial es obligatorio", "nombre_comercial_vacio");
         }
 
         if (string.IsNullOrWhiteSpace(datos.Telefono) ||
             string.IsNullOrWhiteSpace(datos.Direccion) ||
             string.IsNullOrWhiteSpace(datos.CodigoPostal))
         {
-            throw BusinessException.Validation("los datos de la empresa son obligatorios", "datos_empresa_incompletos");
+            throw BusinessException.Validation("Los datos de la empresa son obligatorios", "datos_empresa_incompletos");
         }
 
         if (string.IsNullOrWhiteSpace(datos.Email) || !EmailValidator.EsValido(datos.Email.Trim()))
         {
-            throw BusinessException.Validation("email inválido", "email_invalido");
+            throw BusinessException.Validation("Email inválido", "email_invalido");
         }
 
         if (string.IsNullOrEmpty(datos.Password) || datos.Password.Length < 8)
         {
-            throw BusinessException.Validation("la contraseña debe tener al menos 8 caracteres", "password_corta");
+            throw BusinessException.Validation("La contraseña debe tener al menos 8 caracteres", "password_corta");
         }
     }
 

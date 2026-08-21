@@ -142,7 +142,7 @@ public sealed class MembresiasRepository : RepositoryBase, IMembresiasRepository
 
             if (affected == 0)
             {
-                throw BusinessException.NotFound("membresía no encontrada", "membresia_no_encontrada");
+                throw BusinessException.NotFound("Membresía no encontrada", "membresia_no_encontrada");
             }
 
             await conn.ExecuteAsync(
@@ -182,7 +182,7 @@ public sealed class MembresiasRepository : RepositoryBase, IMembresiasRepository
 
             if (affected == 0)
             {
-                throw BusinessException.NotFound("membresía no encontrada", "membresia_no_encontrada");
+                throw BusinessException.NotFound("Membresía no encontrada", "membresia_no_encontrada");
             }
 
             await InsertBitacoraCoreAsync(conn, tx, bitacora, ct);

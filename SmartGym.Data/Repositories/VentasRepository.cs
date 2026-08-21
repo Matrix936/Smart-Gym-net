@@ -136,7 +136,7 @@ public sealed class VentasRepository : RepositoryBase, IVentasRepository
 
             if (filas == 0)
             {
-                throw BusinessException.Conflict("la venta ya esta cancelada", "venta_ya_cancelada");
+                throw BusinessException.Conflict("La venta ya esta cancelada", "venta_ya_cancelada");
             }
 
             await conn.ExecuteAsync(

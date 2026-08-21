@@ -32,7 +32,7 @@ public sealed class AuthorizationService : IAuthorizationService
         var rol = await _roles.GetByNameAsync("SUPERADMIN", ct);
         if (rol is null)
         {
-            throw BusinessException.Conflict("el rol SUPERADMIN no existe en el seed", "rol_superadmin_faltante");
+            throw BusinessException.Conflict("El rol SUPERADMIN no existe en el seed", "rol_superadmin_faltante");
         }
 
         await _permisos.ReplaceAccionesForRolAsync(rol.IdRol, PermisoCatalogo.Todas(), ct);
@@ -46,7 +46,7 @@ public sealed class AuthorizationService : IAuthorizationService
 
         if (permisos.All(p => !string.Equals(p.Accion, accion, StringComparison.OrdinalIgnoreCase)))
         {
-            throw BusinessException.Unauthorized("no autorizado para esta acción", "sin_permiso");
+            throw BusinessException.Unauthorized("No autorizado para esta acción", "sin_permiso");
         }
     }
 

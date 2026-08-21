@@ -52,7 +52,7 @@ public sealed class AccesosRepository : RepositoryBase, IAccesosRepository
     {
         if (string.IsNullOrWhiteSpace(idSocio))
         {
-            throw BusinessException.Validation("id_socio es obligatorio", "id_socio_obligatorio");
+            throw BusinessException.Validation("Id_socio es obligatorio", "id_socio_obligatorio");
         }
 
         var now = DateHelper.NowIsoUtc();
@@ -67,7 +67,7 @@ public sealed class AccesosRepository : RepositoryBase, IAccesosRepository
 
             if (socio is null)
             {
-                throw BusinessException.NotFound("socio no encontrado", "socio_no_encontrado");
+                throw BusinessException.NotFound("Socio no encontrado", "socio_no_encontrado");
             }
 
             // Socio bloqueado/inactivo/suspendido deniega sin consultar membresía
@@ -129,7 +129,7 @@ public sealed class AccesosRepository : RepositoryBase, IAccesosRepository
                 if (valido == 0)
                 {
                     throw BusinessException.Validation(
-                        "el dispositivo indicado no existe o no pertenece a esta sede",
+                        "El dispositivo indicado no existe o no pertenece a esta sede",
                         "dispositivo_invalido");
                 }
             }

@@ -56,7 +56,7 @@ public sealed class CuentasCobrarRepository : RepositoryBase, ICuentasCobrarRepo
 
             if (filas == 0)
             {
-                throw BusinessException.NotFound("cuenta no encontrada", "cuenta_no_encontrada");
+                throw BusinessException.NotFound("Cuenta no encontrada", "cuenta_no_encontrada");
             }
 
             await conn.ExecuteAsync(

@@ -80,7 +80,7 @@ public sealed class PlanesMembresiaRepository : RepositoryBase, IPlanesMembresia
 
         if (affected == 0)
         {
-            throw BusinessException.NotFound("plan no encontrado", "plan_no_encontrado");
+            throw BusinessException.NotFound("Plan no encontrado", "plan_no_encontrado");
         }
     }
 
@@ -95,7 +95,7 @@ public sealed class PlanesMembresiaRepository : RepositoryBase, IPlanesMembresia
 
         if (affected == 0)
         {
-            throw BusinessException.NotFound("plan no encontrado", "plan_no_encontrado");
+            throw BusinessException.NotFound("Plan no encontrado", "plan_no_encontrado");
         }
     }
 }

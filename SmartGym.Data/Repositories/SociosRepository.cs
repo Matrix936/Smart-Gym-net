@@ -146,7 +146,7 @@ public sealed class SociosRepository : RepositoryBase, ISociosRepository
 
             if (affected == 0)
             {
-                throw BusinessException.NotFound("socio no encontrado", "socio_no_encontrado");
+                throw BusinessException.NotFound("Socio no encontrado", "socio_no_encontrado");
             }
 
             await InsertBitacoraCoreAsync(conn, tx, bitacora, ct);
@@ -191,7 +191,7 @@ public sealed class SociosRepository : RepositoryBase, ISociosRepository
             if (affected == 0)
             {
                 // Guardia de carrera: la existencia ya se validó en el servicio.
-                throw BusinessException.NotFound("socio no encontrado", "socio_no_encontrado");
+                throw BusinessException.NotFound("Socio no encontrado", "socio_no_encontrado");
             }
 
             await conn.ExecuteAsync(

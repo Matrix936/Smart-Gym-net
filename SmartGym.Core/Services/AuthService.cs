@@ -96,18 +96,18 @@ public sealed class AuthService : IAuthService
         var sesion = await _sesiones.GetByTokenHashAsync(tokenHash, ct);
         if (sesion is null || !string.IsNullOrEmpty(sesion.RevokedAt))
         {
-            throw BusinessException.Unauthorized("sesión inválida", "sesion_invalida");
+            throw BusinessException.Unauthorized("Sesión inválida", "sesion_invalida");
         }
 
         if (DateHelper.ParseIsoUtc(sesion.ExpiresAt) < DateTime.UtcNow)
         {
-            throw BusinessException.Unauthorized("sesión expirada", "sesion_expirada");
+            throw BusinessException.Unauthorized("Sesión expirada", "sesion_expirada");
         }
 
         var usuario = await _usuarios.GetByIdAsync(sesion.IdUsuario, ct);
         if (usuario is null || !usuario.EsActivo)
         {
-            throw BusinessException.Unauthorized("sesión inválida", "sesion_invalida");
+            throw BusinessException.Unauthorized("Sesión inválida", "sesion_invalida");
         }
 
         return MapearSesion(usuario, token, sesion);
@@ -138,7 +138,7 @@ public sealed class AuthService : IAuthService
     {
         var info = await ValidarSesionAsync(token, ct);
         var usuario = await _usuarios.GetByIdAsync(info.IdUsuario, ct)
-            ?? throw BusinessException.Unauthorized("usuario no encontrado", "sesion_invalida");
+            ?? throw BusinessException.Unauthorized("Usuario no encontrado", "sesion_invalida");
 
         if (!VerifyPassword(password, usuario.PasswordHash))
         {
@@ -166,5 +166,5 @@ public sealed class AuthService : IAuthService
             .Where(s => !string.IsNullOrWhiteSpace(s)));
 
     private static BusinessException ErrorCredencialesInvalidas() =>
-        BusinessException.Unauthorized("credenciales inválidas", "credenciales_invalidas");
+        BusinessException.Unauthorized("Credenciales inválidas", "credenciales_invalidas");
 }

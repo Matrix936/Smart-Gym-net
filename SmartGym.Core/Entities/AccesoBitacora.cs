@@ -70,7 +70,7 @@ public static class AccesoDecisor
                 // Estado de socio no contemplado: error explícito, nunca una
                 // aprobación implícita por caer en un default silencioso.
                 throw Errors.BusinessException.Validation(
-                    $"estado de socio no reconocido para decisión de acceso: '{estadoSocio}'",
+                    $"Estado de socio no reconocido para decisión de acceso: '{estadoSocio}'",
                     "estado_socio_invalido");
         }
     }

@@ -36,7 +36,7 @@ public sealed class SociosService : ISociosService
         ValidarNombre(datos.Nombre);
         if (datos.Email is not null && !EmailValidator.EsValido(datos.Email))
         {
-            throw BusinessException.Validation("email inválido", "email_invalido");
+            throw BusinessException.Validation("Email inválido", "email_invalido");
         }
 
         // Resolución de id_sede: la sesión local gana sobre el id_sede enviado.
@@ -85,12 +85,12 @@ public sealed class SociosService : ISociosService
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.SociosEditar, ct);
 
         var existente = await _socios.GetByIdAsync(datos.IdSocio, ct)
-            ?? throw BusinessException.NotFound("socio no encontrado", "socio_no_encontrado");
+            ?? throw BusinessException.NotFound("Socio no encontrado", "socio_no_encontrado");
 
         ValidarNombre(datos.Nombre);
         if (datos.Email is not null && !EmailValidator.EsValido(datos.Email))
         {
-            throw BusinessException.Validation("email inválido", "email_invalido");
+            throw BusinessException.Validation("Email inválido", "email_invalido");
         }
 
         // Preserva id_socio e id_sede_registro (el UPDATE no los toca).
@@ -121,11 +121,11 @@ public sealed class SociosService : ISociosService
 
         if (!SocioEstados.EsValido(estadoNuevo))
         {
-            throw BusinessException.Validation("estado de socio inválido", "estado_socio_invalido");
+            throw BusinessException.Validation("Estado de socio inválido", "estado_socio_invalido");
         }
 
         var existente = await _socios.GetByIdAsync(idSocio, ct)
-            ?? throw BusinessException.NotFound("socio no encontrado", "socio_no_encontrado");
+            ?? throw BusinessException.NotFound("Socio no encontrado", "socio_no_encontrado");
 
         var ahora = DateHelper.NowIsoUtc();
         var historial = new SocioHistorialEstado
@@ -154,7 +154,7 @@ public sealed class SociosService : ISociosService
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.SociosEliminar, ct);
 
         var existente = await _socios.GetByIdAsync(idSocio, ct)
-            ?? throw BusinessException.NotFound("socio no encontrado", "socio_no_encontrado");
+            ?? throw BusinessException.NotFound("Socio no encontrado", "socio_no_encontrado");
 
         await _socios.SoftDeleteAsync(idSocio, ct);
         await _bitacora.InsertAsync(
@@ -166,7 +166,7 @@ public sealed class SociosService : ISociosService
     {
         if (string.IsNullOrWhiteSpace(nombre))
         {
-            throw BusinessException.Validation("el nombre es obligatorio", "nombre_vacio");
+            throw BusinessException.Validation("El nombre es obligatorio", "nombre_vacio");
         }
     }
 
