@@ -1,3 +1,4 @@
+using SmartGym.Core.Common;
 using SmartGym.Core.Entities;
 
 namespace SmartGym.Core.Services;
@@ -38,7 +39,7 @@ public interface ISociosService
 {
     Task<Socio> CrearSocioAsync(string token, CrearSocioDatos datos, long? idSedeFrontend = null, CancellationToken ct = default);
     Task<Socio> ObtenerSocioAsync(string token, string idSocio, CancellationToken ct = default);
-    Task<IReadOnlyList<Socio>> BuscarAsync(string token, string? query = null, CancellationToken ct = default);
+    Task<PagedResult<Socio>> BuscarAsync(string token, string? query = null, int pagina = 1, int tamanoPagina = TamanosPagina.Default, CancellationToken ct = default);
     Task<Socio> ActualizarSocioAsync(string token, ActualizarSocioDatos datos, CancellationToken ct = default);
     Task CambiarEstadoAsync(string token, string idSocio, string estadoNuevo, string? motivo = null, CancellationToken ct = default);
     Task EliminarSocioAsync(string token, string idSocio, CancellationToken ct = default);

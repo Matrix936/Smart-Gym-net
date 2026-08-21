@@ -145,12 +145,12 @@ public sealed class MembersTests
         var socio1 = await ctx.SociosService.CrearSocioAsync(token, Datos("Fernando", email: "fernando@test.com", telefono: "5551112233"), sedeId);
         var socio2 = await ctx.SociosService.CrearSocioAsync(token, Datos("Gabriela", email: "gabriela@test.com", telefono: "5554445566"), sedeId);
 
-        Assert.Single(await ctx.SociosService.BuscarAsync(token, "Fernando"));
-        Assert.Single(await ctx.SociosService.BuscarAsync(token, "gabriela@test.com"));
-        Assert.Single(await ctx.SociosService.BuscarAsync(token, "5551112233"));
+        Assert.Single((await ctx.SociosService.BuscarAsync(token, "Fernando")).Items);
+        Assert.Single((await ctx.SociosService.BuscarAsync(token, "gabriela@test.com")).Items);
+        Assert.Single((await ctx.SociosService.BuscarAsync(token, "5551112233")).Items);
 
         // Sin query → todos los activos.
-        var todos = await ctx.SociosService.BuscarAsync(token);
+        var todos = (await ctx.SociosService.BuscarAsync(token)).Items;
         Assert.Contains(todos, s => s.IdSocio == socio1.IdSocio);
         Assert.Contains(todos, s => s.IdSocio == socio2.IdSocio);
     }
@@ -232,7 +232,7 @@ public sealed class MembersTests
             () => ctx.SociosService.ObtenerSocioAsync(token, socio.IdSocio));
         Assert.Equal(BusinessError.NotFound, ex.Error);
 
-        var busqueda = await ctx.SociosService.BuscarAsync(token, "Luis");
+        var busqueda = (await ctx.SociosService.BuscarAsync(token, "Luis")).Items;
         Assert.DoesNotContain(busqueda, s => s.IdSocio == socio.IdSocio);
     }
 
@@ -249,5 +249,65 @@ public sealed class MembersTests
         // Nada quedó escrito: sin historial y sin bitácora del evento.
         Assert.Empty(await ctx.Socios.HistorialDeAsync(idInexistente));
         Assert.True(await ctx.Bitacora.NoExisteAccionParaAsync("socios", idInexistente));
+    }
+
+    [Fact]
+    public async Task paginacion_respeta_tamano_pagina_y_reparte_correctamente_entre_paginas()
+    {
+        var (ctx, token, sedeId) = await SuperadminAsync();
+        for (var i = 0; i < 12; i++)
+        {
+            await ctx.SociosService.CrearSocioAsync(token, Datos($"Paginado{i:D2}"), sedeId);
+        }
+
+        var pagina1 = await ctx.Socios.SearchAsync(null, pagina: 1, tamanoPagina: TamanosPagina.Diez);
+        var pagina2 = await ctx.Socios.SearchAsync(null, pagina: 2, tamanoPagina: TamanosPagina.Diez);
+
+        Assert.Equal(12, pagina1.TotalRegistros);
+        Assert.Equal(2, pagina1.TotalPaginas);
+        Assert.Equal(10, pagina1.Items.Count);
+        Assert.Equal(2, pagina2.Items.Count);
+        Assert.Empty(pagina1.Items.Select(s => s.IdSocio).Intersect(pagina2.Items.Select(s => s.IdSocio)));
+    }
+
+    [Fact]
+    public async Task paginacion_conteo_total_respeta_el_filtro_de_busqueda_no_solo_la_pagina()
+    {
+        var (ctx, token, sedeId) = await SuperadminAsync();
+        for (var i = 0; i < 5; i++)
+        {
+            await ctx.SociosService.CrearSocioAsync(token, Datos($"CoincideXyz{i}"), sedeId);
+        }
+        await ctx.SociosService.CrearSocioAsync(token, Datos("NoCoincide"), sedeId);
+
+        var resultado = await ctx.Socios.SearchAsync("Xyz", pagina: 1, tamanoPagina: TamanosPagina.Diez);
+
+        Assert.Equal(5, resultado.TotalRegistros);
+        Assert.Equal(5, resultado.Items.Count);
+        Assert.DoesNotContain(resultado.Items, s => s.Nombre == "NoCoincide");
+    }
+
+    [Fact]
+    public async Task paginacion_pagina_fuera_de_rango_devuelve_vacio_sin_lanzar_error()
+    {
+        var (ctx, token, sedeId) = await SuperadminAsync();
+        await ctx.SociosService.CrearSocioAsync(token, Datos("UnicoSocio"), sedeId);
+
+        var resultado = await ctx.Socios.SearchAsync(null, pagina: 999, tamanoPagina: TamanosPagina.Diez);
+
+        Assert.Empty(resultado.Items);
+        Assert.Equal(1, resultado.TotalRegistros);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(7)]
+    [InlineData(100)]
+    public async Task paginacion_tamano_pagina_invalido_lanza_argument_exception(int tamanoInvalido)
+    {
+        var (ctx, _, _) = await SuperadminAsync();
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => ctx.Socios.SearchAsync(null, pagina: 1, tamanoPagina: tamanoInvalido));
     }
 }

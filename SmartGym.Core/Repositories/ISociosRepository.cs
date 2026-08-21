@@ -1,3 +1,4 @@
+using SmartGym.Core.Common;
 using SmartGym.Core.Entities;
 
 namespace SmartGym.Core.Repositories;
@@ -17,8 +18,13 @@ public interface ISociosRepository
     Task<Socio?> GetByIdAsync(string idSocio, CancellationToken ct = default);
     Task<bool> ExistsAsync(string idSocio, CancellationToken ct = default);
 
-    /// <summary>Búsqueda LIKE por nombre, email o teléfono. Query null → todos los no borrados.</summary>
-    Task<IReadOnlyList<Socio>> SearchAsync(string? query, CancellationToken ct = default);
+    /// <summary>
+    /// Búsqueda LIKE por nombre, email o teléfono, paginada. Query null → todos los no
+    /// borrados. tamanoPagina debe estar en TamanosPagina.Validos (10/25/50); cualquier
+    /// otro valor lanza ArgumentException. pagina fuera de rango (más allá del total)
+    /// devuelve Items vacío, no error.
+    /// </summary>
+    Task<PagedResult<Socio>> SearchAsync(string? query, int pagina, int tamanoPagina, CancellationToken ct = default);
 
     /// <summary>Actualiza campos editables preservando id_socio e id_sede_registro.</summary>
     Task UpdateAsync(Socio socio, CancellationToken ct = default);

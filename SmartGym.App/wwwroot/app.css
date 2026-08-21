@@ -419,10 +419,23 @@ table.data-table {
 }
 
 .search-field { max-width: 360px; width: 100%; }
+.page-size-field { max-width: 140px; }
 
 .table-footer {
     margin-top: 0.75rem;
     font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
 }
 
 .muted { color: var(--color-text-muted); }

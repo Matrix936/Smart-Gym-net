@@ -73,10 +73,10 @@ public sealed class SociosService : ISociosService
             ?? throw BusinessException.NotFound("socio no encontrado", "socio_no_encontrado");
     }
 
-    public async Task<IReadOnlyList<Socio>> BuscarAsync(string token, string? query = null, CancellationToken ct = default)
+    public async Task<PagedResult<Socio>> BuscarAsync(string token, string? query = null, int pagina = 1, int tamanoPagina = TamanosPagina.Default, CancellationToken ct = default)
     {
         await _auth.ValidarSesionAsync(token, ct);
-        return await _socios.SearchAsync(string.IsNullOrWhiteSpace(query) ? null : query.Trim(), ct);
+        return await _socios.SearchAsync(string.IsNullOrWhiteSpace(query) ? null : query.Trim(), pagina, tamanoPagina, ct);
     }
 
     public async Task<Socio> ActualizarSocioAsync(string token, ActualizarSocioDatos datos, CancellationToken ct = default)

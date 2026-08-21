@@ -1,0 +1,228 @@
+@* FingerprintEnrollDialog (FingerprintEnrollDialog.tsx): enrolamiento de huella conectado a
+   IBiometricCaptureService. Mismo patrón estructural que MiembroFormDialog/AccesoManualDialog
+   (MudDialog inline, no IDialogService) para heredar el comportamiento ya validado de
+   Escape/z-index (ver Bloque 2: docs/migracion-dotnet/08-problemas-resueltos-blazor.md §6). *@
+@implements IDisposable
+@using MudBlazor
+@using SmartGym.Core.Biometrics
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Repositories
+@using SmartGym.App.Services
+
+<MudDialog @ref="_mudDialog" Visible="_visible"
+           VisibleChanged="OnVisibleChanged"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = false, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Fingerprint" Size="Size.Small" Class="sg-user-item-icon" />
+            @(TieneHuella ? "Reemplazar huella" : "Registrar huella") — @NombreCompleto
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <div style="margin-top: 0.5rem;">
+            @if (_capturando)
+            {
+                <div class="access-result access-alert-info" style="margin-top: 1rem; display: flex; align-items: center; gap: 0.75rem;">
+                    <MudProgressCircular Size="Size.Small" Color="Color.Inherit" Indeterminate="true" />
+                    <div>
+                        <div><strong>@EstadoLabel()</strong></div>
+                        <div class="muted">Sigue las instrucciones del lector biométrico</div>
+                    </div>
+                </div>
+            }
+            else if (_ultimoError is not null)
+            {
+                <div class="access-result access-result-ko" style="margin-top: 1rem;">@_ultimoError</div>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cancelar">Cancelar</MudButton>
+        @if (!_capturando)
+        {
+            <AsyncButton Text="Iniciar captura"
+                         LoadingText="Iniciando..."
+                         Disabled="@(CaptureService.CurrentMode != BiometricCaptureMode.Idle)"
+                         OnClick="IniciarCapturaAsync" />
+        }
+    </DialogActions>
+</MudDialog>
+
+<ConfirmDialog IsOpen="_confirmarReemplazo"
+               Titulo="Reemplazar huella"
+               Mensaje="Este socio ya tiene una huella registrada. Si continúas, la huella anterior dejará de funcionar hasta completar el nuevo registro. ¿Deseas continuar?"
+               TextoConfirmar="Continuar"
+               OnConfirm="ConfirmarReemplazoAsync"
+               OnCancel="CancelarReemplazo" />
+
+@code {
+    [Inject] private IBiometricCaptureService CaptureService { get; set; } = default!;
+    [Inject] private ISociosBiometricosRepository Biometricos { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public Socio? Socio { get; set; }
+    [Parameter] public bool TieneHuella { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    // Un socio tiene una sola huella activa (decisión de producto): no hay
+    // selección de dedo, el valor es fijo.
+    private const string DedoPrincipal = "principal";
+
+    private bool _visible;
+    private MudDialog _mudDialog = default!;
+    private bool _capturando;
+    private bool _confirmarReemplazo;
+    private string? _ultimoError;
+    private EnrollmentStage _ultimaEtapa = EnrollmentStage.EsperandoDedo;
+    private int _muestrasCapturadas;
+    private int _muestrasRequeridas = 4;
+    private bool _disposed;
+
+    protected override void OnInitialized()
+    {
+        _visible = Open;
+        CaptureService.EnrollmentStatusChanged += OnEnrollmentStatusChanged;
+    }
+
+    private async Task OnVisibleChanged(bool visible)
+    {
+        _visible = visible;
+        if (!visible)
+        {
+            CancelarSiEnrolando();
+            await OnClose.InvokeAsync();
+        }
+    }
+
+    private Task Cancelar() => _mudDialog.CloseAsync();
+
+    private void IniciarCapturaAsync()
+    {
+        if (TieneHuella)
+        {
+            _confirmarReemplazo = true;
+            return;
+        }
+        _ = ComenzarCapturaAsync();
+    }
+
+    private void ConfirmarReemplazoAsync()
+    {
+        _confirmarReemplazo = false;
+        _ = ComenzarCapturaAsync();
+    }
+
+    private void CancelarReemplazo() => _confirmarReemplazo = false;
+
+    private async Task ComenzarCapturaAsync()
+    {
+        _ultimoError = null;
+        _capturando = true;
+        _muestrasCapturadas = 0;
+        _muestrasRequeridas = 4;
+        _ultimaEtapa = EnrollmentStage.EsperandoDedo;
+        StateHasChanged();
+
+        EnrollmentResult resultado;
+        try
+        {
+            resultado = await CaptureService.StartEnrollmentAsync(Socio!.IdSocio, DedoPrincipal, 4);
+        }
+        catch (Exception ex)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+            _capturando = false;
+            _ultimoError = ex.Message;
+            StateHasChanged();
+            return;
+        }
+
+        if (_disposed)
+        {
+            return;
+        }
+
+        _capturando = false;
+
+        switch (resultado.Estado)
+        {
+            case EnrollmentStage.Completado:
+                try
+                {
+                    await Biometricos.RegistrarTemplateAsync(Socio!.IdSocio, DedoPrincipal, resultado.TemplatePath!);
+                    Feedback.ShowSuccess("Huella registrada correctamente");
+                    await OnSaved.InvokeAsync();
+                    await _mudDialog.CloseAsync();
+                }
+                catch
+                {
+                    _ultimoError = "Huella capturada pero no se pudo guardar el registro";
+                    Feedback.ShowError(_ultimoError);
+                    StateHasChanged();
+                }
+                break;
+
+            case EnrollmentStage.Error:
+                _ultimoError = resultado.Error ?? "Error durante el enrolamiento";
+                Feedback.ShowError(_ultimoError);
+                StateHasChanged();
+                break;
+
+            case EnrollmentStage.Cancelado:
+                StateHasChanged();
+                break;
+        }
+    }
+
+    private void OnEnrollmentStatusChanged(object? sender, EnrollmentStatusEventArgs e)
+    {
+        // El SDK invoca este evento desde su propio hilo de mensajes, no el de
+        // Blazor — InvokeAsync es obligatorio antes de tocar el estado del
+        // componente (mismo criterio documentado en BiometricCaptureService).
+        _ = InvokeAsync(() =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+            _ultimaEtapa = e.Estado;
+            _muestrasCapturadas = e.MuestrasCapturadas;
+            _muestrasRequeridas = e.MuestrasRequeridas;
+            StateHasChanged();
+        });
+    }
+
+    private string EstadoLabel() => _ultimaEtapa switch
+    {
+        EnrollmentStage.EsperandoDedo => "Coloca el dedo en el lector...",
+        EnrollmentStage.Capturando => $"Capturando... ({_muestrasCapturadas} de {_muestrasRequeridas})",
+        EnrollmentStage.Completado => "¡Huella registrada!",
+        EnrollmentStage.Error => "Error durante el enrolamiento",
+        EnrollmentStage.Cancelado => "Captura cancelada",
+        _ => "",
+    };
+
+    private void CancelarSiEnrolando()
+    {
+        if (CaptureService.CurrentMode == BiometricCaptureMode.Enrolling)
+        {
+            CaptureService.CancelEnrollment();
+        }
+    }
+
+    private string NombreCompleto =>
+        string.Join(" ", new[] { Socio?.Nombre, Socio?.ApellidoPaterno, Socio?.ApellidoMaterno }
+            .Where(x => !string.IsNullOrWhiteSpace(x)));
+
+    public void Dispose()
+    {
+        _disposed = true;
+        CaptureService.EnrollmentStatusChanged -= OnEnrollmentStatusChanged;
+        CancelarSiEnrolando();
+    }
+}

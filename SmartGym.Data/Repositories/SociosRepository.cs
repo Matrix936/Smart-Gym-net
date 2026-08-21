@@ -1,5 +1,6 @@
 using Dapper;
 using Microsoft.Data.Sqlite;
+using SmartGym.Core.Common;
 using SmartGym.Core.Entities;
 using SmartGym.Core.Errors;
 using SmartGym.Core.Repositories;
@@ -12,6 +13,12 @@ public sealed class SociosRepository : RepositoryBase, ISociosRepository
     private const string Select = "SELECT id_socio, nombre, apellido_paterno, apellido_materno, email, telefono, " +
         "fecha_nacimiento, id_sede_registro, foto_path, contacto_emergencia_nombre, contacto_emergencia_telefono, " +
         "estado, fecha_ultimo_acceso, updated_at, sincronizado, deleted_at, created_at FROM socios ";
+
+    private const string SearchWhere =
+        "WHERE deleted_at IS NULL " +
+        "AND (@query IS NULL OR nombre LIKE '%' || @query || '%' COLLATE NOCASE " +
+        "OR email LIKE '%' || @query || '%' COLLATE NOCASE " +
+        "OR telefono LIKE '%' || @query || '%' COLLATE NOCASE) ";
 
     public SociosRepository(string dbPath) : base(dbPath)
     {
@@ -50,19 +57,37 @@ public sealed class SociosRepository : RepositoryBase, ISociosRepository
                 new { id = idSocio }, cancellationToken: ct));
     }
 
-    public async Task<IReadOnlyList<Socio>> SearchAsync(string? query, CancellationToken ct = default)
+    public async Task<PagedResult<Socio>> SearchAsync(string? query, int pagina, int tamanoPagina, CancellationToken ct = default)
     {
+        if (!TamanosPagina.EsValido(tamanoPagina))
+        {
+            throw new ArgumentException($"tamanoPagina inválido: {tamanoPagina}. Valores permitidos: {string.Join(", ", TamanosPagina.Validos)}.", nameof(tamanoPagina));
+        }
+
+        var paginaEfectiva = Math.Max(pagina, 1);
+        var offset = (paginaEfectiva - 1) * tamanoPagina;
+
         await using var conn = ConnectionFactory.Open(DbPath);
+
+        var total = await conn.ExecuteScalarAsync<int>(
+            new CommandDefinition(
+                "SELECT COUNT(*) FROM socios " + SearchWhere,
+                new { query }, cancellationToken: ct));
+
         var rows = await conn.QueryAsync<Socio>(
             new CommandDefinition(
-                Select +
-                "WHERE deleted_at IS NULL " +
-                "AND (@query IS NULL OR nombre LIKE '%' || @query || '%' COLLATE NOCASE " +
-                "OR email LIKE '%' || @query || '%' COLLATE NOCASE " +
-                "OR telefono LIKE '%' || @query || '%' COLLATE NOCASE) " +
-                "ORDER BY nombre, apellido_paterno",
-                new { query }, cancellationToken: ct));
-        return rows.ToList();
+                Select + SearchWhere +
+                "ORDER BY nombre, apellido_paterno " +
+                "LIMIT @tamanoPagina OFFSET @offset",
+                new { query, tamanoPagina, offset }, cancellationToken: ct));
+
+        return new PagedResult<Socio>
+        {
+            Items = rows.ToList(),
+            TotalRegistros = total,
+            Pagina = paginaEfectiva,
+            TamanoPagina = tamanoPagina,
+        };
     }
 
     public async Task UpdateAsync(Socio socio, CancellationToken ct = default)
