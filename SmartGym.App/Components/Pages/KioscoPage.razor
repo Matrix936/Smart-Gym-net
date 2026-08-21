@@ -105,6 +105,7 @@
     [Inject] private ISociosBiometricosRepository Biometricos { get; set; } = default!;
     [Inject] private ITerminalConfigStore TerminalConfig { get; set; } = default!;
     [Inject] private IBiometricCaptureService CaptureService { get; set; } = default!;
+    [Inject] private IKioscoSoundService Sonido { get; set; } = default!;
 
     private KioscoEstado _estado = KioscoEstado.Cargando;
     // volatile: se lee desde el hilo del ThreadPool del Timer y se escribe
@@ -321,7 +322,7 @@
     {
         if (!e.Identificado || e.IdSocio is null)
         {
-            MostrarResultado(concedido: false, noIdentificado: true, mensaje: "Huella no reconocida. Intenta de nuevo o contacta a recepción.");
+            MostrarResultado(KioscoResultadoSonido.NoIdentificado, "Huella no reconocida. Intenta de nuevo o contacta a recepción.");
             return;
         }
 
@@ -344,20 +345,22 @@
             if (resultado.Estado == AccesoEstados.Concedido)
             {
                 var nombre = resultado.Socio?.Nombre ?? "";
-                MostrarResultado(concedido: true, noIdentificado: false, mensaje: $"Bienvenido, {nombre}");
+                MostrarResultado(KioscoResultadoSonido.Concedido, $"Bienvenido, {nombre}");
             }
             else
             {
-                MostrarResultado(concedido: false, noIdentificado: false, mensaje: MotivoMensaje(resultado.MotivoDenegacion));
+                MostrarResultado(KioscoResultadoSonido.Denegado, MotivoMensaje(resultado.MotivoDenegacion));
             }
         }
         catch (BusinessException ex)
         {
-            MostrarResultado(concedido: false, noIdentificado: false, mensaje: ex.Message);
+            // Rechazo técnico/imprevisto, no una denegación reglamentaria del
+            // acceso — suena como "no identificado", no como "denegado".
+            MostrarResultado(KioscoResultadoSonido.NoIdentificado, ex.Message);
         }
         catch
         {
-            MostrarResultado(concedido: false, noIdentificado: false, mensaje: "No se pudo registrar el acceso. Intenta de nuevo.");
+            MostrarResultado(KioscoResultadoSonido.NoIdentificado, "No se pudo registrar el acceso. Intenta de nuevo.");
         }
     }
 
@@ -371,15 +374,20 @@
         _ => "Acceso denegado.",
     };
 
-    private void MostrarResultado(bool concedido, bool noIdentificado, string mensaje)
+    private void MostrarResultado(KioscoResultadoSonido categoria, string mensaje)
     {
         _resultadoCts?.Cancel();
         var cts = _resultadoCts = new CancellationTokenSource();
 
-        _resultadoEsConcedido = concedido;
-        _resultadoEsNoIdentificado = noIdentificado;
+        // Los flags de ícono se derivan de la categoría: este método y el
+        // servicio de sonido son los únicos puntos que traducen estado real
+        // → categoría (y de ahí, ícono + sonido).
+        _resultadoEsConcedido = categoria == KioscoResultadoSonido.Concedido;
+        _resultadoEsNoIdentificado = categoria == KioscoResultadoSonido.NoIdentificado;
         _mensajeResultado = mensaje;
         _estado = KioscoEstado.Resultado;
+
+        Sonido.Reproducir(categoria);
         StateHasChanged();
 
         _ = LimpiarDespuesAsync(cts.Token);

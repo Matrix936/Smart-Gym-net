@@ -8,6 +8,7 @@ using SmartGym.App.Services;
 using Microsoft.Extensions.Logging;
 using MudBlazor;
 using MudBlazor.Services;
+using Plugin.Maui.Audio;
 
 namespace SmartGym.App;
 
@@ -88,6 +89,10 @@ public static class MauiProgram
 
 		// ---- Kiosco como ventana MAUI separada (ver docs/migracion-dotnet) ----
 		builder.Services.AddSingleton<IKioscoWindowService, KioscoWindowService>();
+
+		// ---- Retroalimentacion sonora del Kiosco ----
+		builder.AddAudio();
+		builder.Services.AddSingleton<IKioscoSoundService, KioscoSoundService>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();
