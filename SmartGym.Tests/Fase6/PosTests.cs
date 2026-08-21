@@ -195,7 +195,7 @@ public sealed class PosTests
                 PasswordConfirmacion = "clave-equivocada",
             }, sedeId));
         Assert.Equal(BusinessError.Unauthorized, ex.Error);
-        Assert.Contains("clave", ex.Message);
+        Assert.Contains("Clave", ex.Message);
     }
 
     [Fact]

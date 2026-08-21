@@ -142,7 +142,7 @@ public sealed class AuthService : IAuthService
 
         if (!VerifyPassword(password, usuario.PasswordHash))
         {
-            throw BusinessException.Unauthorized("clave incorrecta", "clave_incorrecta");
+            throw BusinessException.Unauthorized("Clave incorrecta", "clave_incorrecta");
         }
     }
 
