@@ -79,19 +79,21 @@
 
         case KioscoEstado.Resultado:
             <div class="kiosco-center">
-                @if (_resultadoEsConcedido)
-                {
-                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="kiosco-icon kiosco-icon-ok" />
-                }
-                else if (_resultadoEsNoIdentificado)
-                {
-                    <MudIcon Icon="@Icons.Material.Filled.HelpOutline" Class="kiosco-icon kiosco-icon-warn" />
-                }
-                else
-                {
-                    <MudIcon Icon="@Icons.Material.Filled.Cancel" Class="kiosco-icon kiosco-icon-error" />
-                }
-                <h1 class="kiosco-title">@_mensajeResultado</h1>
+                <div class="kiosco-card @ClaseTarjetaResultado">
+                    @if (_resultadoEsConcedido)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="kiosco-icon kiosco-icon-ok" />
+                    }
+                    else if (_resultadoEsNoIdentificado)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.HelpOutline" Class="kiosco-icon kiosco-icon-warn" />
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Cancel" Class="kiosco-icon kiosco-icon-error" />
+                    }
+                    <h1 class="kiosco-title">@_mensajeResultado</h1>
+                </div>
             </div>
             break;
     }
@@ -120,8 +122,17 @@
 
     private bool _resultadoEsConcedido;
     private bool _resultadoEsNoIdentificado;
+    private KioscoResultadoSonido _resultadoCategoria;
     private string? _mensajeResultado;
     private CancellationTokenSource? _resultadoCts;
+
+    // Borde/brillo de la tarjeta de resultado según la categoría.
+    private string ClaseTarjetaResultado => _resultadoCategoria switch
+    {
+        KioscoResultadoSonido.Concedido => "kiosco-card-ok",
+        KioscoResultadoSonido.NoIdentificado => "kiosco-card-warn",
+        _ => "kiosco-card-error",
+    };
 
     private Timer? _pollTimer;
     private Timer? _reintentoTemplatesTimer;
@@ -381,7 +392,8 @@
 
         // Los flags de ícono se derivan de la categoría: este método y el
         // servicio de sonido son los únicos puntos que traducen estado real
-        // → categoría (y de ahí, ícono + sonido).
+        // → categoría (y de ahí, ícono + tarjeta + sonido).
+        _resultadoCategoria = categoria;
         _resultadoEsConcedido = categoria == KioscoResultadoSonido.Concedido;
         _resultadoEsNoIdentificado = categoria == KioscoResultadoSonido.NoIdentificado;
         _mensajeResultado = mensaje;

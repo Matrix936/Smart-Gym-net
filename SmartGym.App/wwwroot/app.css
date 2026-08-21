@@ -1317,9 +1317,9 @@ table.data-table {
     align-items: center;
     justify-content: center;
     text-align: center;
-    gap: 1rem;
+    gap: clamp(1rem, 2.5vh, 2rem);
     padding: 2rem;
-    max-width: 640px;
+    max-width: min(90vw, 860px);
     /* Entrada con rebote sutil en cada cambio de estado (cada rama del
        @switch de KioscoPage monta DOM nuevo, así que la animación se
        dispara sola — sin JS interop). */
@@ -1327,7 +1327,7 @@ table.data-table {
 }
 
 .kiosco-title {
-    font-size: 2.25rem;
+    font-size: clamp(2rem, 4.5vw, 3.75rem);
     font-weight: 700;
     margin: 0;
     /* Los mensajes de dos renglones usan "\n" en el string (ver KioscoPage). */
@@ -1336,7 +1336,7 @@ table.data-table {
 }
 
 .kiosco-subtitle {
-    font-size: 1.1rem;
+    font-size: clamp(1.05rem, 1.7vw, 1.4rem);
     color: var(--color-text-muted);
     margin: 0;
 }
@@ -1350,7 +1350,7 @@ table.data-table {
 }
 
 .kiosco-message {
-    font-size: 1.25rem;
+    font-size: clamp(1.1rem, 1.8vw, 1.5rem);
 }
 
 .kiosco-message.kiosco-error {
@@ -1358,7 +1358,7 @@ table.data-table {
 }
 
 .kiosco-icon {
-    font-size: 7rem !important;
+    font-size: clamp(7rem, 14vw, 13rem) !important;
     width: 1em;
     height: 1em;
 }
@@ -1385,6 +1385,36 @@ table.data-table {
 .kiosco-icon-warn {
     color: var(--color-warning);
     animation: kiosco-wobble 400ms ease-in-out;
+}
+
+/* Tarjeta glass del resultado: enmarca el veredicto y llena la pantalla
+   grande. El borde/glow toma el color de la categoría (ver KioscoPage,
+   ClaseTarjetaResultado). Usa los tokens glass del proyecto. */
+.kiosco-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(1rem, 2.5vh, 2rem);
+    padding: clamp(2rem, 6vh, 3.5rem) clamp(2.5rem, 7vw, 5rem);
+    border-radius: var(--glass-radius);
+    background: var(--color-surface-2);
+    border: 1px solid transparent;
+    box-shadow: var(--glass-shadow);
+}
+
+.kiosco-card-ok {
+    border-color: rgba(105, 240, 174, 0.45);
+    box-shadow: 0 0 56px rgba(105, 240, 174, 0.14), var(--glass-shadow);
+}
+
+.kiosco-card-error {
+    border-color: rgba(255, 82, 82, 0.45);
+    box-shadow: 0 0 56px rgba(255, 82, 82, 0.12), var(--glass-shadow);
+}
+
+.kiosco-card-warn {
+    border-color: rgba(255, 171, 64, 0.45);
+    box-shadow: 0 0 56px rgba(255, 171, 64, 0.12), var(--glass-shadow);
 }
 
 .kiosco-sede-list {
