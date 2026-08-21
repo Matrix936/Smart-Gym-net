@@ -11,4 +11,10 @@ public interface IPermisosRolRepository
     Task<IReadOnlyList<PermisoRol>> GetByRolAsync(long idRol, CancellationToken ct = default);
     Task ReplaceAccionesForRolAsync(long idRol, IEnumerable<string> acciones, CancellationToken ct = default);
     Task<bool> TieneFilasAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Inserta solo las acciones que el rol no tiene (idempotente, no revoca).
+    /// Usado por el seed para llevar acciones de catálogos nuevos a bases ya sembradas.
+    /// </summary>
+    Task AgregarAccionesFaltantesAsync(long idRol, IEnumerable<string> acciones, CancellationToken ct = default);
 }

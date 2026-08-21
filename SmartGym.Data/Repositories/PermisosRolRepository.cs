@@ -48,4 +48,37 @@ public sealed class PermisosRolRepository : RepositoryBase, IPermisosRolReposito
             }
         }, ct);
     }
+
+    /// <summary>
+    /// Sincronización incremental: inserta únicamente las acciones de la lista
+    /// que el rol aún no tiene (idempotente, nunca elimina). Usado por el seed
+    /// para llevar acciones de catálogos nuevos a bases de datos ya sembradas.
+    /// </summary>
+    public async Task AgregarAccionesFaltantesAsync(long idRol, IEnumerable<string> acciones, CancellationToken ct = default)
+    {
+        var existentes = (await GetByRolAsync(idRol, ct))
+            .Select(p => p.Accion)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var faltantes = acciones
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(a => !existentes.Contains(a))
+            .ToList();
+
+        if (faltantes.Count == 0)
+        {
+            return;
+        }
+
+        await DbTx.ExecuteAsync(DbPath, async (conn, tx) =>
+        {
+            foreach (var accion in faltantes)
+            {
+                await conn.ExecuteAsync(
+                    new CommandDefinition(
+                        "INSERT INTO permisos_rol (id_rol, accion, created_at) VALUES (@idRol, @accion, @CreatedAt)",
+                        new { idRol, accion, CreatedAt = Core.Common.DateHelper.NowIsoUtc() }, tx, cancellationToken: ct));
+            }
+        }, ct);
+    }
 }

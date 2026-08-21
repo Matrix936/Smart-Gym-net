@@ -23,19 +23,19 @@ public sealed class AuthorizationService : IAuthorizationService
     /// </summary>
     public async Task SeedSuperadminPermisosAsync(CancellationToken ct = default)
     {
-        var yaPoblada = await _permisos.TieneFilasAsync(ct);
-        if (yaPoblada)
-        {
-            return;
-        }
-
+        // Sincronización incremental en cada arranque: las bases ya sembradas
+        // también deben recibir las acciones que se agreguen al catálogo con el
+        // tiempo (el early-return original las dejaba fuera para siempre).
+        // Semántica de SUPERADMIN: acceso completo garantizado — una acción del
+        // catálogo que se quite manualmente se restaura al arrancar; lo que no
+        // se toca son acciones fuera del catálogo ni otros roles.
         var rol = await _roles.GetByNameAsync("SUPERADMIN", ct);
         if (rol is null)
         {
             throw BusinessException.Conflict("El rol SUPERADMIN no existe en el seed", "rol_superadmin_faltante");
         }
 
-        await _permisos.ReplaceAccionesForRolAsync(rol.IdRol, PermisoCatalogo.Todas(), ct);
+        await _permisos.AgregarAccionesFaltantesAsync(rol.IdRol, PermisoCatalogo.Todas(), ct);
     }
 
     public async Task RequierePermisoAsync(string token, string accion, CancellationToken ct = default)

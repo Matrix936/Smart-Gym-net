@@ -94,19 +94,23 @@ public sealed class AuthorizationTests
     }
 
     [Fact]
-    public async Task seed_no_corre_si_permisos_rol_ya_tiene_filas()
+    public async Task seed_sincroniza_acciones_faltantes_en_base_ya_sembrada()
     {
         using var ctx = new SecurityTestContext();
         var rol = await ctx.Roles.GetByNameAsync("SUPERADMIN");
 
-        // Pre-poblar con UNA sola acción (simula un seed ya realizado con otra versión).
-        await ctx.Permisos.ReplaceAccionesForRolAsync(rol!.IdRol, new[] { "caja.abrir" });
+        // Simula una BD sembrada por una versión anterior con catálogo más chico:
+        // solo dos acciones presentes, la mayoría faltantes.
+        await ctx.Permisos.ReplaceAccionesForRolAsync(rol!.IdRol, new[] { "caja.abrir", "pos.vender" });
 
         await ctx.Authz.SeedSuperadminPermisosAsync();
 
-        // La acción extra no debe agregarse: el seed respeta el estado existente.
+        // El seed incremental completa el catálogo sin duplicar lo existente.
         var permisos = await ctx.Permisos.GetByRolAsync(rol.IdRol);
-        Assert.Single(permisos);
-        Assert.Equal("caja.abrir", permisos[0].Accion);
+        Assert.Equal(PermisoCatalogo.Todas().Count, permisos.Count);
+        foreach (var accion in PermisoCatalogo.Todas())
+        {
+            Assert.Contains(permisos, p => p.Accion == accion);
+        }
     }
 }

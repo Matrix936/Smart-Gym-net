@@ -95,7 +95,9 @@ internal sealed class SecurityTestContext : IDisposable
         Setup = new SetupService(Usuarios, Roles, Empresa, config, logo);
         SedeResolution = new SedeResolutionService(Sedes);
         SociosService = new SociosService(Auth, Authz, Socios, Bitacora, SedeResolution);
-        CajaService = new CajaService(Auth, Authz, Cajas, SedeResolution, Bitacora);
+        // NOTA: firma actualizada para el CajaService en curso de otra línea de
+        // trabajo (movimientos + bitácora); ajuste mecánico para que la suite compile.
+        CajaService = new CajaService(Auth, Authz, Cajas, Movimientos, SedeResolution, Bitacora);
         MembresiasService = new MembresiasService(Auth, Authz, Socios, Planes, Cajas, Membresias, Bitacora, SedeResolution);
         PlanesService = new PlanesMembresiaService(Auth, Authz, Planes);
         AccesoService = new AccesoService(Authz, Accesos);
