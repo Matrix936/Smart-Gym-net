@@ -154,25 +154,29 @@
                           Margin="Margin.Dense"
                           Immediate="true"
                           @bind-Value="_concepto" />
-            <MudNumericField T="decimal"
-                             Label="Monto"
-                             Variant="Variant.Outlined"
-                             Margin="Margin.Dense"
-                             Min="0"
-                             Format="F2"
-                             HideSpinButtons="true"
-                             @bind-Value="_montoMovimiento" />
-            <MudSelect T="string"
-                       Label="Método de pago"
-                       Variant="Variant.Outlined"
-                       Margin="Margin.Dense"
-                       Value="_metodoMovimiento"
-                       ValueChanged="v => _metodoMovimiento = v">
-                @foreach (var m in MetodosPago.Todos)
-                {
-                    <MudSelectItem Value="@m">@Capitalizar(m)</MudSelectItem>
-                }
-            </MudSelect>
+            <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+                <MudNumericField T="decimal"
+                                 Label="Monto"
+                                 Variant="Variant.Outlined"
+                                 Margin="Margin.Dense"
+                                 Min="0"
+                                 Format="F2"
+                                 HideSpinButtons="true"
+                                 Style="flex: 1;"
+                                 @bind-Value="_montoMovimiento" />
+                <MudSelect T="string"
+                           Label="Método de pago"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Style="flex: 1;"
+                           Value="_metodoMovimiento"
+                           ValueChanged="v => _metodoMovimiento = v">
+                    @foreach (var m in MetodosPago.Todos)
+                    {
+                        <MudSelectItem Value="@m">@Capitalizar(m)</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
         </div>
     </DialogContent>
     <DialogActions>
