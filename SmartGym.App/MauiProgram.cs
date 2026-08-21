@@ -79,6 +79,7 @@ public static class MauiProgram
 		builder.Services.AddScoped<ISociosService, SociosService>();
 		builder.Services.AddScoped<ICajaService, CajaService>();
 		builder.Services.AddScoped<IMembresiasService, MembresiasService>();
+		builder.Services.AddScoped<IPlanesMembresiaService, PlanesMembresiaService>();
 		builder.Services.AddScoped<IAccesoService, AccesoService>();
 		builder.Services.AddScoped<IPosService, PosService>();
 		builder.Services.AddScoped<ICobranzaService, CobranzaService>();

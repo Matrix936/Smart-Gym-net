@@ -1,0 +1,366 @@
+@page "/membresias"
+@* MembresiasPage: catálogo de planes (Parte 1). La venta de membresías a
+   socios y el listado por socio es la Parte 2, todavía no construida —
+   depende de que exista al menos un plan real, que es lo que este bloque
+   resuelve (hoy la tabla planes_membresia está vacía). *@
+@implements IDisposable
+@using MudBlazor
+@using SmartGym.Core.Common
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Services
+@using SmartGym.App.Services
+
+<div class="page-head">
+    <div>
+        <h4>Membresías</h4>
+        <p class="page-sub">Catálogo de planes disponibles para vender a los socios.</p>
+    </div>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="AbrirNuevo">Nuevo plan</MudButton>
+</div>
+
+<div class="glass-panel">
+    <div class="page-toolbar">
+        <MudTextField T="string"
+                      Class="search-field"
+                      Placeholder="Buscar por nombre o descripción..."
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Margin="Margin.Dense"
+                      Immediate="true"
+                      Value="@_busqueda"
+                      ValueChanged="OnBusquedaChanged" />
+        <MudSelect T="string"
+                   OuterClass="filter-field"
+                   RelativeWidth="DropdownWidth.Adaptive"
+                   Label="Estado"
+                   Margin="Margin.Dense"
+                   Variant="Variant.Outlined"
+                   Value="@_filtroEstado"
+                   ValueChanged="OnFiltroEstadoChanged">
+            <MudSelectItem Value="@("")">Todos</MudSelectItem>
+            <MudSelectItem Value="@("activos")">Activos</MudSelectItem>
+            <MudSelectItem Value="@("inactivos")">Inactivos</MudSelectItem>
+        </MudSelect>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Descripción</th>
+                    <th style="text-align: center;">Vigencia</th>
+                    <th style="text-align: center;">Congelamiento máx.</th>
+                    <th style="text-align: right;">Precio</th>
+                    <th style="text-align: center;">Estado</th>
+                    <th style="text-align: center; width: 56px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_cargando)
+                {
+                    <tr>
+                        <td colspan="7" class="empty-cell">Cargando...</td>
+                    </tr>
+                }
+                else if (_planes.Count == 0)
+                {
+                    <tr>
+                        <td colspan="7" class="empty-cell">
+                            @(_busqueda.Length > 0 || _filtroEstado.Length > 0 ? "Sin resultados para los filtros aplicados" : "No hay planes registrados")
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var plan in _planes)
+                    {
+                        <tr>
+                            <td><strong>@plan.Nombre</strong></td>
+                            <td class="muted-cell">@(plan.Descripcion ?? "—")</td>
+                            <td style="text-align: center;">@plan.DiasVigencia días</td>
+                            <td style="text-align: center;">@plan.DiasCongelamientoMax días</td>
+                            <td style="text-align: right;">@FormatearMonto(plan.PrecioCentavos)</td>
+                            <td style="text-align: center;">
+                                <span class="status-badge @(plan.EsActivo ? "status-success" : "status-warning")">
+                                    @(plan.EsActivo ? "Activo" : "Inactivo")
+                                </span>
+                            </td>
+                            <td style="text-align: center;">
+                                <MudMenu AnchorOrigin="Origin.BottomRight"
+                                         TransformOrigin="Origin.TopRight"
+                                         Class="row-menu">
+                                    <ActivatorContent>
+                                        <MudIconButton Icon="@Icons.Material.Filled.MoreVert"
+                                                       Size="Size.Small"
+                                                       Color="Color.Default"
+                                                       OnClick="@context.ToggleAsync"
+                                                       aria-label="Acciones" />
+                                    </ActivatorContent>
+                                    <ChildContent>
+                                        <MudMenuItem OnClick="() => AbrirEditar(plan)">
+                                            <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" /> Editar
+                                        </MudMenuItem>
+                                        @if (plan.EsActivo)
+                                        {
+                                            <MudMenuItem OnClick="() => PedirDesactivar(plan)">
+                                                <MudIcon Icon="@Icons.Material.Filled.Block" Size="Size.Small" /> Desactivar
+                                            </MudMenuItem>
+                                        }
+                                        else
+                                        {
+                                            <MudMenuItem OnClick="() => ActivarAsync(plan)">
+                                                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" /> Activar
+                                            </MudMenuItem>
+                                        }
+                                    </ChildContent>
+                                </MudMenu>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (_planes.Count > 0)
+    {
+        <div class="table-footer">
+            <span class="muted">Mostrando @_planes.Count de @_totalRegistros plan(es)</span>
+            <div class="pagination-controls">
+                <MudSelect T="int"
+                           Label="Ver"
+                           Margin="Margin.Dense"
+                           Variant="Variant.Outlined"
+                           OuterClass="page-size-field"
+                           RelativeWidth="DropdownWidth.Adaptive"
+                           Value="_tamanoPagina"
+                           ValueChanged="OnTamanoPaginaChanged">
+                    @foreach (var tamano in TamanosPagina.Validos)
+                    {
+                        <MudSelectItem Value="@tamano">@tamano</MudSelectItem>
+                    }
+                </MudSelect>
+                @if (_totalPaginas > 1)
+                {
+                    <MudPagination Count="_totalPaginas"
+                                   Selected="_pagina"
+                                   SelectedChanged="OnPaginaChanged"
+                                   Color="Color.Primary"
+                                   Size="Size.Small" />
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@if (_formAbierto)
+{
+    <PlanFormDialog Open="true"
+                     Plan="_planEnEdicion"
+                     OnClose="CerrarForm"
+                     OnSaved="RecargarDespuesDeGuardar" />
+}
+
+<ConfirmDialog IsOpen="_planADesactivar is not null"
+               Titulo="Desactivar plan"
+               Mensaje="@($"El plan \"{_planADesactivar?.Nombre}\" dejará de estar disponible para vender. Las membresías ya vendidas con este plan no se ven afectadas.")"
+               TextoConfirmar="Desactivar"
+               IsLoading="_desactivando"
+               OnConfirm="ConfirmarDesactivarAsync"
+               OnCancel="CancelarDesactivar" />
+
+@code {
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private IPlanesMembresiaService Planes { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    private List<PlanMembresia> _planes = [];
+    private bool _cargando;
+    private string _busqueda = "";
+    private string _filtroEstado = "";
+    private CancellationTokenSource? _debounce;
+
+    private int _pagina = 1;
+    private int _tamanoPagina = TamanosPagina.Default;
+    private int _totalRegistros;
+    private int _totalPaginas;
+
+    private bool _formAbierto;
+    private PlanMembresia? _planEnEdicion;
+
+    private PlanMembresia? _planADesactivar;
+    private bool _desactivando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        _cargando = true;
+        try
+        {
+            var query = string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda.Trim();
+            var esActivo = _filtroEstado switch
+            {
+                "activos" => true,
+                "inactivos" => false,
+                _ => (bool?)null,
+            };
+            var resultado = await Planes.BuscarAsync(sesion.Token, query, _pagina, _tamanoPagina, esActivo);
+            _planes = resultado.Items.ToList();
+            _totalRegistros = resultado.TotalRegistros;
+            _totalPaginas = resultado.TotalPaginas;
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudieron cargar los planes");
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task OnBusquedaChanged(string value)
+    {
+        _busqueda = value;
+        _pagina = 1;
+        _debounce?.Cancel();
+        var cts = _debounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(300, cts.Token);
+            await CargarAsync();
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+    private async Task OnFiltroEstadoChanged(string value)
+    {
+        _filtroEstado = value ?? "";
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnTamanoPaginaChanged(int value)
+    {
+        _tamanoPagina = value;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnPaginaChanged(int value)
+    {
+        _pagina = value;
+        await CargarAsync();
+    }
+
+    private void AbrirNuevo()
+    {
+        _planEnEdicion = null;
+        _formAbierto = true;
+    }
+
+    private void AbrirEditar(PlanMembresia plan)
+    {
+        _planEnEdicion = plan;
+        _formAbierto = true;
+    }
+
+    private void CerrarForm()
+    {
+        _formAbierto = false;
+        _planEnEdicion = null;
+    }
+
+    private async Task RecargarDespuesDeGuardar() => await CargarAsync();
+
+    private void PedirDesactivar(PlanMembresia plan)
+    {
+        _planADesactivar = plan;
+        StateHasChanged();
+    }
+
+    private void CancelarDesactivar()
+    {
+        _planADesactivar = null;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmarDesactivarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _planADesactivar is null)
+        {
+            return;
+        }
+
+        _desactivando = true;
+        try
+        {
+            await Planes.DesactivarAsync(sesion.Token, _planADesactivar.IdPlan);
+            Feedback.ShowSuccess("Plan desactivado");
+            await CargarAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo desactivar el plan");
+        }
+        finally
+        {
+            _desactivando = false;
+            _planADesactivar = null;
+        }
+    }
+
+    private async Task ActivarAsync(PlanMembresia plan)
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Planes.ActivarAsync(sesion.Token, plan.IdPlan);
+            Feedback.ShowSuccess("Plan activado");
+            await CargarAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo activar el plan");
+        }
+    }
+
+    private static string FormatearMonto(long centavos) =>
+        (centavos / 100m).ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("es-MX"));
+
+    public void Dispose() => _debounce?.Cancel();
+}

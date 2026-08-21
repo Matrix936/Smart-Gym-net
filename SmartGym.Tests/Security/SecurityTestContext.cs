@@ -49,6 +49,7 @@ internal sealed class SecurityTestContext : IDisposable
     public SociosService SociosService { get; }
     public CajaService CajaService { get; }
     public MembresiasService MembresiasService { get; }
+    public PlanesMembresiaService PlanesService { get; }
     public AccesoService AccesoService { get; }
     public PosService PosService { get; }
     public CobranzaService CobranzaService { get; }
@@ -95,6 +96,7 @@ internal sealed class SecurityTestContext : IDisposable
         SociosService = new SociosService(Auth, Authz, Socios, Bitacora, SedeResolution);
         CajaService = new CajaService(Auth, Authz, Cajas, SedeResolution, Bitacora);
         MembresiasService = new MembresiasService(Auth, Authz, Socios, Planes, Cajas, Membresias, Bitacora, SedeResolution);
+        PlanesService = new PlanesMembresiaService(Auth, Authz, Planes);
         AccesoService = new AccesoService(Authz, Accesos);
         PosService = new PosService(Auth, Authz, Socios, Cajas, Productos, Inventario, Ventas, Bitacora, SedeResolution);
         CobranzaService = new CobranzaService(Auth, Authz, Socios, Cajas, CuentasCobrar, Recordatorios, Bitacora, SedeResolution);

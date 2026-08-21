@@ -85,4 +85,73 @@ public sealed class PlanesMembresiaRepositoryTests
         Assert.Equal(BusinessError.NotFound, ex.Error);
         Assert.Equal("plan_no_encontrado", ex.Code);
     }
+
+    [Fact]
+    public async Task activar_un_plan_desactivado_hace_que_vuelva_a_aparecer_en_activos()
+    {
+        using var ctx = new SecurityTestContext();
+        var idPlan = await ctx.Planes.InsertAsync(new PlanMembresia
+        {
+            Nombre = "Trimestral",
+            DiasVigencia = 90,
+            DiasCongelamientoMax = 5,
+            PrecioCentavos = 50000,
+            EsActivo = true,
+            UpdatedAt = DateHelper.NowIsoUtc(),
+        });
+        await ctx.Planes.DesactivarAsync(idPlan, DateHelper.NowIsoUtc());
+        Assert.DoesNotContain(await ctx.Planes.GetActivosAsync(), p => p.IdPlan == idPlan);
+
+        await ctx.Planes.ActivarAsync(idPlan, DateHelper.NowIsoUtc());
+
+        Assert.Contains(await ctx.Planes.GetActivosAsync(), p => p.IdPlan == idPlan);
+        var plan = (await ctx.Planes.GetByIdAsync(idPlan))!;
+        Assert.True(plan.EsActivo);
+    }
+
+    [Fact]
+    public async Task activar_plan_inexistente_da_not_found()
+    {
+        using var ctx = new SecurityTestContext();
+
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.Planes.ActivarAsync(999999, DateHelper.NowIsoUtc()));
+        Assert.Equal(BusinessError.NotFound, ex.Error);
+        Assert.Equal("plan_no_encontrado", ex.Code);
+    }
+
+    [Fact]
+    public async Task search_conteo_total_respeta_el_filtro_de_estado()
+    {
+        using var ctx = new SecurityTestContext();
+        for (var i = 1; i <= 3; i++)
+        {
+            await ctx.Planes.InsertAsync(new PlanMembresia
+            {
+                Nombre = $"ConEstado{i}",
+                DiasVigencia = 30,
+                DiasCongelamientoMax = 0,
+                PrecioCentavos = 1000,
+                EsActivo = true,
+                UpdatedAt = DateHelper.NowIsoUtc(),
+            });
+        }
+        await ctx.Planes.InsertAsync(new PlanMembresia
+        {
+            Nombre = "ConEstadoInactivo",
+            DiasVigencia = 30,
+            DiasCongelamientoMax = 0,
+            PrecioCentavos = 1000,
+            EsActivo = false,
+            UpdatedAt = DateHelper.NowIsoUtc(),
+        });
+
+        var activos = await ctx.Planes.SearchAsync(null, pagina: 1, tamanoPagina: TamanosPagina.Diez, esActivo: true);
+        var inactivos = await ctx.Planes.SearchAsync(null, pagina: 1, tamanoPagina: TamanosPagina.Diez, esActivo: false);
+
+        Assert.Equal(3, activos.TotalRegistros);
+        Assert.All(activos.Items, p => Assert.True(p.EsActivo));
+        Assert.Equal(1, inactivos.TotalRegistros);
+        Assert.All(inactivos.Items, p => Assert.False(p.EsActivo));
+    }
 }

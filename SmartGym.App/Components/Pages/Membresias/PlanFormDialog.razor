@@ -1,0 +1,181 @@
+@* PlanFormDialog: alta/edición de un plan del catálogo de membresías. *@
+@using System.Globalization
+@using MudBlazor
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Errors
+@using SmartGym.Core.Services
+@using SmartGym.App.Services
+
+<MudDialog @ref="_mudDialog" Visible="_visible"
+           VisibleChanged="OnVisibleChanged"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(Plan is null ? "Nuevo plan" : "Editar plan")</MudText>
+    </TitleContent>
+    <DialogContent>
+        @* Enter = submit vía @onkeydown de contenedor — un <form> aquí no aplica,
+           el MudDialog inline se teletransporta al MudDialogProvider (ver
+           docs/migracion-dotnet/08-problemas-resueltos-blazor.md §6). *@
+        <div @onkeydown="HandleKeyDown">
+            <p class="form-section">Datos del plan</p>
+            <div class="form-row">
+                <MudTextField T="string" Label="Nombre *" Margin="Margin.Dense" Variant="Variant.Outlined"
+                              Immediate="true"
+                              @bind-Value="_nombre" />
+                <MudNumericField T="decimal" Label="Precio *" Margin="Margin.Dense" Variant="Variant.Outlined"
+                                  Min="0"
+                                  Format="F2"
+                                  HideSpinButtons="true"
+                                  Immediate="true"
+                                  @bind-Value="_precio" />
+            </div>
+
+            <MudTextField T="string" Label="Descripción" Margin="Margin.Dense" Variant="Variant.Outlined"
+                          Immediate="true"
+                          @bind-Value="_descripcion" />
+
+            <div class="form-row">
+                <MudNumericField T="int" Label="Días de vigencia *" Margin="Margin.Dense" Variant="Variant.Outlined"
+                                  Min="1"
+                                  HideSpinButtons="true"
+                                  Immediate="true"
+                                  @bind-Value="_diasVigencia" />
+                <MudNumericField T="int" Label="Días de congelamiento máx." Margin="Margin.Dense" Variant="Variant.Outlined"
+                                  Min="0"
+                                  HideSpinButtons="true"
+                                  Immediate="true"
+                                  @bind-Value="_diasCongelamientoMax" />
+            </div>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_guardando" OnClick="Cancelar">Cancelar</MudButton>
+        <AsyncButton Text="@(Plan is null ? "Crear" : "Guardar")"
+                     LoadingText="Guardando..."
+                     OnClick="GuardarAsync"
+                     IsLoading="_guardando" />
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private IPlanesMembresiaService Planes { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public PlanMembresia? Plan { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private string _nombre = "";
+    private string _descripcion = "";
+    private int _diasVigencia = 30;
+    private int _diasCongelamientoMax;
+    private decimal _precio;
+
+    private bool _guardando;
+    private bool _inicializado;
+    private bool _visible;
+    private MudDialog _mudDialog = default!;
+
+    protected override void OnInitialized()
+    {
+        _visible = Open;
+        InicializarForm();
+    }
+
+    protected override void OnParametersSet()
+    {
+        _visible = Open;
+        if (Open && !_inicializado)
+        {
+            InicializarForm();
+        }
+        else if (!Open)
+        {
+            _inicializado = false;
+        }
+    }
+
+    private void InicializarForm()
+    {
+        _inicializado = true;
+        if (Plan is not null)
+        {
+            _nombre = Plan.Nombre;
+            _descripcion = Plan.Descripcion ?? "";
+            _diasVigencia = Plan.DiasVigencia;
+            _diasCongelamientoMax = Plan.DiasCongelamientoMax;
+            _precio = Plan.PrecioCentavos / 100m;
+        }
+        else
+        {
+            _nombre = "";
+            _descripcion = "";
+            _diasVigencia = 30;
+            _diasCongelamientoMax = 0;
+            _precio = 0;
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnVisibleChanged(bool visible)
+    {
+        _visible = visible;
+        if (!visible)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+
+    private void Cancelar() => _mudDialog.CloseAsync();
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_guardando)
+        {
+            _ = GuardarAsync();
+        }
+    }
+
+    private async Task GuardarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _guardando)
+        {
+            return;
+        }
+
+        _guardando = true;
+        try
+        {
+            var precioCentavos = (long)Math.Round(_precio * 100, MidpointRounding.AwayFromZero);
+
+            if (Plan is null)
+            {
+                await Planes.CrearAsync(sesion.Token, _nombre, _descripcion, _diasVigencia, _diasCongelamientoMax, precioCentavos);
+                Feedback.ShowSuccess("Plan creado");
+            }
+            else
+            {
+                await Planes.EditarAsync(sesion.Token, Plan.IdPlan, _nombre, _descripcion, _diasVigencia, _diasCongelamientoMax, precioCentavos);
+                Feedback.ShowSuccess("Plan actualizado");
+            }
+
+            await OnSaved.InvokeAsync();
+            await _mudDialog.CloseAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo guardar el plan");
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}
