@@ -39,7 +39,7 @@
 
     @if (!_cargando && _cajaAbierta is null)
     {
-        <div style="max-width: 360px;" @onkeydown="HandleAperturaKeyDown">
+        <div class="form-fields" style="max-width: 360px;" @onkeydown="HandleAperturaKeyDown">
             <p class="form-section">Abrir caja</p>
             <MudNumericField T="decimal"
                               Label="Monto inicial"

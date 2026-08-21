@@ -461,6 +461,31 @@ table.data-table {
     margin: 1rem 0 0.5rem;
 }
 
+/* MudBlazor's Margin.Dense deja solo 4px entre campos (.mud-input-control-margin-dense
+   { margin: 4px 0 }) — muy apretado en un formulario. Antes esto solo se ampliaba
+   dentro de un MudDialog (.mud-dialog-content), lo que dejaba los formularios fuera
+   de diálogo (Login, SetupWizard, "Abrir caja") con el espaciado apretado por
+   default — inconsistente sin ninguna razón de diseño. .form-fields da el mismo
+   espaciado envolviendo el formulario, sin depender de estar en un MudDialog (ej.
+   el buscador de las tablas, que también usa Margin.Dense, sigue sin tocarse).
+
+   MudBlazor.min.css trae su propia regla para outlined+con-label con MÁS
+   especificidad que la de acá (3 clases: .mud-input-control.mud-input-control-margin-dense
+   .mud-input-outlined-with-label { margin-top:8px; margin-bottom:4px }) — como
+   todos los campos del proyecto son Variant.Outlined con Label, esa regla le
+   ganaba a esta sin importar el orden de carga, y el espaciado real terminaba
+   siendo ~8px, no los 10px que parecía dar esta regla. Se repite la combinación
+   de 3 clases dentro de cada contexto para empatar en especificidad — ahí sí
+   gana por orden de carga (app.css carga después de MudBlazor.min.css). */
+.mud-dialog-content .mud-input-control-margin-dense,
+.form-fields .mud-input-control-margin-dense,
+.wizard-form .mud-input-control-margin-dense,
+.mud-dialog-content .mud-input-control-margin-dense.mud-input-outlined-with-label,
+.form-fields .mud-input-control-margin-dense.mud-input-outlined-with-label,
+.wizard-form .mud-input-control-margin-dense.mud-input-outlined-with-label {
+    margin: 10px 0;
+}
+
 .access-result {
     padding: 0.85rem 1rem;
     border-radius: var(--pill-radius);
@@ -681,10 +706,23 @@ table.data-table {
     height: 13px;
 }
 
+/* display:grid crea su propio contexto de formato — los márgenes verticales de
+   los campos de adentro NO colapsan con lo de afuera (a diferencia de dos campos
+   apilados directamente, que sí colapsan a un solo margen de 10px). Sin esto,
+   el espacio antes/después de un .form-row terminaba siendo casi el doble
+   (10px del campo + 10px del vecino, sin fusionarse) — .form-row toma el margen
+   como una fila más, y los campos de adentro pierden el suyo. */
 .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.75rem;
+    margin: 10px 0;
+}
+
+.form-row .mud-input-control-margin-dense,
+.form-row .mud-input-control-margin-dense.mud-input-outlined-with-label {
+    margin-top: 0;
+    margin-bottom: 0;
 }
 
 .wizard-actions {
