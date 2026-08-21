@@ -33,7 +33,9 @@
             <ThemeToggle />
             <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" PaperClass="sg-user-paper">
                 <ActivatorContent>
-                    <MudIconButton Class="sg-user-button" aria-label="Menú de usuario">
+                    @* MudBlazor v9: ActivatorContent recibe MenuContext; hay que llamar
+                       context.ToggleAsync explicito (ver MiembrosPage.razor para la referencia). *@
+                    <MudIconButton Class="sg-user-button" OnClick="@context.ToggleAsync" aria-label="Menú de usuario">
                         <MudAvatar Class="sg-user-avatar">@_iniciales</MudAvatar>
                     </MudIconButton>
                 </ActivatorContent>

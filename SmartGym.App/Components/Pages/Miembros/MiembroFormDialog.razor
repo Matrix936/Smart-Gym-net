@@ -14,26 +14,43 @@
         <MudText Typo="Typo.h6">@(Mode == "crear" ? "Nuevo miembro" : "Editar miembro")</MudText>
     </TitleContent>
     <DialogContent>
-        <div style="margin-top: 0.5rem;">
+        @* Enter = submit: un <form @onsubmit> aquí es código muerto (el
+           MudDialog inline se teletransporta al MudDialogProvider, nunca
+           queda dentro del <form> del padre — ver
+           docs/migracion-dotnet/08-problemas-resueltos-blazor.md §6). Se
+           captura Enter a nivel de contenedor en su lugar. *@
+        <div style="margin-top: 0.5rem;" @onkeydown="HandleKeyDown">
             <p class="form-section">Datos generales</p>
 
-            <MudTextField T="string" Label="Nombre *" Margin="Margin.Dense" Variant="Variant.Outlined"
+            @* Immediate="true": el binding por defecto de MudBlazor solo actualiza
+               el modelo en onchange (blur). Sin esto, Enter dispara GuardarAsync
+               antes de que el campo con foco haya confirmado su valor. *@
+            <MudTextField T="string" Label="Nombre(s) *" Margin="Margin.Dense" Variant="Variant.Outlined"
+                          Immediate="true"
                           @bind-Value="_form.Nombre" />
-            <MudTextField T="string" Label="Apellido paterno *" Margin="Margin.Dense" Variant="Variant.Outlined"
-                          @bind-Value="_form.ApellidoPaterno" />
-            <MudTextField T="string" Label="Apellido materno" Margin="Margin.Dense" Variant="Variant.Outlined"
-                          @bind-Value="_form.ApellidoMaterno" />
+
+            <div class="form-row">
+                <MudTextField T="string" Label="Apellido paterno *" Margin="Margin.Dense" Variant="Variant.Outlined"
+                              Immediate="true"
+                              @bind-Value="_form.ApellidoPaterno" />
+                <MudTextField T="string" Label="Apellido materno" Margin="Margin.Dense" Variant="Variant.Outlined"
+                              Immediate="true"
+                              @bind-Value="_form.ApellidoMaterno" />
+            </div>
 
             <div class="form-row">
                 <MudTextField T="string" Label="Email" Margin="Margin.Dense" Variant="Variant.Outlined"
                               InputType="InputType.Email"
+                              Immediate="true"
                               @bind-Value="_form.Email" />
                 <MudTextField T="string" Label="Teléfono" Margin="Margin.Dense" Variant="Variant.Outlined"
+                              Immediate="true"
                               @bind-Value="_form.Telefono" />
             </div>
 
             <MudTextField T="string" Label="Fecha de nacimiento" Margin="Margin.Dense" Variant="Variant.Outlined"
                           InputType="InputType.Date"
+                          Immediate="true"
                           @bind-Value="_form.FechaNacimiento" />
 
             @if (_showSede)
@@ -53,8 +70,10 @@
 
             <p class="form-section">Contacto de emergencia</p>
             <MudTextField T="string" Label="Nombre del contacto" Margin="Margin.Dense" Variant="Variant.Outlined"
+                          Immediate="true"
                           @bind-Value="_form.ContactoEmergenciaNombre" />
             <MudTextField T="string" Label="Teléfono del contacto" Margin="Margin.Dense" Variant="Variant.Outlined"
+                          Immediate="true"
                           @bind-Value="_form.ContactoEmergenciaTelefono" />
         </div>
     </DialogContent>
@@ -62,7 +81,6 @@
         <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_guardando" OnClick="Cancelar">Cancelar</MudButton>
         <AsyncButton Text="@(Mode == "crear" ? "Crear" : "Guardar")"
                      LoadingText="Guardando..."
-                     ButtonType="submit"
                      OnClick="GuardarAsync"
                      IsLoading="_guardando" />
     </DialogActions>
@@ -201,6 +219,14 @@
     }
 
     private Task Cancelar() => _mudDialog.CloseAsync();
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_guardando)
+        {
+            await GuardarAsync();
+        }
+    }
 
     private async Task GuardarAsync()
     {

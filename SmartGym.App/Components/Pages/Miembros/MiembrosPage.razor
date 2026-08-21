@@ -88,9 +88,14 @@
                                          TransformOrigin="Origin.TopRight"
                                          Class="row-menu">
                                     <ActivatorContent>
+                                        @* MudBlazor v9: ActivatorContent recibe MenuContext; el clic ya no
+                                           abre el menu implicitamente (breaking change v9), hay que llamar
+                                           context.ToggleAsync explicito. Ver
+                                           https://github.com/MudBlazor/MudBlazor/issues/12666 *@
                                         <MudIconButton Icon="@Icons.Material.Filled.MoreVert"
                                                        Size="Size.Small"
                                                        Color="Color.Default"
+                                                       OnClick="@context.ToggleAsync"
                                                        aria-label="Acciones" />
                                     </ActivatorContent>
                                     <ChildContent>
@@ -151,7 +156,7 @@
 @if (_formAbierto)
 {
     <MiembroFormDialog Open="true"
-                       Mode="FormModo"
+                       Mode="@FormModo"
                        Socio="_socioEnEdicion"
                        OnClose="CerrarForm"
                        OnSaved="RecargarDespuesDeGuardar" />
