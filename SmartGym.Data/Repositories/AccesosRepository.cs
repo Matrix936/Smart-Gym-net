@@ -1,4 +1,5 @@
 using Dapper;
+using System.Linq;
 using SmartGym.Core.Common;
 using SmartGym.Core.Entities;
 using SmartGym.Core.Errors;
@@ -76,13 +77,24 @@ public sealed class AccesosRepository : RepositoryBase, IAccesosRepository
             string? estadoMembresia = null;
             if (socio!.Estado == SocioEstados.Activo)
             {
-                estadoMembresia = await conn.QuerySingleOrDefaultAsync<string?>(new CommandDefinition(
-                    "SELECT m.estado FROM membresias m " +
-                    "WHERE m.id_socio = @idSocio AND m.id_sede = @idSede AND m.deleted_at IS NULL " +
-                    "AND m.estado IN ('activa', 'congelada') " +
-                    "AND date(m.fecha_fin) >= date('now') " +
-                    "ORDER BY m.fecha_fin DESC LIMIT 1",
+                // "Vencida" no se persiste en membresias.estado (ver
+                // MembresiaEstadoCalculator) — se trae toda membresía no borrada
+                // del socio en esta sede y se calcula el estado efectivo en C#,
+                // en vez de filtrar por fecha directamente en SQL, para que este
+                // cálculo comparta la misma fuente de verdad que cualquier otro
+                // consumidor (ej. una futura pantalla de membresías).
+                var candidatas = await conn.QueryAsync<Membresia>(new CommandDefinition(
+                    "SELECT id_membresia, id_socio, id_plan, id_sede, fecha_inicio, fecha_fin, " +
+                    "fecha_cancelacion, estado, id_vendedor, updated_at, sincronizado, deleted_at, created_at " +
+                    "FROM membresias WHERE id_socio = @idSocio AND id_sede = @idSede AND deleted_at IS NULL",
                     new { idSocio, idSede }, tx, cancellationToken: ct));
+
+                estadoMembresia = candidatas
+                    .Select(m => (m.FechaFin, Estado: MembresiaEstadoCalculator.EstadoEfectivo(m)))
+                    .Where(x => x.Estado is MembresiaEstados.Activa or MembresiaEstados.Congelada)
+                    .OrderByDescending(x => x.FechaFin, StringComparer.Ordinal)
+                    .Select(x => (string?)x.Estado)
+                    .FirstOrDefault();
             }
 
             var decision = AccesoDecisor.Decidir(socio.Estado, estadoMembresia);
