@@ -1,0 +1,323 @@
+@* VenderMembresiaDialog: venta de membresía a un socio (alta o renovación).
+   Mismo patrón MudDialog inline que MiembroFormDialog/FingerprintEnrollDialog. *@
+@using System.Globalization
+@using MudBlazor
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Errors
+@using SmartGym.Core.Repositories
+@using SmartGym.Core.Services
+@using SmartGym.App.Services
+
+<MudDialog @ref="_mudDialog" Visible="_visible"
+           VisibleChanged="OnVisibleChanged"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Vender membresía — @(Socio is null ? "" : NombreCompleto(Socio))</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_cargando)
+        {
+            <div style="display:flex; justify-content:center; padding: 1.5rem 0;">
+                <span class="spinner" style="width: 32px; height: 32px;"></span>
+            </div>
+        }
+        else if (!_cajaAbierta)
+        {
+            <MudAlert Severity="Severity.Warning">
+                No hay caja abierta en esta sede. Abre caja antes de vender una membresía.
+            </MudAlert>
+        }
+        else
+        {
+            @* Enter = submit vía @onkeydown de contenedor — un <form> aquí no aplica,
+               el MudDialog inline se teletransporta al MudDialogProvider (ver
+               docs/migracion-dotnet/08-problemas-resueltos-blazor.md §6). *@
+            <div @onkeydown="HandleKeyDown">
+                @if (_showSede)
+                {
+                    <p class="form-section">Sede</p>
+                    <MudSelect T="long" Label="Sede *" Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Value="_sedeSeleccionada" ValueChanged="OnSedeChangedAsync">
+                        @foreach (var sede in _sedes)
+                        {
+                            <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
+
+                @if (_planes.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Warning">No hay planes activos en el catálogo. Crea uno en Membresías antes de vender.</MudAlert>
+                }
+                else
+                {
+                    <p class="form-section">Plan</p>
+                    <MudSelect T="long?" Label="Plan *" Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Value="_idPlan" ValueChanged="OnPlanChanged">
+                        @foreach (var plan in _planes)
+                        {
+                            <MudSelectItem Value="@((long?)plan.IdPlan)">@plan.Nombre — @FormatearMonto(plan.PrecioCentavos)</MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    @if (_planSeleccionado is not null)
+                    {
+                        <div class="glass-panel summary">
+                            <div class="summary-row">
+                                <span class="summary-label">Precio del plan</span>
+                                <span>@FormatearMonto(_planSeleccionado.PrecioCentavos)</span>
+                            </div>
+                            <div class="summary-row">
+                                <span class="summary-label">Vigencia</span>
+                                <span>@_planSeleccionado.DiasVigencia días</span>
+                            </div>
+                        </div>
+
+                        <p class="form-section">Pago</p>
+                        <div class="form-row">
+                            <MudNumericField T="decimal" Label="Monto pagado *" Margin="Margin.Dense" Variant="Variant.Outlined"
+                                              Min="0" Format="F2" HideSpinButtons="true" Immediate="true"
+                                              @bind-Value="_montoPagado" />
+
+                            <MudSelect T="string" Label="Método de pago *" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                       Value="_metodoPago" ValueChanged="@(v => _metodoPago = v)">
+                                @foreach (var metodo in MetodosPago.Todos)
+                                {
+                                    <MudSelectItem Value="@metodo">@EtiquetaMetodo(metodo)</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </div>
+                        @if (_montoPagado < _planSeleccionado.PrecioCentavos / 100m)
+                        {
+                            <p class="muted" style="margin-top: 0.25rem;">
+                                Pago parcial: se generará una cuenta por cobrar por @FormatearMonto(_planSeleccionado.PrecioCentavos - MontoPagadoCentavos).
+                            </p>
+                        }
+                    }
+                }
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_guardando" OnClick="Cancelar">Cancelar</MudButton>
+        @if (!_cargando && _cajaAbierta && _planSeleccionado is not null)
+        {
+            <AsyncButton Text="Vender" LoadingText="Vendiendo..." OnClick="VenderAsync" IsLoading="_guardando" />
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private IMembresiasService Membresias { get; set; } = default!;
+    [Inject] private IPlanesMembresiaRepository Planes { get; set; } = default!;
+    [Inject] private ICajaService Caja { get; set; } = default!;
+    [Inject] private ISedesRepository Sedes { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public Socio? Socio { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private bool _visible;
+    private bool _inicializado;
+    private MudDialog _mudDialog = default!;
+
+    private bool _cargando = true;
+    private bool _cajaAbierta;
+    private bool _showSede;
+    private long _sedeSeleccionada;
+    private List<Sede> _sedes = [];
+
+    private List<PlanMembresia> _planes = [];
+    private long? _idPlan;
+    private PlanMembresia? _planSeleccionado;
+    private decimal _montoPagado;
+    private string _metodoPago = MetodosPago.Efectivo;
+    private bool _guardando;
+
+    private long MontoPagadoCentavos => (long)Math.Round(_montoPagado * 100, MidpointRounding.AwayFromZero);
+
+    protected override void OnParametersSet()
+    {
+        _visible = Open;
+        if (Open && !_inicializado)
+        {
+            _inicializado = true;
+            _ = InicializarAsync();
+        }
+        else if (!Open)
+        {
+            _inicializado = false;
+        }
+    }
+
+    private async Task InicializarAsync()
+    {
+        _cargando = true;
+        _idPlan = null;
+        _planSeleccionado = null;
+        _montoPagado = 0;
+        _metodoPago = MetodosPago.Efectivo;
+        StateHasChanged();
+
+        _showSede = Sesion.Current?.IdSede is null;
+        if (_showSede)
+        {
+            try
+            {
+                _sedes = (await Sedes.GetActivasAsync()).ToList();
+            }
+            catch
+            {
+                _sedes = [];
+            }
+            _sedeSeleccionada = await SedePrincipalPorDefectoAsync();
+        }
+
+        try
+        {
+            _planes = (await Planes.GetActivosAsync()).ToList();
+        }
+        catch
+        {
+            _planes = [];
+        }
+
+        await RevisarCajaAsync();
+
+        _cargando = false;
+        StateHasChanged();
+    }
+
+    private async Task<long> SedePrincipalPorDefectoAsync()
+    {
+        try
+        {
+            var principal = await Sedes.GetPrincipalAsync();
+            if (principal is not null)
+            {
+                return principal.IdSede;
+            }
+        }
+        catch
+        {
+        }
+        return _sedes.FirstOrDefault()?.IdSede ?? 0;
+    }
+
+    private async Task RevisarCajaAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            _cajaAbierta = false;
+            return;
+        }
+
+        try
+        {
+            var caja = await Caja.ObtenerCajaAbiertaAsync(sesion.Token, _showSede ? _sedeSeleccionada : null);
+            _cajaAbierta = caja is not null;
+        }
+        catch
+        {
+            _cajaAbierta = false;
+        }
+    }
+
+    private async Task OnSedeChangedAsync(long value)
+    {
+        _sedeSeleccionada = value;
+        _cargando = true;
+        StateHasChanged();
+        await RevisarCajaAsync();
+        _cargando = false;
+        StateHasChanged();
+    }
+
+    private void OnPlanChanged(long? value)
+    {
+        _idPlan = value;
+        _planSeleccionado = _planes.FirstOrDefault(p => p.IdPlan == value);
+        _montoPagado = _planSeleccionado is null ? 0 : _planSeleccionado.PrecioCentavos / 100m;
+    }
+
+    private async Task OnVisibleChanged(bool visible)
+    {
+        _visible = visible;
+        if (!visible)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+
+    private void Cancelar() => _mudDialog.CloseAsync();
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_guardando && _planSeleccionado is not null)
+        {
+            _ = VenderAsync();
+        }
+    }
+
+    private async Task VenderAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _guardando || Socio is null || _planSeleccionado is null)
+        {
+            return;
+        }
+
+        if (_montoPagado < 0)
+        {
+            Feedback.ShowWarning("El monto pagado no puede ser negativo");
+            return;
+        }
+
+        _guardando = true;
+        try
+        {
+            await Membresias.VenderAsync(
+                sesion.Token,
+                Socio.IdSocio,
+                _planSeleccionado.IdPlan,
+                _metodoPago,
+                MontoPagadoCentavos,
+                _showSede ? _sedeSeleccionada : null);
+
+            Feedback.ShowSuccess("Membresía vendida");
+            await OnSaved.InvokeAsync();
+            await _mudDialog.CloseAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo vender la membresía");
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private static string NombreCompleto(Socio socio) =>
+        string.Join(" ", new[] { socio.Nombre, socio.ApellidoPaterno, socio.ApellidoMaterno }
+            .Where(x => !string.IsNullOrWhiteSpace(x)));
+
+    private static string FormatearMonto(long centavos) =>
+        (centavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("es-MX"));
+
+    private static string EtiquetaMetodo(string metodo) => metodo switch
+    {
+        MetodosPago.Efectivo => "Efectivo",
+        MetodosPago.Tarjeta => "Tarjeta",
+        MetodosPago.Transferencia => "Transferencia",
+        _ => metodo,
+    };
+}

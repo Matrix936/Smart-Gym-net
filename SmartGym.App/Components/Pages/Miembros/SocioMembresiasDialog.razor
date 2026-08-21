@@ -1,0 +1,393 @@
+@* SocioMembresiasDialog: historial de membresías del socio, con Congelar/Cancelar
+   por fila (reutilizan MembresiasService.CongelarAsync/CancelarAsync). Mismo
+   patrón MudDialog inline. *@
+@using System.Globalization
+@using MudBlazor
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Errors
+@using SmartGym.Core.Repositories
+@using SmartGym.Core.Services
+@using SmartGym.App.Services
+
+<MudDialog @ref="_mudDialog" Visible="_visible"
+           VisibleChanged="OnVisibleChanged"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Membresías — @(Socio is null ? "" : NombreCompleto(Socio))</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_cargando)
+        {
+            <div style="display:flex; justify-content:center; padding: 1.5rem 0;">
+                <span class="spinner" style="width: 32px; height: 32px;"></span>
+            </div>
+        }
+        else if (_membresias.Count == 0)
+        {
+            <p class="muted">Este socio no tiene membresías registradas todavía.</p>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Plan</th>
+                            <th>Inicio</th>
+                            <th>Fin</th>
+                            <th style="text-align: center;">Estado</th>
+                            <th style="text-align: center; width: 56px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var m in _membresias)
+                        {
+                            var estado = MembresiaEstadoCalculator.EstadoEfectivo(m);
+                            <tr>
+                                <td><strong>@NombrePlan(m.IdPlan)</strong></td>
+                                <td class="muted-cell">@FormatearFecha(m.FechaInicio)</td>
+                                <td class="muted-cell">@FormatearFecha(m.FechaFin)</td>
+                                <td style="text-align: center;">
+                                    <span class="status-badge @ClaseEstado(estado)">@EtiquetaEstado(estado)</span>
+                                </td>
+                                <td style="text-align: center;">
+                                    @if (estado != MembresiaEstados.Cancelada)
+                                    {
+                                        <MudMenu AnchorOrigin="Origin.BottomRight"
+                                                 TransformOrigin="Origin.TopRight"
+                                                 Class="row-menu">
+                                            <ActivatorContent>
+                                                <MudIconButton Icon="@Icons.Material.Filled.MoreVert"
+                                                               Size="Size.Small"
+                                                               Color="Color.Default"
+                                                               OnClick="@context.ToggleAsync"
+                                                               aria-label="Acciones" />
+                                            </ActivatorContent>
+                                            <ChildContent>
+                                                @if (estado == MembresiaEstados.Activa)
+                                                {
+                                                    <MudMenuItem OnClick="() => AbrirCongelar(m)">
+                                                        <MudIcon Icon="@Icons.Material.Filled.AcUnit" Size="Size.Small" /> Congelar
+                                                    </MudMenuItem>
+                                                }
+                                                <MudMenuItem OnClick="() => AbrirCancelar(m)">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" /> Cancelar
+                                                </MudMenuItem>
+                                            </ChildContent>
+                                        </MudMenu>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="Cerrar">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog Visible="_congelarAbierto"
+           VisibleChanged="v => _congelarAbierto = v"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Congelar membresía</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="form-fields">
+            <MudDatePicker Label="Desde *" Variant="Variant.Outlined" Margin="Margin.Dense" AutoClose="true" @bind-Date="_congelarDesde" />
+            <MudDatePicker Label="Hasta *" Variant="Variant.Outlined" Margin="Margin.Dense" AutoClose="true" @bind-Date="_congelarHasta" />
+            <MudTextField T="string" Label="Motivo" Variant="Variant.Outlined" Margin="Margin.Dense" @bind-Value="_congelarMotivo" />
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_congelando" OnClick="CerrarCongelar">Cancelar</MudButton>
+        <AsyncButton Text="Congelar" LoadingText="Congelando..." IsLoading="_congelando" OnClick="ConfirmarCongelarAsync" />
+    </DialogActions>
+</MudDialog>
+
+<MudDialog Visible="_cancelarAbierto"
+           VisibleChanged="v => _cancelarAbierto = v"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Cancelar membresía</MudText>
+    </TitleContent>
+    <DialogContent>
+        @* Mismo criterio de reautorización en dos pasos que VentasPage al cancelar
+           una venta (la validación real vive en MembresiasService.CancelarAsync). *@
+        <div>
+            <p class="form-section">Se cancelará la membresía de @(_membresiaCancelando is null ? "" : NombrePlan(_membresiaCancelando.IdPlan)).</p>
+            @if (_cancelarPaso == 1)
+            {
+                <p class="muted">¿Deseas continuar?</p>
+            }
+            else
+            {
+                <PasswordField Label="Confirma tu contraseña" Autocomplete="current-password" @bind-Value="_cancelarPassword" />
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        @if (_cancelarPaso == 1)
+        {
+            <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="CerrarCancelar">No</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="() => _cancelarPaso = 2">Sí, continuar</MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_cancelando" OnClick="() => _cancelarPaso = 1">Atrás</MudButton>
+            <AsyncButton Text="Cancelar membresía" LoadingText="Cancelando..." IsLoading="_cancelando" OnClick="ConfirmarCancelarAsync" />
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private IMembresiasRepository Membresias { get; set; } = default!;
+    [Inject] private IMembresiasService MembresiasService { get; set; } = default!;
+    [Inject] private IPlanesMembresiaRepository Planes { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public Socio? Socio { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool _visible;
+    private bool _inicializado;
+    private MudDialog _mudDialog = default!;
+
+    private bool _cargando = true;
+    private List<Membresia> _membresias = [];
+    private readonly Dictionary<long, string> _nombresPlan = new();
+
+    private bool _congelarAbierto;
+    private Membresia? _membresiaCongelando;
+    private DateTime? _congelarDesde;
+    private DateTime? _congelarHasta;
+    private string _congelarMotivo = "";
+    private bool _congelando;
+
+    private bool _cancelarAbierto;
+    private Membresia? _membresiaCancelando;
+    private int _cancelarPaso = 1;
+    private string _cancelarPassword = "";
+    private bool _cancelando;
+
+    protected override void OnParametersSet()
+    {
+        _visible = Open;
+        if (Open && !_inicializado)
+        {
+            _inicializado = true;
+            _ = CargarAsync();
+        }
+        else if (!Open)
+        {
+            _inicializado = false;
+        }
+    }
+
+    private async Task CargarAsync()
+    {
+        if (Socio is null)
+        {
+            return;
+        }
+
+        _cargando = true;
+        StateHasChanged();
+
+        try
+        {
+            var rows = await Membresias.GetBySocioAsync(Socio.IdSocio);
+            _membresias = rows.OrderByDescending(m => m.FechaFin).ToList();
+
+            foreach (var idPlan in _membresias.Select(m => m.IdPlan).Distinct())
+            {
+                if (_nombresPlan.ContainsKey(idPlan))
+                {
+                    continue;
+                }
+                var plan = await Planes.GetByIdAsync(idPlan);
+                _nombresPlan[idPlan] = plan?.Nombre ?? $"Plan #{idPlan}";
+            }
+        }
+        catch
+        {
+            _membresias = [];
+        }
+        finally
+        {
+            _cargando = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnVisibleChanged(bool visible)
+    {
+        _visible = visible;
+        if (!visible)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+
+    private void Cerrar() => _mudDialog.CloseAsync();
+
+    private void AbrirCongelar(Membresia m)
+    {
+        _membresiaCongelando = m;
+        _congelarDesde = DateTime.Today;
+        _congelarHasta = null;
+        _congelarMotivo = "";
+        _congelarAbierto = true;
+    }
+
+    private void CerrarCongelar()
+    {
+        if (!_congelando)
+        {
+            _congelarAbierto = false;
+        }
+    }
+
+    private async Task ConfirmarCongelarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _membresiaCongelando is null || _congelando)
+        {
+            return;
+        }
+
+        if (_congelarDesde is null || _congelarHasta is null)
+        {
+            Feedback.ShowWarning("Ingresa el rango de fechas del congelamiento");
+            return;
+        }
+
+        _congelando = true;
+        try
+        {
+            await MembresiasService.CongelarAsync(
+                sesion.Token,
+                _membresiaCongelando.IdMembresia,
+                ToIsoUtc(_congelarDesde.Value),
+                ToIsoUtc(_congelarHasta.Value),
+                string.IsNullOrWhiteSpace(_congelarMotivo) ? null : _congelarMotivo.Trim());
+
+            Feedback.ShowSuccess("Membresía congelada");
+            _congelarAbierto = false;
+            await CargarAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo congelar la membresía");
+        }
+        finally
+        {
+            _congelando = false;
+        }
+    }
+
+    private void AbrirCancelar(Membresia m)
+    {
+        _membresiaCancelando = m;
+        _cancelarPassword = "";
+        _cancelarPaso = 1;
+        _cancelarAbierto = true;
+    }
+
+    private void CerrarCancelar()
+    {
+        if (!_cancelando)
+        {
+            _cancelarAbierto = false;
+        }
+    }
+
+    private async Task ConfirmarCancelarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _membresiaCancelando is null || _cancelando)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(_cancelarPassword))
+        {
+            Feedback.ShowWarning("Ingresa tu contraseña");
+            return;
+        }
+
+        _cancelando = true;
+        try
+        {
+            await MembresiasService.CancelarAsync(sesion.Token, _membresiaCancelando.IdMembresia, _cancelarPassword);
+
+            Feedback.ShowSuccess("Membresía cancelada");
+            _cancelarAbierto = false;
+            await CargarAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo cancelar la membresía");
+        }
+        finally
+        {
+            _cancelando = false;
+        }
+    }
+
+    private static string ToIsoUtc(DateTime local)
+    {
+        var utc = local.Kind == DateTimeKind.Utc ? local : local.ToUniversalTime();
+        return utc.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
+    }
+
+    private string NombrePlan(long idPlan) => _nombresPlan.GetValueOrDefault(idPlan, $"Plan #{idPlan}");
+
+    private static string NombreCompleto(Socio socio) =>
+        string.Join(" ", new[] { socio.Nombre, socio.ApellidoPaterno, socio.ApellidoMaterno }
+            .Where(x => !string.IsNullOrWhiteSpace(x)));
+
+    private static string ClaseEstado(string estado) => estado switch
+    {
+        MembresiaEstados.Activa => "status-success",
+        MembresiaEstados.Congelada => "status-info",
+        MembresiaEstados.Vencida => "status-warning",
+        MembresiaEstados.Cancelada => "status-danger",
+        _ => "status-info",
+    };
+
+    private static string EtiquetaEstado(string estado) => estado switch
+    {
+        MembresiaEstados.Activa => "Activa",
+        MembresiaEstados.Congelada => "Congelada",
+        MembresiaEstados.Vencida => "Vencida",
+        MembresiaEstados.Cancelada => "Cancelada",
+        _ => estado,
+    };
+
+    private static string FormatearFecha(string? iso)
+    {
+        if (string.IsNullOrWhiteSpace(iso))
+        {
+            return "—";
+        }
+        if (DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dto))
+        {
+            return dto.ToLocalTime().ToString("dd/MM/yyyy", CultureInfo.GetCultureInfo("es-MX"));
+        }
+        return iso;
+    }
+}
