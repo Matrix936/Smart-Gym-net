@@ -2,7 +2,11 @@
 @* ProductosPage: catálogo del punto de venta. Alta/edición/desactivación de
    productos y ajuste manual de stock por sede. La venta vive en /pos; el
    historial de lo vendido en /ventas — aquí solo se administra el catálogo.
-   Categorías diferidas: IdCategoria es nullable y no bloquea nada. *@
+   Categorías diferidas: IdCategoria es nullable y no bloquea nada.
+   Estructura replicada de MiembrosPage (referencia de listados): toolbar con
+   búsqueda con debounce, filtro estado, tabla data-table, menú de tres puntos
+   por fila y paginación. *@
+@implements IDisposable
 @using System.Globalization
 @using MudBlazor
 @using SmartGym.Core.Common
@@ -16,16 +20,22 @@
         <h4>Productos</h4>
         <p class="page-sub">Catálogo del punto de venta y stock por sede.</p>
     </div>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="AbrirAlta">Nuevo producto</MudButton>
 </div>
 
 <div class="glass-panel">
-    <div class="form-fields" style="max-width: none; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end;">
+    <div class="page-toolbar">
         @if (_showSede && _sedes.Count > 1)
         {
             <MudSelect T="long"
                        Label="Sede (stock)"
                        Variant="Variant.Outlined"
                        Margin="Margin.Dense"
+                       OuterClass="filter-field"
+                       RelativeWidth="DropdownWidth.Adaptive"
                        Value="_sedeSeleccionada"
                        ValueChanged="OnSedeChangedAsync">
                 @foreach (var sede in _sedes)
@@ -35,85 +45,121 @@
             </MudSelect>
         }
         <MudTextField T="string"
-                      Label="Buscar por nombre o código de barras"
-                      Variant="Variant.Outlined"
+                      Class="search-field"
+                      Placeholder="Buscar por nombre o código de barras..."
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
                       Margin="Margin.Dense"
                       Immediate="true"
-                      Style="flex: 1; min-width: 240px;"
-                      @bind-Value="_query"
-                      OnKeyUp="HandleBusquedaKeyDown" />
-        <MudSelect T="string?"
+                      Value="@_query"
+                      ValueChanged="OnBusquedaChanged" />
+        <MudSelect T="string"
+                   OuterClass="filter-field"
+                   RelativeWidth="DropdownWidth.Adaptive"
                    Label="Estado"
-                   Variant="Variant.Outlined"
                    Margin="Margin.Dense"
-                   Clearable="true"
-                   Value="_filtroEstado"
+                   Variant="Variant.Outlined"
+                   Value="@_filtroEstado"
                    ValueChanged="OnEstadoFiltroChangedAsync">
-            <MudSelectItem T="string?" Value="@("activos")">Activos</MudSelectItem>
-            <MudSelectItem T="string?" Value="@("inactivos")">Inactivos</MudSelectItem>
-            <MudSelectItem T="string?" Value="@null">Todos</MudSelectItem>
+            <MudSelectItem Value="@("")">Todos</MudSelectItem>
+            <MudSelectItem Value="@("activos")">Activos</MudSelectItem>
+            <MudSelectItem Value="@("inactivos")">Inactivos</MudSelectItem>
         </MudSelect>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AbrirAlta">Nuevo producto</MudButton>
     </div>
 
-    @if (_cargando)
-    {
-        <p class="muted">Cargando...</p>
-    }
-    else if (_productos.Count == 0)
-    {
-        <p class="muted" style="margin-top: 1rem;">Sin productos para los filtros actuales.</p>
-    }
-    else
-    {
-        <div class="table-wrap" style="margin-top: 1rem;">
-            <table class="data-table">
-                <thead>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Descripción</th>
+                    <th>Código</th>
+                    <th style="text-align: right;">Precio</th>
+                    <th>Inv.</th>
+                    <th style="text-align: right;">Stock sede</th>
+                    <th style="text-align: center;">Estado</th>
+                    <th style="text-align: center; width: 56px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_cargando)
+                {
                     <tr>
-                        <th>Descripción</th>
-                        <th>Código</th>
-                        <th style="text-align: right;">Precio</th>
-                        <th>Inv.</th>
-                        <th style="text-align: right;">Stock sede</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
+                        <td colspan="7" class="empty-cell">Cargando...</td>
                     </tr>
-                </thead>
-                <tbody>
+                }
+                else if (_productos.Count == 0)
+                {
+                    <tr>
+                        <td colspan="7" class="empty-cell">
+                            @(_query.Trim().Length > 0 || _filtroEstado.Length > 0 ? "Sin resultados para los filtros aplicados" : "No hay productos en el catálogo")
+                        </td>
+                    </tr>
+                }
+                else
+                {
                     @foreach (var p in _productos)
                     {
                         var activo = p.EsActivo;
                         <tr>
-                            <td>@p.Descripcion</td>
+                            <td><strong>@p.Descripcion</strong></td>
                             <td class="muted-cell">@(p.CodigoBarras ?? "—")</td>
                             <td style="text-align: right;">@FormatearMonto(p.PrecioVentaCentavos)</td>
                             <td class="muted-cell">@(p.RequiereInventario ? "Sí" : "No")</td>
                             <td style="text-align: right;" class="@(EsStockBajo(p) ? "stock-bajo" : "")">
                                 @(StockDe(p) is null ? "—" : StockDe(p)!.Value.ToString())
                             </td>
-                            <td>
+                            <td style="text-align: center;">
                                 <span class="status-badge @(activo ? "status-success" : "status-danger")">
                                     @(activo ? "Activo" : "Inactivo")
                                 </span>
                             </td>
-                            <td>
-                                <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick='() => AbrirEdicion(p)'>Editar</MudButton>
-                                @if (activo)
-                                {
-                                    <MudButton Variant="Variant.Text" Color="Color.Default" OnClick='() => AbrirAjuste(p)'>Stock</MudButton>
-                                    <MudButton Variant="Variant.Text" Color="Color.Error" OnClick='() => AbrirConfirmacionDesactivar(p)'>Desactivar</MudButton>
-                                }
-                                else
-                                {
-                                    <MudButton Variant="Variant.Text" Color="Color.Success" OnClick='() => ActivarAsync(p)'>Activar</MudButton>
-                                }
+                            <td style="text-align: center;">
+                                <MudMenu AnchorOrigin="Origin.BottomRight"
+                                         TransformOrigin="Origin.TopRight"
+                                         Class="row-menu">
+                                    <ActivatorContent>
+                                        @* MudBlazor v9: ActivatorContent recibe MenuContext; el clic ya no
+                                           abre el menu implicitamente (breaking change v9), hay que llamar
+                                           context.ToggleAsync explicito. Ver
+                                           https://github.com/MudBlazor/MudBlazor/issues/12666 *@
+                                        <MudIconButton Icon="@Icons.Material.Filled.MoreVert"
+                                                       Size="Size.Small"
+                                                       Color="Color.Default"
+                                                       OnClick="@context.ToggleAsync"
+                                                       aria-label="Acciones" />
+                                    </ActivatorContent>
+                                    <ChildContent>
+                                        <MudMenuItem OnClick="() => AbrirEdicion(p)">
+                                            <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" /> Editar
+                                        </MudMenuItem>
+
+                                        @if (activo)
+                                        {
+                                            <MudMenuItem OnClick="() => AbrirAjuste(p)">
+                                                <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Small" /> Ajustar stock
+                                            </MudMenuItem>
+                                            <MudMenuItem OnClick="() => PedirDesactivar(p)">
+                                                <MudIcon Icon="@Icons.Material.Filled.Pause" Size="Size.Small" /> Desactivar
+                                            </MudMenuItem>
+                                        }
+                                        else
+                                        {
+                                            <MudMenuItem OnClick="() => ActivarAsync(p)">
+                                                <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Size="Size.Small" /> Activar
+                                            </MudMenuItem>
+                                        }
+                                    </ChildContent>
+                                </MudMenu>
                             </td>
                         </tr>
                     }
-                </tbody>
-            </table>
-        </div>
+                }
+            </tbody>
+        </table>
+    </div>
 
+    @if (_productos.Count > 0)
+    {
         <div class="table-footer">
             <span class="muted">Mostrando @_productos.Count de @_totalRegistros producto(s)</span>
             <div class="pagination-controls">
@@ -224,23 +270,13 @@
     </DialogActions>
 </MudDialog>
 
-<MudDialog Visible="_desactivarAbierto"
-           VisibleChanged="v => _desactivarAbierto = v"
-           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
-    <TitleContent>
-        <MudText Typo="Typo.h6">Desactivar producto</MudText>
-    </TitleContent>
-    <DialogContent>
-        <p>Se desactivará <strong>@(_productoDesactivando?.Descripcion)</strong>. Dejará de ser vendible, pero la fila permanece para el historial de ventas.</p>
-    </DialogContent>
-    <DialogActions>
-        <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_desactivando" OnClick="() => _desactivarAbierto = false">Cancelar</MudButton>
-        <AsyncButton Text="Desactivar"
-                     LoadingText="Desactivando..."
-                     IsLoading="_desactivando"
-                     OnClick="DesactivarAsync" />
-    </DialogActions>
-</MudDialog>
+<ConfirmDialog IsOpen="_confirmar is not null"
+               Titulo="@_confirmar?.Titulo"
+               Mensaje="@(_confirmar?.Mensaje ?? "")"
+               TextoConfirmar="@(_confirmar?.TextoConfirmar ?? "Confirmar")"
+               IsLoading="_confirmarCargando"
+               OnConfirm="EjecutarConfirmar"
+               OnCancel="CancelarConfirmar" />
 
 @code {
     [Inject] private ISessionState Sesion { get; set; } = default!;
@@ -249,15 +285,17 @@
     [Inject] private ISedesRepository Sedes { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
 
-    private bool _cargando = true;
+    private List<Producto> _productos = [];
+    private bool _cargando;
+    private string _query = "";
+    private string _filtroEstado = "";
+    private CancellationTokenSource? _debounce;
+    private Dictionary<long, long> _stockPorProducto = [];
+
     private bool _showSede;
     private long _sedeSeleccionada;
     private List<Sede> _sedes = [];
-    private Dictionary<long, long> _stockPorProducto = [];
 
-    private string _query = "";
-    private string? _filtroEstado;
-    private List<Producto> _productos = [];
     private int _pagina = 1;
     private int _tamanoPagina = TamanosPagina.Default;
     private int _totalRegistros;
@@ -280,10 +318,10 @@
     private long _deltaAjuste;
     private bool _ajustando;
 
-    // Confirmación de desactivación.
-    private bool _desactivarAbierto;
-    private Producto? _productoDesactivando;
-    private bool _desactivando;
+    // Confirmación de desactivación (ConfirmDialog compartido, patrón Miembros).
+    private sealed record ConfirmarTarea(string Titulo, string Mensaje, string TextoConfirmar, Func<Task> Accion);
+    private ConfirmarTarea? _confirmar;
+    private bool _confirmarCargando;
 
     protected override async Task OnInitializedAsync()
     {
@@ -310,24 +348,34 @@
         await CargarAsync();
     }
 
+    public void Dispose() => _debounce?.Cancel();
+
     private Task OnSedeChangedAsync(long value)
     {
         _sedeSeleccionada = value;
         return CargarAsync();
     }
 
-    private void HandleBusquedaKeyDown(KeyboardEventArgs e)
+    /// <summary>Búsqueda con debounce de 300ms (mismo comportamiento que Miembros).</summary>
+    private async Task OnBusquedaChanged(string value)
     {
-        if (e.Key == "Enter")
+        _query = value;
+        _pagina = 1;
+        _debounce?.Cancel();
+        var cts = _debounce = new CancellationTokenSource();
+        try
         {
-            _pagina = 1;
-            _ = CargarAsync();
+            await Task.Delay(300, cts.Token);
+            await CargarAsync();
+        }
+        catch (TaskCanceledException)
+        {
         }
     }
 
-    private async Task OnEstadoFiltroChangedAsync(string? value)
+    private async Task OnEstadoFiltroChangedAsync(string value)
     {
-        _filtroEstado = value;
+        _filtroEstado = value ?? "";
         _pagina = 1;
         await CargarAsync();
     }
@@ -351,7 +399,6 @@
         "inactivos" => false,
         _ => null,
     };
-
     private async Task CargarAsync()
     {
         var sesion = Sesion.Current;
@@ -551,27 +598,34 @@
         }
     }
 
-    private void AbrirConfirmacionDesactivar(Producto p)
+    private void PedirDesactivar(Producto p)
     {
-        _productoDesactivando = p;
-        _desactivarAbierto = true;
+        _confirmar = new ConfirmarTarea("Desactivar producto",
+            $"¿Seguro que quieres desactivar «{p.Descripcion}»? Dejará de ser vendible, pero se conserva en el historial de ventas.",
+            "Desactivar",
+            () => DesactivarAsync(p));
+        StateHasChanged();
     }
 
-    private async Task DesactivarAsync()
+    private async Task DesactivarAsync(Producto p)
     {
-        var sesion = Sesion.Current;
-        if (sesion is null || _productoDesactivando is null || _desactivando)
+        var sesion = Sesion.Current!;
+        await Productos.DesactivarAsync(sesion.Token, p.IdProducto);
+        Feedback.ShowSuccess($"Producto «{p.Descripcion}» desactivado");
+        await CargarAsync();
+    }
+
+    private async Task EjecutarConfirmar()
+    {
+        if (_confirmar is null)
         {
             return;
         }
 
-        _desactivando = true;
+        _confirmarCargando = true;
         try
         {
-            await Productos.DesactivarAsync(sesion.Token, _productoDesactivando.IdProducto);
-            Feedback.ShowSuccess("Producto desactivado");
-            _desactivarAbierto = false;
-            await CargarAsync();
+            await _confirmar.Accion();
         }
         catch (BusinessException ex)
         {
@@ -579,12 +633,20 @@
         }
         catch
         {
-            Feedback.ShowError("No se pudo desactivar el producto");
+            Feedback.ShowError("No se pudo completar la acción");
         }
         finally
         {
-            _desactivando = false;
+            _confirmarCargando = false;
+            _confirmar = null;
+            StateHasChanged();
         }
+    }
+
+    private void CancelarConfirmar()
+    {
+        _confirmar = null;
+        StateHasChanged();
     }
 
     private async Task ActivarAsync(Producto p)
