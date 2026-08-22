@@ -1,0 +1,449 @@
+@page "/pos"
+@* PosPage: punto de venta. Desviación documentada del patrón de tabla: la
+   grilla de tarjetas es la UX estándar de un mostrador (uso repetitivo, de pie,
+   frecuente pantalla táctil); el resto del sistema sigue siendo tablas porque
+   son pantallas de administración. La cancelación de ventas vive en /ventas —
+   aquí solo se cobra. El stock que ve el cajero es un snapshot: el backend
+   revalida contra DB al cobrar (stock_insuficiente) ante desincronización. *@
+@implements IDisposable
+@using System.Globalization
+@using MudBlazor
+@using SmartGym.Core.Authorization
+@using SmartGym.Core.Common
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Repositories
+@using SmartGym.Core.Services
+@using SmartGym.App.Services
+
+<div class="page-head">
+    <div>
+        <h4>Punto de venta</h4>
+        <p class="page-sub">Venta rápida de productos. Cancelaciones e historial en Ventas.</p>
+    </div>
+</div>
+
+@if (!_tienePermiso)
+{
+    <div class="glass-panel">
+        <p class="muted">No tienes permiso para vender en el punto de venta.</p>
+    </div>
+}
+else
+{
+    @if (_showSede && _sedes.Count > 1)
+    {
+        <div class="glass-panel" style="margin-bottom: 1rem;">
+            <div class="page-toolbar">
+                <MudSelect T="long"
+                           Label="Sede"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           OuterClass="filter-field"
+                           RelativeWidth="DropdownWidth.Adaptive"
+                           Value="_sedeSeleccionada"
+                           ValueChanged="OnSedeChangedAsync">
+                    @foreach (var sede in _sedes)
+                    {
+                        <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+        </div>
+    }
+
+    @if (_cajaAbierta is null && !_cargando)
+    {
+        <MudAlert Severity="Severity.Warning" Dense Class="pos-alert">
+            No hay caja abierta para esta sede. <MudLink Href="/caja">Abrir caja</MudLink> antes de vender.
+        </MudAlert>
+    }
+
+    <div class="pos-layout">
+        <div class="glass-panel pos-panel-productos">
+            <div class="page-toolbar">
+                <MudTextField T="string"
+                              Class="search-field"
+                              Placeholder="Buscar producto por nombre o código..."
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Margin="Margin.Dense"
+                              Immediate="true"
+                              Value="@_query"
+                              ValueChanged="OnBusquedaChanged" />
+            </div>
+
+            @if (_cargando)
+            {
+                <p class="muted">Cargando productos...</p>
+            }
+            else if (_productos.Count == 0)
+            {
+                <p class="muted">
+                    @(_query.Trim().Length > 0 ? "Sin resultados para tu búsqueda" : "No hay productos activos en el catálogo — da de alta en Productos")
+                </p>
+            }
+            else
+            {
+                <div class="pos-grid">
+                    @foreach (var p in _productos)
+                    {
+                        var agotado = Agotado(p);
+                        <button type="button"
+                                class="pos-card @(agotado ? "pos-card-agotado" : "")"
+                                disabled="@agotado"
+                                title="@(agotado ? "Sin stock" : "Agregar al carrito")"
+                                @onclick='() => AgregarAlCarrito(p)'>
+                            <span class="pos-card-desc">@p.Descripcion</span>
+                            <span class="pos-card-precio">@FormatearMonto(p.PrecioVentaCentavos)</span>
+                            <span class="muted pos-card-stock">
+                                @(p.RequiereInventario ? $"Stock: {(StockDe(p)?.ToString() ?? "0")}" : "Servicio")
+                            </span>
+                        </button>
+                    }
+                </div>
+                @if (_totalResultados > _productos.Count)
+                {
+                    <p class="muted" style="margin-top: 0.75rem;">Mostrando @_productos.Count de @_totalResultados — refina tu búsqueda para ver más.</p>
+                }
+            }
+        </div>
+
+        <div class="glass-panel pos-carrito">
+            <p class="form-section">Carrito</p>
+            @if (_carrito.Count == 0)
+            {
+                <p class="muted">Toca un producto para agregarlo.</p>
+            }
+            else
+            {
+                <div class="pos-lineas">
+                    @foreach (var linea in _carrito.Values)
+                    {
+                        var sinStockParaMas = linea.Producto.RequiereInventario && linea.Cantidad >= StockDe(linea.Producto);
+                        <div class="pos-linea">
+                            <div class="pos-linea-info">
+                                <strong>@linea.Producto.Descripcion</strong>
+                                <span class="muted">@FormatearMonto(linea.Producto.PrecioVentaCentavos) c/u</span>
+                            </div>
+                            <div class="pos-linea-cantidad">
+                                <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
+                                               OnClick='() => CambiarCantidad(linea, -1)'
+                                               aria-label="Quitar uno" />
+                                <span class="pos-cantidad">@linea.Cantidad</span>
+                                <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                               Disabled="@sinStockParaMas"
+                                               OnClick='() => CambiarCantidad(linea, +1)'
+                                               aria-label="Agregar uno" />
+                            </div>
+                            <span class="pos-linea-subtotal">@FormatearMonto(linea.Producto.PrecioVentaCentavos * linea.Cantidad)</span>
+                        </div>
+                    }
+                </div>
+                <p class="form-section" style="text-align: right;">Total: @FormatearMonto(TotalCarrito())</p>
+            }
+
+            <div class="form-fields">
+                <MudAutocomplete T="Socio"
+                                 Label="Socio (opcional)"
+                                 Variant="Variant.Outlined"
+                                 Margin="Margin.Dense"
+                                 SearchFunc="@BuscarSociosAsync"
+                                 ToStringFunc="@(s => s is null ? "" : $"{s.Nombre} {s.ApellidoPaterno}".Trim())"
+                                 MaxItems="10"
+                                 MinCharacters="0"
+                                 ResetValueOnEmptyText="true"
+                                 Clearable="true"
+                                 Value="_socioSeleccionado"
+                                 ValueChanged="OnSocioChangedAsync" />
+                <MudSelect T="string"
+                           Label="Método de pago"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Value="_metodoPago"
+                           ValueChanged="@(v => _metodoPago = v)">
+                    @foreach (var m in MetodosPago.Todos)
+                    {
+                        <MudSelectItem Value="@m">@Capitalizar(m)</MudSelectItem>
+                    }
+                </MudSelect>
+                <AsyncButton Text="@($"Cobrar {FormatearMonto(TotalCarrito())}")"
+                             LoadingText="Cobrando..."
+                             IsLoading="_cobrando"
+                             Disabled="@(_carrito.Count == 0 || _cajaAbierta is null)"
+                             OnClick="CobrarAsync" />
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private IPosService Pos { get; set; } = default!;
+    [Inject] private IProductosService Productos { get; set; } = default!;
+    [Inject] private ICajaService Caja { get; set; } = default!;
+    [Inject] private IInventarioSucursalRepository Inventario { get; set; } = default!;
+    [Inject] private ISociosRepository SociosRepo { get; set; } = default!;
+    [Inject] private ISedesRepository Sedes { get; set; } = default!;
+    [Inject] private IAuthorizationService Authz { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    private bool _tienePermiso;
+    private bool _cargando = true;
+    private bool _showSede;
+    private long _sedeSeleccionada;
+    private List<Sede> _sedes = [];
+    private CajaSesion? _cajaAbierta;
+
+    // Snapshot de stock por producto en la sede actual.
+    private Dictionary<long, long> _stockPorProducto = [];
+
+    private string _query = "";
+    private CancellationTokenSource? _debounce;
+    private List<Producto> _productos = [];
+    private int _totalResultados;
+
+    // Carrito: idProducto → línea (orden de inserción preservado).
+    private sealed record CarritoLinea(Producto Producto, long Cantidad);
+    private Dictionary<long, CarritoLinea> _carrito = new();
+
+    private Socio? _socioSeleccionado;
+    private string _metodoPago = MetodosPago.Efectivo;
+    private bool _cobrando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Authz.RequierePermisoAsync(sesion.Token, PermisoCatalogo.PosVender);
+            _tienePermiso = true;
+        }
+        catch (BusinessException)
+        {
+            Feedback.ShowError("No tienes permiso para vender en el punto de venta");
+            return;
+        }
+
+        _showSede = sesion.IdSede is null;
+        if (_showSede)
+        {
+            try
+            {
+                _sedes = (await Sedes.GetActivasAsync()).ToList();
+            }
+            catch
+            {
+                _sedes = [];
+            }
+            _sedeSeleccionada = _sedes.FirstOrDefault()?.IdSede ?? 0;
+        }
+
+        await CargarAsync();
+    }
+
+    public void Dispose() => _debounce?.Cancel();
+
+    private long IdSedeEfectivo(SessionInfo sesion) =>
+        _showSede ? _sedeSeleccionada : sesion.IdSede!.Value;
+
+    private async Task OnSedeChangedAsync(long value)
+    {
+        _sedeSeleccionada = value;
+        await CargarAsync();
+    }
+
+    /// <summary>Búsqueda con debounce de 300ms (mismo comportamiento que Miembros/Productos).</summary>
+    private async Task OnBusquedaChanged(string value)
+    {
+        _query = value;
+        _debounce?.Cancel();
+        var cts = _debounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(300, cts.Token);
+            await CargarProductosAsync();
+            StateHasChanged();
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+    /// <summary>Carga caja abierta + catálogo + stock snapshot de la sede.</summary>
+    private async Task CargarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        _cargando = true;
+        try
+        {
+            _cajaAbierta = await Caja.ObtenerCajaAbiertaAsync(sesion.Token, _showSede ? _sedeSeleccionada : null);
+            await CargarProductosAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo cargar el punto de venta");
+        }
+        finally
+        {
+            _cargando = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CargarProductosAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        var query = string.IsNullOrWhiteSpace(_query) ? null : _query.Trim();
+        var resultado = await Productos.BuscarAsync(sesion.Token, query, pagina: 1, tamanoPagina: TamanosPagina.Cincuenta, esActivo: true);
+        _productos = resultado.Items.ToList();
+        _totalResultados = resultado.TotalRegistros;
+
+        if (_productos.Count > 0)
+        {
+            var sedeStock = IdSedeEfectivo(sesion);
+            _stockPorProducto = (await Inventario.GetBySedeAsync(sedeStock)).ToDictionary(i => i.IdProducto, i => i.Stock);
+        }
+        else
+        {
+            _stockPorProducto = [];
+        }
+    }
+
+    private long? StockDe(Producto p) =>
+        p.RequiereInventario && _stockPorProducto.TryGetValue(p.IdProducto, out var stock) ? stock : null;
+
+    private bool Agotado(Producto p) => p.RequiereInventario && (StockDe(p) ?? 0) <= 0;
+
+    private async Task<IEnumerable<Socio?>> BuscarSociosAsync(string arg, CancellationToken ct)
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return [];
+        }
+        var pagina = await SociosRepo.SearchAsync(string.IsNullOrWhiteSpace(arg) ? null : arg.Trim(), pagina: 1, tamanoPagina: 10, ct: ct);
+        return pagina.Items.Cast<Socio?>();
+    }
+
+    private void OnSocioChangedAsync(Socio? socio) => _socioSeleccionado = socio;
+
+    private void AgregarAlCarrito(Producto p)
+    {
+        if (_cajaAbierta is null)
+        {
+            return;
+        }
+
+        var cantidadActual = _carrito.TryGetValue(p.IdProducto, out var linea) ? linea.Cantidad : 0;
+        if (p.RequiereInventario && cantidadActual >= (StockDe(p) ?? 0))
+        {
+            return;
+        }
+
+        _carrito[p.IdProducto] = new CarritoLinea(p, cantidadActual + 1);
+    }
+
+    private void CambiarCantidad(CarritoLinea linea, long delta)
+    {
+        var nueva = linea.Cantidad + delta;
+        if (nueva <= 0)
+        {
+            _carrito.Remove(linea.Producto.IdProducto);
+            return;
+        }
+
+        if (delta > 0 && linea.Producto.RequiereInventario && nueva > (StockDe(linea.Producto) ?? 0))
+        {
+            return;
+        }
+
+        _carrito[linea.Producto.IdProducto] = linea with { Cantidad = nueva };
+    }
+
+    private long TotalCarrito() =>
+        _carrito.Values.Sum(l => l.Producto.PrecioVentaCentavos * l.Cantidad);
+
+    private async Task CobrarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _cobrando)
+        {
+            return;
+        }
+
+        if (_carrito.Count == 0)
+        {
+            Feedback.ShowWarning("El carrito está vacío");
+            return;
+        }
+        if (_cajaAbierta is null)
+        {
+            Feedback.ShowError("No hay caja abierta — abre caja antes de vender");
+            return;
+        }
+
+        _cobrando = true;
+        try
+        {
+            var input = new RegistrarVentaInput
+            {
+                Items = _carrito.Values.Select(l => new VentaItem
+                {
+                    IdProducto = l.Producto.IdProducto,
+                    Cantidad = l.Cantidad,
+                }).ToList(),
+                IdSocio = _socioSeleccionado?.IdSocio,
+                MetodoPago = _metodoPago,
+            };
+
+            var venta = await Pos.RegistrarVentaAsync(
+                sesion.Token, input, _showSede ? _sedeSeleccionada : null);
+
+            Feedback.ShowSuccess($"Venta registrada — total {FormatearMonto(venta.TotalCentavos)}");
+
+            // El backend ya descontó stock y generó el movimiento de caja:
+            // refresca snapshot y limpia el carrito para la siguiente venta.
+            _carrito = new Dictionary<long, CarritoLinea>();
+            _socioSeleccionado = null;
+            await CargarProductosAsync();
+        }
+        catch (BusinessException ex)
+        {
+            // Incluye stock_insuficiente por desincronización del snapshot.
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo registrar la venta");
+        }
+        finally
+        {
+            _cobrando = false;
+        }
+    }
+
+    private static string Capitalizar(string texto) =>
+        string.IsNullOrEmpty(texto) ? texto : char.ToUpperInvariant(texto[0]) + texto[1..];
+
+    private static string FormatearMonto(long centavos) =>
+        (centavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("es-MX"));
+}

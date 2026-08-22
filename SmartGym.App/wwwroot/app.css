@@ -1496,3 +1496,121 @@ table.data-table {
         animation: none;
     }
 }
+
+/* ---------- POS ----------
+   Desviacion documentada del patron de tabla: grilla de tarjetas para uso
+   repetitivo en mostrador (posible pantalla tactil). El carrito es un panel
+   fijo a la derecha. Usa tokens glass del proyecto. */
+.pos-alert {
+    margin-bottom: 1rem;
+}
+
+.pos-layout {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.pos-panel-productos {
+    flex: 1;
+    min-width: 0;
+}
+
+.pos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.pos-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 1rem;
+    text-align: left;
+    font-family: var(--font-family);
+    color: var(--color-text);
+    background: var(--color-surface-2);
+    border: var(--glass-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+}
+
+.pos-card:hover:not(:disabled) {
+    border-color: var(--color-primary);
+}
+
+.pos-card:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.pos-card-desc {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.pos-card-precio {
+    color: var(--color-primary);
+    font-weight: 700;
+}
+
+.pos-card-stock {
+    font-size: 0.85rem;
+}
+
+.pos-carrito {
+    width: 340px;
+    min-width: 300px;
+    position: sticky;
+    top: 1rem;
+}
+
+.pos-lineas {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-height: 40vh;
+    overflow-y: auto;
+}
+
+.pos-linea {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pos-linea-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.pos-linea-info strong {
+    overflow-wrap: anywhere;
+}
+
+.pos-linea-cantidad {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.pos-cantidad {
+    min-width: 2ch;
+    text-align: center;
+    font-weight: 700;
+}
+
+@media (max-width: 900px) {
+    .pos-layout {
+        flex-direction: column;
+    }
+
+    .pos-carrito {
+        width: 100%;
+        position: static;
+    }
+}
