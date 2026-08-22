@@ -1,0 +1,613 @@
+@page "/productos"
+@* ProductosPage: catálogo del punto de venta. Alta/edición/desactivación de
+   productos y ajuste manual de stock por sede. La venta vive en /pos; el
+   historial de lo vendido en /ventas — aquí solo se administra el catálogo.
+   Categorías diferidas: IdCategoria es nullable y no bloquea nada. *@
+@using System.Globalization
+@using MudBlazor
+@using SmartGym.Core.Common
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Repositories
+@using SmartGym.Core.Services
+@using SmartGym.App.Services
+
+<div class="page-head">
+    <div>
+        <h4>Productos</h4>
+        <p class="page-sub">Catálogo del punto de venta y stock por sede.</p>
+    </div>
+</div>
+
+<div class="glass-panel">
+    <div class="form-fields" style="max-width: none; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end;">
+        @if (_showSede && _sedes.Count > 1)
+        {
+            <MudSelect T="long"
+                       Label="Sede (stock)"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Value="_sedeSeleccionada"
+                       ValueChanged="OnSedeChangedAsync">
+                @foreach (var sede in _sedes)
+                {
+                    <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        <MudTextField T="string"
+                      Label="Buscar por nombre o código de barras"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Immediate="true"
+                      Style="flex: 1; min-width: 240px;"
+                      @bind-Value="_query"
+                      OnKeyUp="HandleBusquedaKeyDown" />
+        <MudSelect T="string?"
+                   Label="Estado"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Clearable="true"
+                   Value="_filtroEstado"
+                   ValueChanged="OnEstadoFiltroChangedAsync">
+            <MudSelectItem T="string?" Value="@("activos")">Activos</MudSelectItem>
+            <MudSelectItem T="string?" Value="@("inactivos")">Inactivos</MudSelectItem>
+            <MudSelectItem T="string?" Value="@null">Todos</MudSelectItem>
+        </MudSelect>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AbrirAlta">Nuevo producto</MudButton>
+    </div>
+
+    @if (_cargando)
+    {
+        <p class="muted">Cargando...</p>
+    }
+    else if (_productos.Count == 0)
+    {
+        <p class="muted" style="margin-top: 1rem;">Sin productos para los filtros actuales.</p>
+    }
+    else
+    {
+        <div class="table-wrap" style="margin-top: 1rem;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Descripción</th>
+                        <th>Código</th>
+                        <th style="text-align: right;">Precio</th>
+                        <th>Inv.</th>
+                        <th style="text-align: right;">Stock sede</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in _productos)
+                    {
+                        var activo = p.EsActivo;
+                        <tr>
+                            <td>@p.Descripcion</td>
+                            <td class="muted-cell">@(p.CodigoBarras ?? "—")</td>
+                            <td style="text-align: right;">@FormatearMonto(p.PrecioVentaCentavos)</td>
+                            <td class="muted-cell">@(p.RequiereInventario ? "Sí" : "No")</td>
+                            <td style="text-align: right;" class="@(EsStockBajo(p) ? "stock-bajo" : "")">
+                                @(StockDe(p) is null ? "—" : StockDe(p)!.Value.ToString())
+                            </td>
+                            <td>
+                                <span class="status-badge @(activo ? "status-success" : "status-danger")">
+                                    @(activo ? "Activo" : "Inactivo")
+                                </span>
+                            </td>
+                            <td>
+                                <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick='() => AbrirEdicion(p)'>Editar</MudButton>
+                                @if (activo)
+                                {
+                                    <MudButton Variant="Variant.Text" Color="Color.Default" OnClick='() => AbrirAjuste(p)'>Stock</MudButton>
+                                    <MudButton Variant="Variant.Text" Color="Color.Error" OnClick='() => AbrirConfirmacionDesactivar(p)'>Desactivar</MudButton>
+                                }
+                                else
+                                {
+                                    <MudButton Variant="Variant.Text" Color="Color.Success" OnClick='() => ActivarAsync(p)'>Activar</MudButton>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="table-footer">
+            <span class="muted">Mostrando @_productos.Count de @_totalRegistros producto(s)</span>
+            <div class="pagination-controls">
+                <MudSelect T="int"
+                           Label="Ver"
+                           Margin="Margin.Dense"
+                           Variant="Variant.Outlined"
+                           OuterClass="page-size-field"
+                           RelativeWidth="DropdownWidth.Adaptive"
+                           Value="_tamanoPagina"
+                           ValueChanged="OnTamanoPaginaChangedAsync">
+                    @foreach (var tamano in TamanosPagina.Validos)
+                    {
+                        <MudSelectItem Value="@tamano">@tamano</MudSelectItem>
+                    }
+                </MudSelect>
+                @if (_totalPaginas > 1)
+                {
+                    <MudPagination Count="_totalPaginas"
+                                   Selected="_pagina"
+                                   SelectedChanged="OnPaginaChangedAsync"
+                                   Color="Color.Primary"
+                                   Size="Size.Small" />
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<MudDialog Visible="_formAbierto"
+           VisibleChanged="v => _formAbierto = v"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_editandoId is null ? "Nuevo producto" : "Editar producto")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="form-fields" @onkeydown="HandleFormKeyDown">
+            <MudTextField T="string"
+                          Label="Descripción"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Immediate="true"
+                          @bind-Value="_formDescripcion" />
+            <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+                <MudNumericField T="decimal"
+                                 Label="Precio"
+                                 Variant="Variant.Outlined"
+                                 Margin="Margin.Dense"
+                                 Min="0"
+                                 Format="F2"
+                                 HideSpinButtons="true"
+                                 Style="flex: 1;"
+                                 @bind-Value="_formPrecio" />
+                <MudTextField T="string"
+                              Label="Código de barras"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Style="flex: 1;"
+                              @bind-Value="_formCodigoBarras" />
+            </div>
+            <MudSwitch T="bool" Label="Requiere inventario" Color="Color.Primary" @bind-Value="_formRequiereInventario" />
+            @if (_editandoId is null && _formRequiereInventario)
+            {
+                <MudNumericField T="long?"
+                                 Label="Stock inicial (sede actual)"
+                                 Variant="Variant.Outlined"
+                                 Margin="Margin.Dense"
+                                 Min="0"
+                                 HideSpinButtons="true"
+                                 @bind-Value="_formStockInicial" />
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_guardando" OnClick="CerrarForm">Cancelar</MudButton>
+        <AsyncButton Text="Guardar"
+                     LoadingText="Guardando..."
+                     IsLoading="_guardando"
+                     OnClick="GuardarAsync" />
+    </DialogActions>
+</MudDialog>
+
+<MudDialog Visible="_ajusteAbierto"
+           VisibleChanged="v => _ajusteAbierto = v"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Ajustar stock — @(_productoAjustando?.Descripcion)</MudText>
+    </TitleContent>
+    <DialogContent>
+        @* Delta con signo: positivo = entrada, negativo = salida. El backend
+           rechaza dejar el stock en negativo (conteo físico nunca es negativo). *@
+        <div class="form-fields" style="max-width: 320px;">
+            <p class="muted">Stock actual: @_stockAjustandoActual</p>
+            <MudNumericField T="long"
+                             Label="Ajuste (+ entrada / − salida)"
+                             Variant="Variant.Outlined"
+                             Margin="Margin.Dense"
+                             HideSpinButtons="true"
+                             @bind-Value="_deltaAjuste" />
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_ajustando" OnClick="() => _ajusteAbierto = false">Cancelar</MudButton>
+        <AsyncButton Text="Aplicar"
+                     LoadingText="Aplicando..."
+                     IsLoading="_ajustando"
+                     OnClick="AjustarStockAsync" />
+    </DialogActions>
+</MudDialog>
+
+<MudDialog Visible="_desactivarAbierto"
+           VisibleChanged="v => _desactivarAbierto = v"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Desactivar producto</MudText>
+    </TitleContent>
+    <DialogContent>
+        <p>Se desactivará <strong>@(_productoDesactivando?.Descripcion)</strong>. Dejará de ser vendible, pero la fila permanece para el historial de ventas.</p>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_desactivando" OnClick="() => _desactivarAbierto = false">Cancelar</MudButton>
+        <AsyncButton Text="Desactivar"
+                     LoadingText="Desactivando..."
+                     IsLoading="_desactivando"
+                     Color="Color.Error"
+                     OnClick="DesactivarAsync" />
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private IProductosService Productos { get; set; } = default!;
+    [Inject] private IInventarioSucursalRepository Inventario { get; set; } = default!;
+    [Inject] private ISedesRepository Sedes { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    private bool _cargando = true;
+    private bool _showSede;
+    private long _sedeSeleccionada;
+    private List<Sede> _sedes = [];
+    private Dictionary<long, long> _stockPorProducto = [];
+
+    private string _query = "";
+    private string? _filtroEstado;
+    private List<Producto> _productos = [];
+    private int _pagina = 1;
+    private int _tamanoPagina = TamanosPagina.Default;
+    private int _totalRegistros;
+    private int _totalPaginas;
+
+    // Diálogo alta/edición.
+    private bool _formAbierto;
+    private long? _editandoId;
+    private string _formDescripcion = "";
+    private decimal _formPrecio;
+    private string _formCodigoBarras = "";
+    private bool _formRequiereInventario = true;
+    private long? _formStockInicial;
+    private bool _guardando;
+
+    // Diálogo ajuste de stock.
+    private bool _ajusteAbierto;
+    private Producto? _productoAjustando;
+    private long _stockAjustandoActual;
+    private long _deltaAjuste;
+    private bool _ajustando;
+
+    // Confirmación de desactivación.
+    private bool _desactivarAbierto;
+    private Producto? _productoDesactivando;
+    private bool _desactivando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        _showSede = sesion.IdSede is null;
+        if (_showSede)
+        {
+            try
+            {
+                _sedes = (await Sedes.GetActivasAsync()).ToList();
+            }
+            catch
+            {
+                _sedes = [];
+            }
+            _sedeSeleccionada = _sedes.FirstOrDefault()?.IdSede ?? 0;
+        }
+
+        await CargarAsync();
+    }
+
+    private Task OnSedeChangedAsync(long value)
+    {
+        _sedeSeleccionada = value;
+        return CargarAsync();
+    }
+
+    private void HandleBusquedaKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            _pagina = 1;
+            _ = CargarAsync();
+        }
+    }
+
+    private async Task OnEstadoFiltroChangedAsync(string? value)
+    {
+        _filtroEstado = value;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnTamanoPaginaChangedAsync(int value)
+    {
+        _tamanoPagina = value;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnPaginaChangedAsync(int value)
+    {
+        _pagina = value;
+        await CargarAsync();
+    }
+
+    private bool? FiltroEstadoBool() => _filtroEstado switch
+    {
+        "activos" => true,
+        "inactivos" => false,
+        _ => null,
+    };
+
+    private async Task CargarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        _cargando = true;
+        try
+        {
+            var resultado = await Productos.BuscarAsync(
+                sesion.Token,
+                string.IsNullOrWhiteSpace(_query) ? null : _query.Trim(),
+                _pagina,
+                _tamanoPagina,
+                FiltroEstadoBool());
+            _productos = resultado.Items.ToList();
+            _totalRegistros = resultado.TotalRegistros;
+            _totalPaginas = resultado.TotalPaginas;
+
+            _stockPorProducto = _showSede && _sedeSeleccionada == 0
+                ? []
+                : (await Inventario.GetBySedeAsync(
+                    _showSede ? _sedeSeleccionada : sesion.IdSede!.Value)).ToDictionary(i => i.IdProducto, i => i.Stock);
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo cargar el catálogo");
+        }
+        finally
+        {
+            _cargando = false;
+            StateHasChanged();
+        }
+    }
+
+    private long? StockDe(Producto p) =>
+        p.RequiereInventario && _stockPorProducto.TryGetValue(p.IdProducto, out var stock) ? stock : null;
+
+    private bool EsStockBajo(Producto p)
+    {
+        var stock = StockDe(p);
+        return stock is not null && stock.Value <= 3;
+    }
+
+    private void AbrirAlta()
+    {
+        _editandoId = null;
+        _formDescripcion = "";
+        _formPrecio = 0;
+        _formCodigoBarras = "";
+        _formRequiereInventario = true;
+        _formStockInicial = 0;
+        _formAbierto = true;
+    }
+
+    private void AbrirEdicion(Producto p)
+    {
+        _editandoId = p.IdProducto;
+        _formDescripcion = p.Descripcion;
+        _formPrecio = p.PrecioVentaCentavos / 100m;
+        _formCodigoBarras = p.CodigoBarras ?? "";
+        _formRequiereInventario = p.RequiereInventario;
+        _formAbierto = true;
+    }
+
+    private void CerrarForm()
+    {
+        if (!_guardando)
+        {
+            _formAbierto = false;
+        }
+    }
+
+    private void HandleFormKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_guardando)
+        {
+            _ = GuardarAsync();
+        }
+        else if (e.Key == "Escape")
+        {
+            CerrarForm();
+        }
+    }
+
+    private async Task GuardarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _guardando)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_formDescripcion))
+        {
+            Feedback.ShowWarning("Ingresa la descripción");
+            return;
+        }
+        if (_formPrecio < 0)
+        {
+            Feedback.ShowWarning("El precio no puede ser negativo");
+            return;
+        }
+
+        _guardando = true;
+        try
+        {
+            var precioCentavos = (long)Math.Round(_formPrecio * 100, MidpointRounding.AwayFromZero);
+            var codigo = string.IsNullOrWhiteSpace(_formCodigoBarras) ? null : _formCodigoBarras.Trim();
+
+            if (_editandoId is null)
+            {
+                await Productos.CrearAsync(
+                    sesion.Token,
+                    _formDescripcion.Trim(),
+                    precioCentavos,
+                    codigo,
+                    _formRequiereInventario,
+                    _formStockInicial ?? 0,
+                    _showSede ? _sedeSeleccionada : null);
+                Feedback.ShowSuccess("Producto creado");
+            }
+            else
+            {
+                await Productos.EditarAsync(
+                    sesion.Token, _editandoId.Value,
+                    _formDescripcion.Trim(), precioCentavos, codigo, _formRequiereInventario);
+                Feedback.ShowSuccess("Producto actualizado");
+            }
+
+            _formAbierto = false;
+            await CargarAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo guardar el producto");
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private void AbrirAjuste(Producto p)
+    {
+        _productoAjustando = p;
+        _stockAjustandoActual = StockDe(p) ?? 0;
+        _deltaAjuste = 0;
+        _ajusteAbierto = true;
+    }
+
+    private async Task AjustarStockAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _productoAjustando is null || _ajustando)
+        {
+            return;
+        }
+
+        if (_deltaAjuste == 0)
+        {
+            Feedback.ShowWarning("El ajuste no puede ser cero");
+            return;
+        }
+
+        _ajustando = true;
+        try
+        {
+            var nuevoStock = await Productos.AjustarStockAsync(
+                sesion.Token, _productoAjustando.IdProducto, _deltaAjuste,
+                _showSede ? _sedeSeleccionada : null);
+            Feedback.ShowSuccess($"Nuevo stock: {nuevoStock}");
+            _ajusteAbierto = false;
+            await CargarAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo ajustar el stock");
+        }
+        finally
+        {
+            _ajustando = false;
+        }
+    }
+
+    private void AbrirConfirmacionDesactivar(Producto p)
+    {
+        _productoDesactivando = p;
+        _desactivarAbierto = true;
+    }
+
+    private async Task DesactivarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _productoDesactivando is null || _desactivando)
+        {
+            return;
+        }
+
+        _desactivando = true;
+        try
+        {
+            await Productos.DesactivarAsync(sesion.Token, _productoDesactivando.IdProducto);
+            Feedback.ShowSuccess("Producto desactivado");
+            _desactivarAbierto = false;
+            await CargarAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo desactivar el producto");
+        }
+        finally
+        {
+            _desactivando = false;
+        }
+    }
+
+    private async Task ActivarAsync(Producto p)
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Productos.ActivarAsync(sesion.Token, p.IdProducto);
+            Feedback.ShowSuccess("Producto activado");
+            await CargarAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+    }
+
+    private static string FormatearMonto(long centavos) =>
+        (centavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("es-MX"));
+}

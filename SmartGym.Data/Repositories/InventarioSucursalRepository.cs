@@ -32,4 +32,26 @@ public sealed class InventarioSucursalRepository : RepositoryBase, IInventarioSu
                 "VALUES (@IdProducto, @IdSede, @Stock, @StockMinimo, @UpdatedAt, 0);",
                 inventario, cancellationToken: ct));
     }
+
+    public async Task<IReadOnlyList<InventarioSucursal>> GetBySedeAsync(long idSede, CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        var rows = await conn.QueryAsync<InventarioSucursal>(
+            new CommandDefinition(
+                Select + "WHERE id_sede = @idSede AND deleted_at IS NULL ORDER BY id_producto",
+                new { idSede }, cancellationToken: ct));
+        return rows.ToList();
+    }
+
+    public async Task<bool> AjustarStockAsync(long idProducto, long idSede, long delta, string updatedAt, CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        var affected = await conn.ExecuteAsync(
+            new CommandDefinition(
+                "UPDATE inventario_sucursal SET stock = stock + @delta, updated_at = @updatedAt " +
+                "WHERE id_producto = @idProducto AND id_sede = @idSede AND deleted_at IS NULL " +
+                "AND stock + @delta >= 0",
+                new { idProducto, idSede, delta, updatedAt }, cancellationToken: ct));
+        return affected > 0;
+    }
 }

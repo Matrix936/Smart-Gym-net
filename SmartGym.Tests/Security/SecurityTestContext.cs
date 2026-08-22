@@ -54,6 +54,7 @@ internal sealed class SecurityTestContext : IDisposable
     public PosService PosService { get; }
     public CobranzaService CobranzaService { get; }
     public VentasService VentasService { get; }
+    public ProductosService ProductosService { get; }
 
     public SecurityTestContext()
     {
@@ -104,6 +105,7 @@ internal sealed class SecurityTestContext : IDisposable
         PosService = new PosService(Auth, Authz, Socios, Cajas, Productos, Inventario, Ventas, Bitacora, SedeResolution);
         CobranzaService = new CobranzaService(Auth, Authz, Socios, Cajas, CuentasCobrar, Recordatorios, Bitacora, SedeResolution);
         VentasService = new VentasService(Auth, Authz, Movimientos, Ventas, Productos, SedeResolution);
+        ProductosService = new ProductosService(Auth, Authz, Productos, Inventario, SedeResolution);
     }
 
     public void Dispose()

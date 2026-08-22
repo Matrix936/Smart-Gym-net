@@ -96,6 +96,14 @@ internal static class Fase4Helper
             UpdatedAt = DateHelper.NowIsoUtc(),
         });
 
+    public static Task<long> InsertarSedeAsync(SecurityTestContext ctx, string? nombre = null) =>
+        ctx.Sedes.InsertAsync(new Sede
+        {
+            Nombre = nombre ?? "Otra Sede Activa",
+            EsActiva = true,
+            UpdatedAt = DateHelper.NowIsoUtc(),
+        });
+
     /// <summary>Inserta un movimiento de caja directo (útil para montos mixtos del cierre).</summary>
     public static async Task InsertarMovimientoAsync(
         SecurityTestContext ctx,
