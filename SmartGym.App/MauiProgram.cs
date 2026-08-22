@@ -73,6 +73,7 @@ public static MauiApp CreateMauiApp()
 		builder.Services.AddScoped<IDispositivosAccesoRepository>(_ => new DispositivosAccesoRepository(dbPath));
 		builder.Services.AddScoped<ISociosBiometricosRepository>(_ => new SociosBiometricosRepository(dbPath));
 		builder.Services.AddScoped<IProductosRepository>(_ => new ProductosRepository(dbPath));
+		builder.Services.AddScoped<IMaquinariaRepository>(_ => new MaquinariaRepository(dbPath));
 		builder.Services.AddScoped<IInventarioSucursalRepository>(_ => new InventarioSucursalRepository(dbPath));
 		builder.Services.AddScoped<IVentasRepository>(_ => new VentasRepository(dbPath));
 		builder.Services.AddScoped<ICobrosRecordatoriosRepository>(_ => new CobrosRecordatoriosRepository(dbPath));
