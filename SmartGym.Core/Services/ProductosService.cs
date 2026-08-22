@@ -19,19 +19,22 @@ public sealed class ProductosService : IProductosService
     private readonly IProductosRepository _productos;
     private readonly IInventarioSucursalRepository _inventario;
     private readonly ISedeResolutionService _sedeResolution;
+    private readonly IBitacoraAuditoriaRepository _bitacora;
 
     public ProductosService(
         IAuthService auth,
         IAuthorizationService authz,
         IProductosRepository productos,
         IInventarioSucursalRepository inventario,
-        ISedeResolutionService sedeResolution)
+        ISedeResolutionService sedeResolution,
+        IBitacoraAuditoriaRepository bitacora)
     {
         _auth = auth;
         _authz = authz;
         _productos = productos;
         _inventario = inventario;
         _sedeResolution = sedeResolution;
+        _bitacora = bitacora;
     }
 
     public async Task<PagedResult<Producto>> BuscarAsync(
@@ -78,6 +81,9 @@ public sealed class ProductosService : IProductosService
         };
 
         producto.IdProducto = await _productos.InsertAsync(producto, ct);
+        await _bitacora.InsertAsync(RegistrarBitacora(
+            info, "producto.creado", producto.IdProducto.ToString(),
+            null, $"descripcion:{producto.Descripcion}|precio:{producto.PrecioVentaCentavos}"), ct);
 
         if (requiereInventario && stockInicial > 0)
         {
@@ -105,12 +111,14 @@ public sealed class ProductosService : IProductosService
         bool requiereInventario,
         CancellationToken ct = default)
     {
-        await _auth.ValidarSesionAsync(token, ct);
+        var info = await _auth.ValidarSesionAsync(token, ct);
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.ProductosGestionar, ct);
 
         ValidarDatos(descripcion, precioVentaCentavos);
 
         var existente = await ObtenerCualquierEstadoAsync(idProducto, ct);
+
+        var anterior = $"descripcion:{existente.Descripcion}|precio:{existente.PrecioVentaCentavos}";
 
         existente.Descripcion = descripcion.Trim();
         existente.CodigoBarras = NormalizarCodigo(codigoBarras);
@@ -119,25 +127,32 @@ public sealed class ProductosService : IProductosService
         existente.UpdatedAt = DateHelper.NowIsoUtc();
 
         await _productos.UpdateAsync(existente, ct);
+        await _bitacora.InsertAsync(RegistrarBitacora(
+            info, "producto.editado", existente.IdProducto.ToString(),
+            anterior, $"descripcion:{existente.Descripcion}|precio:{existente.PrecioVentaCentavos}"), ct);
         return existente;
     }
 
     public async Task DesactivarAsync(string token, long idProducto, CancellationToken ct = default)
     {
-        await _auth.ValidarSesionAsync(token, ct);
+        var info = await _auth.ValidarSesionAsync(token, ct);
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.ProductosGestionar, ct);
 
         _ = await ObtenerCualquierEstadoAsync(idProducto, ct);
         await _productos.DesactivarAsync(idProducto, DateHelper.NowIsoUtc(), ct);
+        await _bitacora.InsertAsync(RegistrarBitacora(
+            info, "producto.desactivado", idProducto.ToString(), "activo", "inactivo"), ct);
     }
 
     public async Task ActivarAsync(string token, long idProducto, CancellationToken ct = default)
     {
-        await _auth.ValidarSesionAsync(token, ct);
+        var info = await _auth.ValidarSesionAsync(token, ct);
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.ProductosGestionar, ct);
 
         _ = await ObtenerCualquierEstadoAsync(idProducto, ct);
         await _productos.ActivarAsync(idProducto, DateHelper.NowIsoUtc(), ct);
+        await _bitacora.InsertAsync(RegistrarBitacora(
+            info, "producto.activado", idProducto.ToString(), "inactivo", "activo"), ct);
     }
 
     public async Task<long> AjustarStockAsync(
@@ -176,6 +191,9 @@ public sealed class ProductosService : IProductosService
                     StockMinimo = 0,
                     UpdatedAt = DateHelper.NowIsoUtc(),
                 }, ct);
+                await _bitacora.InsertAsync(RegistrarBitacora(
+                    info, "producto.stock_ajustado", idProducto.ToString(),
+                    null, $"delta:{delta}|stock_final:{delta}"), ct);
                 return delta;
             }
 
@@ -184,6 +202,10 @@ public sealed class ProductosService : IProductosService
         }
 
         var inventario = (await _inventario.GetByProductoSedeAsync(idProducto, idSede, ct))!.Stock;
+
+        await _bitacora.InsertAsync(RegistrarBitacora(
+            info, "producto.stock_ajustado", idProducto.ToString(),
+            $"stock:{inventario - delta}", $"delta:{delta}|stock_final:{inventario}"), ct);
         return inventario;
     }
 
@@ -194,6 +216,26 @@ public sealed class ProductosService : IProductosService
         return await _productos.GetByIdCualquierEstadoAsync(idProducto, ct)
             ?? throw BusinessException.NotFound("Producto no encontrado", "producto_no_encontrado");
     }
+
+    private static BitacoraAuditoria RegistrarBitacora(
+        SessionInfo info,
+        string accion,
+        string idRegistro,
+        string? anterior,
+        string? nuevo) =>
+        new()
+        {
+            IdRegistro = UuidHelper.NewV4(),
+            IdUsuario = info.IdUsuario,
+            Accion = accion,
+            TablaAfectada = "productos",
+            IdRegistroAfectado = idRegistro,
+            ValorAnterior = anterior,
+            ValorNuevo = nuevo,
+            IdSede = info.IdSede,
+            CreatedAt = DateHelper.NowIsoUtc(),
+            UpdatedAt = DateHelper.NowIsoUtc(),
+        };
 
     private static void ValidarDatos(string descripcion, long precioVentaCentavos)
     {

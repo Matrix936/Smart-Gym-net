@@ -18,6 +18,46 @@ namespace SmartGym.Tests.Fase8;
 /// </summary>
 public sealed class AuditoriaTests
 {
+    [Fact]
+    public async Task escrituras_de_planes_registran_auditoria()
+    {
+        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
+        var plan = await ctx.PlanesService.CrearAsync(token, "Mensual Audit", null, 30, 0, 10000);
+        await ctx.PlanesService.EditarAsync(token, plan.IdPlan, "Mensual Audit Editado", null, 30, 0, 12000);
+        await ctx.PlanesService.DesactivarAsync(token, plan.IdPlan);
+        await ctx.PlanesService.ActivarAsync(token, plan.IdPlan);
+
+        Assert.Equal(1, await CountAccionAsync(ctx, "plan.creado"));
+        Assert.Equal(1, await CountAccionAsync(ctx, "plan.editado"));
+        Assert.Equal(1, await CountAccionAsync(ctx, "plan.desactivado"));
+        Assert.Equal(1, await CountAccionAsync(ctx, "plan.activado"));
+    }
+
+    [Fact]
+    public async Task escrituras_y_ajuste_stock_de_productos_registran_auditoria()
+    {
+        var (ctx, token, sedeId, _) = await Fase6Helper.BaseAsync();
+        var producto = await ctx.ProductosService.CrearAsync(
+            token, "Whey Audit", 50000, null, true, 10, sedeId);
+        await ctx.ProductosService.EditarAsync(token, producto.IdProducto, "Whey Audit v2", 55000, null, true);
+        await ctx.ProductosService.AjustarStockAsync(token, producto.IdProducto, -3, sedeId);
+        await ctx.ProductosService.DesactivarAsync(token, producto.IdProducto);
+        await ctx.ProductosService.ActivarAsync(token, producto.IdProducto);
+
+        Assert.Equal(1, await CountAccionAsync(ctx, "producto.creado"));
+        Assert.Equal(1, await CountAccionAsync(ctx, "producto.editado"));
+        Assert.Equal(1, await CountAccionAsync(ctx, "producto.stock_ajustado"));
+        Assert.Equal(1, await CountAccionAsync(ctx, "producto.desactivado"));
+        Assert.Equal(1, await CountAccionAsync(ctx, "producto.activado"));
+
+        // El ajuste quedó registrado con delta y stock final legibles.
+        await using var conn = ConnectionFactory.Open(ctx.DbPath);
+        var valorNuevo = await conn.ExecuteScalarAsync<string?>(new CommandDefinition(
+            "SELECT valor_nuevo FROM bitacora_auditoria WHERE accion = 'producto.stock_ajustado'"));
+        Assert.Contains("delta:-3", valorNuevo);
+        Assert.Contains("stock_final:7", valorNuevo);
+    }
+
     private static async Task<int> CountAccionAsync(SecurityTestContext ctx, string accion)
     {
         await using var conn = ConnectionFactory.Open(ctx.DbPath);

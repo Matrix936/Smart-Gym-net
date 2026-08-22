@@ -11,12 +11,18 @@ public sealed class PlanesMembresiaService : IPlanesMembresiaService
     private readonly IAuthService _auth;
     private readonly IAuthorizationService _authz;
     private readonly IPlanesMembresiaRepository _planes;
+    private readonly IBitacoraAuditoriaRepository _bitacora;
 
-    public PlanesMembresiaService(IAuthService auth, IAuthorizationService authz, IPlanesMembresiaRepository planes)
+    public PlanesMembresiaService(
+        IAuthService auth,
+        IAuthorizationService authz,
+        IPlanesMembresiaRepository planes,
+        IBitacoraAuditoriaRepository bitacora)
     {
         _auth = auth;
         _authz = authz;
         _planes = planes;
+        _bitacora = bitacora;
     }
 
     public async Task<PagedResult<PlanMembresia>> BuscarAsync(
@@ -35,7 +41,7 @@ public sealed class PlanesMembresiaService : IPlanesMembresiaService
         long precioCentavos,
         CancellationToken ct = default)
     {
-        await _auth.ValidarSesionAsync(token, ct);
+        var info = await _auth.ValidarSesionAsync(token, ct);
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.MembresiasCrear, ct);
 
         ValidarDatos(nombre, diasVigencia, diasCongelamientoMax, precioCentavos);
@@ -52,6 +58,9 @@ public sealed class PlanesMembresiaService : IPlanesMembresiaService
         };
 
         plan.IdPlan = await _planes.InsertAsync(plan, ct);
+        await _bitacora.InsertAsync(RegistrarBitacora(
+            info, "plan.creado", plan.IdPlan.ToString(),
+            null, $"nombre:{plan.Nombre}|precio:{plan.PrecioCentavos}"), ct);
         return plan;
     }
 
@@ -65,13 +74,15 @@ public sealed class PlanesMembresiaService : IPlanesMembresiaService
         long precioCentavos,
         CancellationToken ct = default)
     {
-        await _auth.ValidarSesionAsync(token, ct);
+        var info = await _auth.ValidarSesionAsync(token, ct);
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.MembresiasCrear, ct);
 
         ValidarDatos(nombre, diasVigencia, diasCongelamientoMax, precioCentavos);
 
         var existente = await _planes.GetByIdAsync(idPlan, ct)
             ?? throw BusinessException.NotFound("Plan no encontrado", "plan_no_encontrado");
+
+        var anterior = $"nombre:{existente.Nombre}|precio:{existente.PrecioCentavos}";
 
         existente.Nombre = nombre.Trim();
         existente.Descripcion = string.IsNullOrWhiteSpace(descripcion) ? null : descripcion.Trim();
@@ -81,24 +92,51 @@ public sealed class PlanesMembresiaService : IPlanesMembresiaService
         existente.UpdatedAt = DateHelper.NowIsoUtc();
 
         await _planes.UpdateAsync(existente, ct);
+        await _bitacora.InsertAsync(RegistrarBitacora(
+            info, "plan.editado", existente.IdPlan.ToString(),
+            anterior, $"nombre:{existente.Nombre}|precio:{existente.PrecioCentavos}"), ct);
         return existente;
     }
 
     public async Task DesactivarAsync(string token, long idPlan, CancellationToken ct = default)
     {
-        await _auth.ValidarSesionAsync(token, ct);
+        var info = await _auth.ValidarSesionAsync(token, ct);
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.MembresiasCrear, ct);
 
         await _planes.DesactivarAsync(idPlan, DateHelper.NowIsoUtc(), ct);
+        await _bitacora.InsertAsync(RegistrarBitacora(
+            info, "plan.desactivado", idPlan.ToString(), "activo", "inactivo"), ct);
     }
 
     public async Task ActivarAsync(string token, long idPlan, CancellationToken ct = default)
     {
-        await _auth.ValidarSesionAsync(token, ct);
+        var info = await _auth.ValidarSesionAsync(token, ct);
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.MembresiasCrear, ct);
 
         await _planes.ActivarAsync(idPlan, DateHelper.NowIsoUtc(), ct);
+        await _bitacora.InsertAsync(RegistrarBitacora(
+            info, "plan.activado", idPlan.ToString(), "inactivo", "activo"), ct);
     }
+
+    private static BitacoraAuditoria RegistrarBitacora(
+        SessionInfo info,
+        string accion,
+        string idRegistro,
+        string? anterior,
+        string? nuevo) =>
+        new()
+        {
+            IdRegistro = UuidHelper.NewV4(),
+            IdUsuario = info.IdUsuario,
+            Accion = accion,
+            TablaAfectada = "planes_membresia",
+            IdRegistroAfectado = idRegistro,
+            ValorAnterior = anterior,
+            ValorNuevo = nuevo,
+            IdSede = info.IdSede,
+            CreatedAt = DateHelper.NowIsoUtc(),
+            UpdatedAt = DateHelper.NowIsoUtc(),
+        };
 
     private static void ValidarDatos(string nombre, int diasVigencia, int diasCongelamientoMax, long precioCentavos)
     {

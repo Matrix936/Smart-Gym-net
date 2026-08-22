@@ -100,12 +100,12 @@ internal sealed class SecurityTestContext : IDisposable
         // trabajo (movimientos + bitácora); ajuste mecánico para que la suite compile.
         CajaService = new CajaService(Auth, Authz, Cajas, Movimientos, SedeResolution, Bitacora);
         MembresiasService = new MembresiasService(Auth, Authz, Socios, Planes, Cajas, Membresias, Bitacora, SedeResolution);
-        PlanesService = new PlanesMembresiaService(Auth, Authz, Planes);
+        PlanesService = new PlanesMembresiaService(Auth, Authz, Planes, Bitacora);
         AccesoService = new AccesoService(Authz, Accesos);
         PosService = new PosService(Auth, Authz, Socios, Cajas, Productos, Inventario, Ventas, Bitacora, SedeResolution);
         CobranzaService = new CobranzaService(Auth, Authz, Socios, Cajas, CuentasCobrar, Recordatorios, Bitacora, SedeResolution);
         VentasService = new VentasService(Auth, Authz, Movimientos, Ventas, Productos, SedeResolution);
-        ProductosService = new ProductosService(Auth, Authz, Productos, Inventario, SedeResolution);
+        ProductosService = new ProductosService(Auth, Authz, Productos, Inventario, SedeResolution, Bitacora);
     }
 
     public void Dispose()
