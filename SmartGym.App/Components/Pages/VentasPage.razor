@@ -42,12 +42,14 @@
                        Label="Desde"
                        Variant="Variant.Outlined"
                        Margin="Margin.Dense"
-                       @bind-Value="_desde" />
+                       Date="_desde"
+                       DateChanged="OnDesdeChangedAsync" />
         <MudDatePicker T="DateTime?"
                        Label="Hasta"
                        Variant="Variant.Outlined"
                        Margin="Margin.Dense"
-                       @bind-Value="_hasta" />
+                       Date="_hasta"
+                       DateChanged="OnHastaChangedAsync" />
         <MudAutocomplete T="Socio"
                          Label="Socio"
                          Variant="Variant.Outlined"
@@ -411,6 +413,22 @@
     private Task OnMetodoChangedAsync(string? value) => CambiarFiltroAsync(() => _metodoPago = NormalizarNulo(value));
 
     private Task OnEstadoChangedAsync(string? value) => CambiarFiltroAsync(() => _estadoVenta = NormalizarNulo(value));
+
+    /// <summary>MudDatePicker bindea con Date/DateChanged (no Value/ValueChanged):
+    /// sin esto, elegir fecha actualizaba el picker pero nunca filtraba.</summary>
+    private async Task OnDesdeChangedAsync(DateTime? value)
+    {
+        _desde = value;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnHastaChangedAsync(DateTime? value)
+    {
+        _hasta = value;
+        _pagina = 1;
+        await CargarAsync();
+    }
 
     private async Task OnTamanoPaginaChangedAsync(int value)
     {
