@@ -41,6 +41,7 @@ internal sealed class SecurityTestContext : IDisposable
     public ProductosRepository Productos { get; }
     public InventarioSucursalRepository Inventario { get; }
     public VentasRepository Ventas { get; }
+    public MaquinariaRepository Maquinaria { get; }
 
     public AuthService Auth { get; }
     public AuthorizationService Authz { get; }
@@ -56,6 +57,7 @@ internal sealed class SecurityTestContext : IDisposable
     public VentasService VentasService { get; }
     public ProductosService ProductosService { get; }
     public BitacoraService BitacoraService { get; }
+    public MaquinariaService MaquinariaService { get; }
 
     public SecurityTestContext()
     {
@@ -91,6 +93,7 @@ internal sealed class SecurityTestContext : IDisposable
         Productos = new ProductosRepository(DbPath);
         Inventario = new InventarioSucursalRepository(DbPath);
         Ventas = new VentasRepository(DbPath);
+        Maquinaria = new MaquinariaRepository(DbPath);
 
         Auth = new AuthService(Usuarios, sesiones, cuentas, SessionState, new SesionStore(LogosDir));
         Authz = new AuthorizationService(Auth, Roles, Permisos);
@@ -108,6 +111,7 @@ internal sealed class SecurityTestContext : IDisposable
         VentasService = new VentasService(Auth, Authz, Movimientos, Ventas, Productos, SedeResolution);
         ProductosService = new ProductosService(Auth, Authz, Productos, Inventario, SedeResolution, Bitacora);
         BitacoraService = new BitacoraService(Auth, Authz, Bitacora, SedeResolution);
+        MaquinariaService = new MaquinariaService(Auth, Authz, Maquinaria, SedeResolution, Bitacora);
     }
 
     public void Dispose()

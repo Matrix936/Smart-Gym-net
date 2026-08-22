@@ -4,10 +4,11 @@ using Microsoft.Data.Sqlite;
 namespace SmartGym.Data.Db;
 
 /// <summary>
-/// Aplica el schema (scripts/schema_smart_gym.sql) la primera vez que se abre
-/// la base de datos. El script es idempotente (CREATE IF NOT EXISTS + seed
-/// con INSERT OR IGNORE / WHERE NOT EXISTS), pero solo se ejecuta cuando la
-/// BD está vacía para no penalizar los arranques posteriores.
+/// Aplica el schema (scripts/schema_smart_gym.sql) en cada arranque. El script
+/// es idempotente por diseño (CREATE IF NOT EXISTS + seed con INSERT OR IGNORE /
+/// WHERE NOT EXISTS), así que ejecutarlo siempre es lo que permite que las
+/// tablas nuevas del catálogo lleguen a bases de datos ya creadas sin un
+/// mecanismo de migraciones. Costo: milisegundos de DDL IF NOT EXISTS.
 /// </summary>
 public static class DbInitializer
 {
@@ -17,11 +18,6 @@ public static class DbInitializer
     {
         using var connection = ConnectionFactory.Open(dbPath);
 
-        if (IsInitialized(connection))
-        {
-            return;
-        }
-
         var script = ReadSchemaScript();
 
         using var tx = connection.BeginTransaction();
@@ -30,19 +26,6 @@ public static class DbInitializer
         command.CommandText = script;
         command.ExecuteNonQuery();
         tx.Commit();
-    }
-
-    /// <summary>Detecta si ya existen objetos del schema (tablas/triggers, sin contar los sqlite_*).</summary>
-    private static bool IsInitialized(SqliteConnection connection)
-    {
-        using var command = connection.CreateCommand();
-        command.CommandText =
-            "SELECT COUNT(*) FROM sqlite_master " +
-            "WHERE type IN ('table','trigger') " +
-            "AND name NOT LIKE 'sqlite_%' " +
-            "AND name != 'schema_migrations';";
-        var count = (long)(command.ExecuteScalar() ?? 0L);
-        return count > 0;
     }
 
     public static string ReadSchemaScript()

@@ -95,6 +95,7 @@ public static MauiApp CreateMauiApp()
 		builder.Services.AddScoped<IVentasService, VentasService>();
 		builder.Services.AddScoped<IProductosService, ProductosService>();
 		builder.Services.AddScoped<IBitacoraService, BitacoraService>();
+		builder.Services.AddScoped<IMaquinariaService, MaquinariaService>();
 
 		// ---- Biometria (embebida en proceso, sin sidecar HTTP - ver doc 04 §3.1) ----
 		var templatesDir = Path.Combine(dataDir, "Templates");

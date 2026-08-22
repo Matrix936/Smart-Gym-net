@@ -637,5 +637,26 @@ SELECT 'Sede Principal', 1
 WHERE NOT EXISTS (SELECT 1 FROM sedes WHERE nombre = 'Sede Principal' AND deleted_at IS NULL);
 
 -- ============================================================================
+-- Maquinaria: equipo fisico del gimnasio por sede (no es stock vendible —
+-- eso es productos). Estado operativo con clase de constantes en codigo.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS maquinaria (
+    id_maquina      TEXT PRIMARY KEY,
+    nombre          TEXT NOT NULL,
+    descripcion     TEXT,
+    estado          TEXT NOT NULL DEFAULT 'funcionando', -- funcionando | en_mantenimiento | fuera_de_servicio
+    id_sede         INTEGER NOT NULL,
+    notas           TEXT,
+    es_activo       INTEGER NOT NULL DEFAULT 1,
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    sincronizado    INTEGER NOT NULL DEFAULT 0,
+    deleted_at      TEXT,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    FOREIGN KEY (id_sede) REFERENCES sedes(id_sede)
+);
+CREATE INDEX IF NOT EXISTS idx_maquinaria_id_sede ON maquinaria(id_sede);
+CREATE INDEX IF NOT EXISTS idx_maquinaria_estado ON maquinaria(estado);
+
+-- ============================================================================
 -- FIN
 -- ============================================================================

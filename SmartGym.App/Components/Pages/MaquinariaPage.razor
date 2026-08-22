@@ -1,0 +1,594 @@
+@page "/maquinaria"
+@* MaquinariaPage: catálogo de equipo físico por sede (no es stock vendible).
+   Estructura replicada de ProductosPage/MiembrosPage: toolbar con búsqueda con
+   debounce y filtro de estado, tabla data-table, menú de tres puntos por fila,
+   ConfirmDialog para acciones destructivas/cambio de estado y paginación. *@
+@implements IDisposable
+@using System.Globalization
+@using MudBlazor
+@using SmartGym.Core.Authorization
+@using SmartGym.Core.Common
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Services
+@using SmartGym.App.Services
+
+<div class="page-head">
+    <div>
+        <h4>Maquinaria</h4>
+        <p class="page-sub">Equipo físico del gimnasio y su estado operativo por sede.</p>
+    </div>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="AbrirAlta">Nueva máquina</MudButton>
+</div>
+
+<div class="glass-panel">
+    <div class="page-toolbar">
+        @if (_showSede && _sedes.Count > 1)
+        {
+            <MudSelect T="long"
+                       Label="Sede"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       OuterClass="filter-field"
+                       RelativeWidth="DropdownWidth.Adaptive"
+                       Value="_sedeSeleccionada"
+                       ValueChanged="OnSedeChangedAsync">
+                @foreach (var sede in _sedes)
+                {
+                    <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        <MudTextField T="string"
+                      Class="search-field"
+                      Placeholder="Buscar máquina por nombre..."
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Margin="Margin.Dense"
+                      Immediate="true"
+                      Value="@_nombre"
+                      ValueChanged="OnBusquedaChanged" />
+        <MudSelect T="string"
+                   OuterClass="filter-field"
+                   RelativeWidth="DropdownWidth.Adaptive"
+                   Label="Estado"
+                   Margin="Margin.Dense"
+                   Variant="Variant.Outlined"
+                   Value="@_filtroEstado"
+                   ValueChanged="OnFiltroEstadoChangedAsync">
+            <MudSelectItem Value="@("")">Todos</MudSelectItem>
+            @foreach (var estado in MaquinaEstados.Validos)
+            {
+                <MudSelectItem Value="@estado">@EtiquetaEstado(estado)</MudSelectItem>
+            }
+        </MudSelect>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th style="text-align: center;">Estado</th>
+                    <th>Notas</th>
+                    <th style="text-align: center; width: 56px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_cargando)
+                {
+                    <tr><td colspan="4" class="empty-cell">Cargando...</td></tr>
+                }
+                else if (_maquinas.Count == 0)
+                {
+                    <tr>
+                        <td colspan="4" class="empty-cell">
+                            @(_nombre.Trim().Length > 0 || _filtroEstado.Length > 0 ? "Sin resultados para los filtros aplicados" : "No hay máquinas registradas en esta sede")
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var m in _maquinas)
+                    {
+                        var activo = m.EsActivo;
+                        <tr>
+                            <td>
+                                <strong>@m.Nombre</strong>
+                                @if (!string.IsNullOrEmpty(m.Descripcion))
+                                {
+                                    <span class="muted" style="display: block;">@m.Descripcion</span>
+                                }
+                            </td>
+                            <td style="text-align: center;">
+                                <span class="status-badge @ClaseEstado(m.Estado)">@EtiquetaEstado(m.Estado)</span>
+                            </td>
+                            <td class="muted-cell">@(m.Notas ?? "—")</td>
+                            <td style="text-align: center;">
+                                <MudMenu AnchorOrigin="Origin.BottomRight"
+                                         TransformOrigin="Origin.TopRight"
+                                         Class="row-menu">
+                                    <ActivatorContent>
+                                        @* MudBlazor v9: ToggleAsync explícito (breaking change v9). *@
+                                        <MudIconButton Icon="@Icons.Material.Filled.MoreVert"
+                                                       Size="Size.Small"
+                                                       Color="Color.Default"
+                                                       OnClick="@context.ToggleAsync"
+                                                       aria-label="Acciones" />
+                                    </ActivatorContent>
+                                    <ChildContent>
+                                        <MudMenuItem OnClick="() => AbrirEdicion(m)">
+                                            <MudIcon Icon="@Icons.Material.Filled.Edit" Size="Size.Small" /> Editar
+                                        </MudMenuItem>
+
+                                        @if (activo)
+                                        {
+                                            @if (m.Estado != MaquinaEstados.Funcionando)
+                                            {
+                                                <MudMenuItem OnClick="() => PedirCambioEstado(m, MaquinaEstados.Funcionando)">
+                                                    <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Size="Size.Small" /> Marcar funcionando
+                                                </MudMenuItem>
+                                            }
+                                            @if (m.Estado != MaquinaEstados.EnMantenimiento)
+                                            {
+                                                <MudMenuItem OnClick="() => PedirCambioEstado(m, MaquinaEstados.EnMantenimiento)">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Build" Size="Size.Small" /> Enviar a mantenimiento
+                                                </MudMenuItem>
+                                            }
+                                            @if (m.Estado != MaquinaEstados.FueraDeServicio)
+                                            {
+                                                <MudMenuItem OnClick="() => PedirCambioEstado(m, MaquinaEstados.FueraDeServicio)">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Block" Size="Size.Small" /> Fuera de servicio
+                                                </MudMenuItem>
+                                            }
+                                            <MudMenuItem OnClick="() => PedirDesactivar(m)">
+                                                <MudIcon Icon="@Icons.Material.Filled.Pause" Size="Size.Small" /> Desactivar
+                                            </MudMenuItem>
+                                        }
+                                        else
+                                        {
+                                            <MudMenuItem OnClick="() => ActivarAsync(m)">
+                                                <MudIcon Icon="@Icons.Material.Filled.PlayArrow" Size="Size.Small" /> Activar
+                                            </MudMenuItem>
+                                        }
+                                    </ChildContent>
+                                </MudMenu>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (_maquinas.Count > 0)
+    {
+        <div class="table-footer">
+            <span class="muted">Mostrando @_maquinas.Count de @_totalRegistros máquina(s)</span>
+            <div class="pagination-controls">
+                <MudSelect T="int"
+                           Label="Ver"
+                           Margin="Margin.Dense"
+                           Variant="Variant.Outlined"
+                           OuterClass="page-size-field"
+                           RelativeWidth="DropdownWidth.Adaptive"
+                           Value="_tamanoPagina"
+                           ValueChanged="OnTamanoPaginaChangedAsync">
+                    @foreach (var tamano in TamanosPagina.Validos)
+                    {
+                        <MudSelectItem Value="@tamano">@tamano</MudSelectItem>
+                    }
+                </MudSelect>
+                @if (_totalPaginas > 1)
+                {
+                    <MudPagination Count="_totalPaginas"
+                                   Selected="_pagina"
+                                   SelectedChanged="OnPaginaChangedAsync"
+                                   Color="Color.Primary"
+                                   Size="Size.Small" />
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<MudDialog Visible="_formAbierto"
+           VisibleChanged="v => _formAbierto = v"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_editandoId is null ? "Nueva máquina" : "Editar máquina")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="form-fields" @onkeydown="HandleFormKeyDown">
+            <MudTextField T="string"
+                          Label="Nombre *"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Immediate="true"
+                          @bind-Value="_formNombre" />
+            <MudTextField T="string"
+                          Label="Descripción"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Immediate="true"
+                          @bind-Value="_formDescripcion" />
+            <MudTextField T="string"
+                          Label="Notas"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Lines="3"
+                          @bind-Value="_formNotas" />
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_guardando" OnClick="CerrarForm">Cancelar</MudButton>
+        <AsyncButton Text="Guardar"
+                     LoadingText="Guardando..."
+                     IsLoading="_guardando"
+                     OnClick="GuardarAsync" />
+    </DialogActions>
+</MudDialog>
+
+<ConfirmDialog IsOpen="_confirmar is not null"
+               Titulo="@_confirmar?.Titulo"
+               Mensaje="@(_confirmar?.Mensaje ?? "")"
+               TextoConfirmar="@(_confirmar?.TextoConfirmar ?? "Confirmar")"
+               IsLoading="_confirmarCargando"
+               OnConfirm="EjecutarConfirmar"
+               OnCancel="CancelarConfirmar" />
+
+@code {
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private IMaquinariaService Maquinaria { get; set; } = default!;
+    [Inject] private IAuthorizationService Authz { get; set; } = default!;
+    [Inject] private ISedesRepository Sedes { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    private List<Maquina> _maquinas = [];
+    private bool _tienePermiso;
+    private bool _cargando;
+    private string _nombre = "";
+    private string _filtroEstado = "";
+    private CancellationTokenSource? _debounce;
+
+    private bool _showSede;
+    private long _sedeSeleccionada;
+    private List<Sede> _sedes = [];
+
+    private int _pagina = 1;
+    private int _tamanoPagina = TamanosPagina.Default;
+    private int _totalRegistros;
+    private int _totalPaginas;
+
+    // Diálogo alta/edición.
+    private bool _formAbierto;
+    private string? _editandoId;
+    private string _formNombre = "";
+    private string _formDescripcion = "";
+    private string _formNotas = "";
+    private bool _guardando;
+
+    // Confirmaciones (ConfirmDialog compartido, patrón Miembros/Productos).
+    private sealed record ConfirmarTarea(string Titulo, string Mensaje, string TextoConfirmar, Func<Task> Accion);
+    private ConfirmarTarea? _confirmar;
+    private bool _confirmarCargando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Authz.RequierePermisoAsync(sesion.Token, PermisoCatalogo.MaquinariaGestionar);
+        }
+        catch (BusinessException)
+        {
+            Feedback.ShowError("No tienes permiso para gestionar la maquinaria");
+            return;
+        }
+
+        _showSede = sesion.IdSede is null;
+        if (_showSede)
+        {
+            try
+            {
+                _sedes = (await Sedes.GetActivasAsync()).ToList();
+            }
+            catch
+            {
+                _sedes = [];
+            }
+            _sedeSeleccionada = _sedes.FirstOrDefault()?.IdSede ?? 0;
+        }
+
+        await CargarAsync();
+    }
+
+    public void Dispose() => _debounce?.Cancel();
+
+    private Task OnSedeChangedAsync(long value)
+    {
+        _sedeSeleccionada = value;
+        return CargarAsync();
+    }
+
+    /// <summary>Búsqueda con debounce de 300ms (mismo comportamiento que Miembros/Productos).</summary>
+    private async Task OnBusquedaChanged(string value)
+    {
+        _nombre = value;
+        _pagina = 1;
+        _debounce?.Cancel();
+        var cts = _debounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(300, cts.Token);
+            await CargarAsync();
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+    private async Task OnFiltroEstadoChangedAsync(string value)
+    {
+        _filtroEstado = value ?? "";
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnTamanoPaginaChangedAsync(int value)
+    {
+        _tamanoPagina = value;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnPaginaChangedAsync(int value)
+    {
+        _pagina = value;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || !_tienePermiso)
+        {
+            return;
+        }
+
+        _cargando = true;
+        try
+        {
+            var resultado = await Maquinaria.BuscarAsync(
+                sesion.Token,
+                string.IsNullOrWhiteSpace(_nombre) ? null : _nombre.Trim(),
+                _filtroEstado.Length > 0 ? _filtroEstado : null,
+                _pagina,
+                _tamanoPagina,
+                idSedeFrontend: _showSede ? _sedeSeleccionada : null);
+            _maquinas = resultado.Items.ToList();
+            _totalRegistros = resultado.TotalRegistros;
+            _totalPaginas = resultado.TotalPaginas;
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo cargar la maquinaria");
+        }
+        finally
+        {
+            _cargando = false;
+            StateHasChanged();
+        }
+    }
+
+    private void AbrirAlta()
+    {
+        _editandoId = null;
+        _formNombre = "";
+        _formDescripcion = "";
+        _formNotas = "";
+        _formAbierto = true;
+    }
+
+    private void AbrirEdicion(Maquina m)
+    {
+        _editandoId = m.IdMaquina;
+        _formNombre = m.Nombre;
+        _formDescripcion = m.Descripcion ?? "";
+        _formNotas = m.Notas ?? "";
+        _formAbierto = true;
+    }
+
+    private void CerrarForm()
+    {
+        if (!_guardando)
+        {
+            _formAbierto = false;
+        }
+    }
+
+    private void HandleFormKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_guardando)
+        {
+            _ = GuardarAsync();
+        }
+        else if (e.Key == "Escape")
+        {
+            CerrarForm();
+        }
+    }
+
+    private async Task GuardarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _guardando)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_formNombre))
+        {
+            Feedback.ShowWarning("Ingresa el nombre de la máquina");
+            return;
+        }
+
+        _guardando = true;
+        try
+        {
+            if (_editandoId is null)
+            {
+                await Maquinaria.CrearAsync(
+                    sesion.Token,
+                    _formNombre.Trim(),
+                    _formDescripcion,
+                    MaquinaEstados.Funcionando,
+                    _formNotas,
+                    _showSede ? _sedeSeleccionada : null);
+                Feedback.ShowSuccess("Máquina creada");
+            }
+            else
+            {
+                await Maquinaria.EditarAsync(sesion.Token, _editandoId, _formNombre.Trim(), _formDescripcion, _formNotas);
+                Feedback.ShowSuccess("Máquina actualizada");
+            }
+
+            _formAbierto = false;
+            await CargarAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo guardar la máquina");
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private void PedirCambioEstado(Maquina m, string estadoNuevo)
+    {
+        var (titulo, mensaje, texto) = estadoNuevo switch
+        {
+            MaquinaEstados.Funcionando => ("Marcar funcionando",
+                $"¿Seguro que quieres marcar «{m.Nombre}» como funcionando?", "Funcionando"),
+            MaquinaEstados.EnMantenimiento => ("Enviar a mantenimiento",
+                $"¿Seguro que quieres enviar «{m.Nombre}» a mantenimiento?", "A mantenimiento"),
+            _ => ("Fuera de servicio",
+                $"¿Seguro que quieres poner «{m.Nombre}» fuera de servicio?", "Fuera de servicio"),
+        };
+
+        _confirmar = new ConfirmarTarea(titulo, mensaje, texto, () => CambiarEstadoAsync(m, estadoNuevo));
+        StateHasChanged();
+    }
+
+    private async Task CambiarEstadoAsync(Maquina m, string estadoNuevo)
+    {
+        var sesion = Sesion.Current!;
+        await Maquinaria.CambiarEstadoAsync(sesion.Token, m.IdMaquina, estadoNuevo);
+        Feedback.ShowSuccess($"«{m.Nombre}»: {EtiquetaEstado(estadoNuevo)}");
+        await CargarAsync();
+    }
+
+    private void PedirDesactivar(Maquina m)
+    {
+        _confirmar = new ConfirmarTarea("Desactivar máquina",
+            $"¿Seguro que quieres desactivar «{m.Nombre}»? Dejará de listarse, pero se conserva en la bitácora.",
+            "Desactivar",
+            () => DesactivarAsync(m));
+        StateHasChanged();
+    }
+
+    private async Task DesactivarAsync(Maquina m)
+    {
+        var sesion = Sesion.Current!;
+        await Maquinaria.DesactivarAsync(sesion.Token, m.IdMaquina);
+        Feedback.ShowSuccess($"Máquina «{m.Nombre}» desactivada");
+        await CargarAsync();
+    }
+
+    private async Task ActivarAsync(Maquina m)
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Maquinaria.ActivarAsync(sesion.Token, m.IdMaquina);
+            Feedback.ShowSuccess($"Máquina «{m.Nombre}» activada");
+            await CargarAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+    }
+
+    private async Task EjecutarConfirmar()
+    {
+        if (_confirmar is null)
+        {
+            return;
+        }
+
+        _confirmarCargando = true;
+        try
+        {
+            await _confirmar.Accion();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo completar la acción");
+        }
+        finally
+        {
+            _confirmarCargando = false;
+            _confirmar = null;
+            StateHasChanged();
+        }
+    }
+
+    private void CancelarConfirmar()
+    {
+        _confirmar = null;
+        StateHasChanged();
+    }
+
+    private static string ClaseEstado(string estado) => estado switch
+    {
+        MaquinaEstados.Funcionando => "status-success",
+        MaquinaEstados.EnMantenimiento => "status-warning",
+        MaquinaEstados.FueraDeServicio => "status-danger",
+        _ => "status-info",
+    };
+
+    private static string EtiquetaEstado(string estado) => estado switch
+    {
+        MaquinaEstados.Funcionando => "Funcionando",
+        MaquinaEstados.EnMantenimiento => "En mantenimiento",
+        MaquinaEstados.FueraDeServicio => "Fuera de servicio",
+        _ => estado,
+    };
+}
