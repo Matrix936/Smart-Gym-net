@@ -1,4 +1,5 @@
 using Dapper;
+using SmartGym.Core.Common;
 using SmartGym.Core.Entities;
 using SmartGym.Core.Repositories;
 using SmartGym.Data.Db;
@@ -31,5 +32,96 @@ public sealed class BitacoraAuditoriaRepository : RepositoryBase, IBitacoraAudit
                 "SELECT NOT EXISTS(SELECT 1 FROM bitacora_auditoria WHERE tabla_afectada = @tablaAfectada " +
                 "AND id_registro_afectado = @idRegistroAfectado)",
                 new { tablaAfectada, idRegistroAfectado }, cancellationToken: ct));
+    }
+
+    private const string BuscarFrom =
+        "FROM bitacora_auditoria b " +
+        "LEFT JOIN usuarios u ON u.id_usuario = b.id_usuario " +
+        "LEFT JOIN sedes s ON s.id_sede = b.id_sede " +
+        // Acciones globales (catálogos hechos por admin sin sede) son visibles
+        // desde cualquier sede: id_sede NULL no se filtra.
+        "WHERE b.deleted_at IS NULL AND (b.id_sede IS NULL OR b.id_sede = @idSede) ";
+
+    private const string BuscarSelect =
+        "SELECT b.created_at AS Fecha, " +
+        "b.accion AS Accion, " +
+        "TRIM(u.nombre || ' ' || u.apellido_paterno) AS NombreUsuario, " +
+        "b.tabla_afectada AS TablaAfectada, " +
+        "b.id_registro_afectado AS IdRegistroAfectado, " +
+        "b.valor_anterior AS ValorAnterior, " +
+        "b.valor_nuevo AS ValorNuevo, " +
+        "b.id_sede AS IdSede, " +
+        "s.nombre AS SedeNombre ";
+
+    public async Task<PagedResult<BitacoraHistorialDto>> BuscarAsync(
+        long idSede,
+        BitacoraFiltros? filtros = null,
+        int pagina = 1,
+        int tamanoPagina = TamanosPagina.Default,
+        CancellationToken ct = default)
+    {
+        if (!TamanosPagina.EsValido(tamanoPagina))
+        {
+            throw new ArgumentException($"tamanoPagina inválido: {tamanoPagina}. Valores permitidos: {string.Join(", ", TamanosPagina.Validos)}.", nameof(tamanoPagina));
+        }
+
+        var paginaEfectiva = Math.Max(pagina, 1);
+        var offset = (paginaEfectiva - 1) * tamanoPagina;
+
+        filtros ??= new BitacoraFiltros();
+
+        var where = BuscarFrom;
+        var parametros = new DynamicParameters();
+        parametros.Add("idSede", idSede);
+        parametros.Add("tamanoPagina", tamanoPagina);
+        parametros.Add("offset", offset);
+
+        if (!string.IsNullOrEmpty(filtros.Desde))
+        {
+            where += "AND b.created_at >= @desde ";
+            parametros.Add("desde", filtros.Desde);
+        }
+        if (!string.IsNullOrEmpty(filtros.Hasta))
+        {
+            where += "AND b.created_at <= @hasta ";
+            parametros.Add("hasta", filtros.Hasta);
+        }
+        if (!string.IsNullOrEmpty(filtros.Categoria))
+        {
+            where += "AND b.accion LIKE @categoria || '%' ";
+            parametros.Add("categoria", filtros.Categoria.TrimEnd('.'));
+        }
+        if (!string.IsNullOrEmpty(filtros.Accion))
+        {
+            where += "AND b.accion = @accion ";
+            parametros.Add("accion", filtros.Accion);
+        }
+        if (filtros.IdUsuario is not null)
+        {
+            where += "AND b.id_usuario = @idUsuario ";
+            parametros.Add("idUsuario", filtros.IdUsuario);
+        }
+
+        await using var conn = ConnectionFactory.Open(DbPath);
+
+        var total = await conn.ExecuteScalarAsync<int>(
+            new CommandDefinition(
+                "SELECT COUNT(*) " + where,
+                parametros, cancellationToken: ct));
+
+        var rows = await conn.QueryAsync<BitacoraHistorialDto>(
+            new CommandDefinition(
+                BuscarSelect + where +
+                "ORDER BY b.created_at DESC " +
+                "LIMIT @tamanoPagina OFFSET @offset",
+                parametros, cancellationToken: ct));
+
+        return new PagedResult<BitacoraHistorialDto>
+        {
+            Items = rows.ToList(),
+            TotalRegistros = total,
+            Pagina = paginaEfectiva,
+            TamanoPagina = tamanoPagina,
+        };
     }
 }

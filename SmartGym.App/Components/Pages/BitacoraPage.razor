@@ -1,0 +1,488 @@
+@page "/bitacora"
+@* BitacoraPage: historial de auditoría de la sede (solo lectura). Patrón de
+   listado de MiembrosPage. El select de Acción depende del de Categoría: al
+   cambiar categoría, la acción seleccionada se RESETAEA (las acciones de la
+   categoría anterior ya no aplican — bug de estado visto antes en el proyecto).
+   Valores anterior/nuevo se ven en un modal de detalle con formato legible. *@
+@implements IDisposable
+@using System.Globalization
+@using MudBlazor
+@using SmartGym.Core.Authorization
+@using SmartGym.Core.Common
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Services
+@using SmartGym.App.Services
+
+<div class="page-head">
+    <div>
+        <h4>Bitácora</h4>
+        <p class="page-sub">Auditoría de operaciones de la sede.</p>
+    </div>
+</div>
+
+<div class="glass-panel">
+    <div class="page-toolbar">
+        @if (_showSede && _sedes.Count > 1)
+        {
+            <MudSelect T="long"
+                       Label="Sede"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       OuterClass="filter-field"
+                       RelativeWidth="DropdownWidth.Adaptive"
+                       Value="_sedeSeleccionada"
+                       ValueChanged="OnSedeChangedAsync">
+                @foreach (var sede in _sedes)
+                {
+                    <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        <MudDatePicker T="DateTime?"
+                       Label="Desde"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Value="_desde"
+                       ValueChanged="OnDesdeChangedAsync" />
+        <MudDatePicker T="DateTime?"
+                       Label="Hasta"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Value="_hasta"
+                       ValueChanged="OnHastaChangedAsync" />
+        <MudSelect T="string"
+                   OuterClass="filter-field"
+                   RelativeWidth="DropdownWidth.Adaptive"
+                   Label="Categoría"
+                   Margin="Margin.Dense"
+                   Variant="Variant.Outlined"
+                   Value="@_categoria"
+                   ValueChanged="OnCategoriaChangedAsync">
+            <MudSelectItem Value="@("")">Todas</MudSelectItem>
+            @foreach (var categoria in Categorias.Keys)
+            {
+                <MudSelectItem Value="@categoria">@Categorias[categoria].Etiqueta</MudSelectItem>
+            }
+        </MudSelect>
+        @* Dependiente: solo acciones de la categoría elegida; cambiar categoría
+           resetea la selección (ver OnCategoriaChangedAsync). *@
+        <MudSelect T="string"
+                   OuterClass="filter-field"
+                   RelativeWidth="DropdownWidth.Adaptive"
+                   Label="Acción"
+                   Margin="Margin.Dense"
+                   Variant="Variant.Outlined"
+                   Disabled="@(_categoria.Length == 0)"
+                   Value="@_accion"
+                   ValueChanged="OnAccionChangedAsync">
+            <MudSelectItem Value="@("")">Todas</MudSelectItem>
+            @if (Categorias.TryGetValue(_categoria, out var definicion))
+            {
+                @foreach (var accion in definicion.Acciones)
+                {
+                    <MudSelectItem Value="@accion">@accion</MudSelectItem>
+                }
+            }
+        </MudSelect>
+        <MudSelect T="long?"
+                   Label="Usuario"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Clearable="true"
+                   Value="_idUsuario"
+                   ValueChanged="OnUsuarioChangedAsync">
+            <MudSelectItem T="long?" Value="null">Todos</MudSelectItem>
+            @foreach (var u in _usuarios)
+            {
+                <MudSelectItem Value="@((long?)u.IdUsuario)">@($"{u.Nombre} {u.ApellidoPaterno}".Trim())</MudSelectItem>
+            }
+        </MudSelect>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Usuario</th>
+                    <th style="text-align: center;">Acción</th>
+                    <th>Tabla</th>
+                    <th>Sede</th>
+                    <th style="text-align: center; width: 56px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_cargando)
+                {
+                    <tr><td colspan="6" class="empty-cell">Cargando...</td></tr>
+                }
+                else if (_filas.Count == 0)
+                {
+                    <tr><td colspan="6" class="empty-cell">Sin registros para los filtros aplicados</td></tr>
+                }
+                else
+                {
+                    @foreach (var f in _filas)
+                    {
+                        <tr>
+                            <td class="muted-cell">@FormatearFecha(f.Fecha)</td>
+                            <td>@(f.NombreUsuario ?? "—")</td>
+                            <td style="text-align: center;">
+                                <span class="status-badge @ClaseBadge(f.Accion)">@f.Accion</span>
+                            </td>
+                            <td class="muted-cell">@f.TablaAfectada</td>
+                            <td class="muted-cell">@(f.SedeNombre ?? (f.IdSede is null ? "Global" : f.IdSede.ToString()))</td>
+                            <td style="text-align: center;">
+                                <MudMenu AnchorOrigin="Origin.BottomRight"
+                                         TransformOrigin="Origin.TopRight"
+                                         Class="row-menu">
+                                    <ActivatorContent>
+                                        @* MudBlazor v9: ToggleAsync explícito (breaking change v9). *@
+                                        <MudIconButton Icon="@Icons.Material.Filled.MoreVert"
+                                                       Size="Size.Small"
+                                                       Color="Color.Default"
+                                                       OnClick="@context.ToggleAsync"
+                                                       aria-label="Acciones" />
+                                    </ActivatorContent>
+                                    <ChildContent>
+                                        <MudMenuItem OnClick='() => _detalle = f'>
+                                            <MudIcon Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" /> Ver detalle
+                                        </MudMenuItem>
+                                    </ChildContent>
+                                </MudMenu>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (_filas.Count > 0)
+    {
+        <div class="table-footer">
+            <span class="muted">Mostrando @_filas.Count de @_totalRegistros registro(s)</span>
+            <div class="pagination-controls">
+                <MudSelect T="int"
+                           Label="Ver"
+                           Margin="Margin.Dense"
+                           Variant="Variant.Outlined"
+                           OuterClass="page-size-field"
+                           RelativeWidth="DropdownWidth.Adaptive"
+                           Value="_tamanoPagina"
+                           ValueChanged="OnTamanoPaginaChangedAsync">
+                    @foreach (var tamano in TamanosPagina.Validos)
+                    {
+                        <MudSelectItem Value="@tamano">@tamano</MudSelectItem>
+                    }
+                </MudSelect>
+                @if (_totalPaginas > 1)
+                {
+                    <MudPagination Count="_totalPaginas"
+                                   Selected="_pagina"
+                                   SelectedChanged="OnPaginaChangedAsync"
+                                   Color="Color.Primary"
+                                   Size="Size.Small" />
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<MudDialog Visible="_detalle is not null"
+           VisibleChanged="v => { if (!v) _detalle = null; }"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_detalle?.Accion ?? "Detalle")</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_detalle is not null)
+        {
+            <div class="summary-row"><span class="summary-label">Fecha</span><span>@FormatearFecha(_detalle.Fecha)</span></div>
+            <div class="summary-row"><span class="summary-label">Usuario</span><span>@(_detalle.NombreUsuario ?? "—")</span></div>
+            <div class="summary-row"><span class="summary-label">Tabla</span><span class="muted">@_detalle.TablaAfectada</span></div>
+            <div class="summary-row"><span class="summary-label">Registro</span><span class="muted">@(_detalle.IdRegistroAfectado ?? "—")</span></div>
+            @if (_detalle.ValorAnterior is not null)
+            {
+                <p class="form-section" style="margin-top: 1rem;">Valor anterior</p>
+                <ul class="bitacora-valores">
+                    @foreach (var par in ParesDe(_detalle.ValorAnterior))
+                    {
+                        <li><strong>@par.Key:</strong> @par.Value</li>
+                    }
+                </ul>
+            }
+            @if (_detalle.ValorNuevo is not null)
+            {
+                <p class="form-section">Valor nuevo</p>
+                <ul class="bitacora-valores">
+                    @foreach (var par in ParesDe(_detalle.ValorNuevo))
+                    {
+                        <li><strong>@par.Key:</strong> @par.Value</li>
+                    }
+                </ul>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="() => _detalle = null">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private IBitacoraService Bitacora { get; set; } = default!;
+    [Inject] private IAuthorizationService Authz { get; set; } = default!;
+    [Inject] private IUsuariosRepository UsuariosRepo { get; set; } = default!;
+    [Inject] private ISedesRepository Sedes { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    // Categorías agrupadas por prefijo de acción + sus acciones conocidas.
+    private static readonly IReadOnlyDictionary<string, (string Etiqueta, string[] Acciones)> Categorias =
+        new Dictionary<string, (string, string[])>
+        {
+            ["caja."] = ("Caja", ["caja.abierta", "caja.cerrada", "caja.ingreso_manual", "caja.egreso_manual"]),
+            ["venta."] = ("Ventas POS", ["venta.creada", "venta.cancelada"]),
+            ["membresia."] = ("Membresías", ["membresia.creada", "membresia.congelada", "membresia.cancelada"]),
+            ["socio."] = ("Socios", ["socio.creado", "socio.editado", "socio.estado_cambiado", "socio.eliminado"]),
+            ["cobranza."] = ("Cobranza", ["cobranza.abono", "cobranza.recordatorio"]),
+            ["acceso."] = ("Acceso", ["acceso.registrar"]),
+            ["plan."] = ("Planes", ["plan.creado", "plan.editado", "plan.desactivado", "plan.activado"]),
+            ["producto."] = ("Productos", ["producto.creado", "producto.editado", "producto.desactivado", "producto.activado", "producto.stock_ajustado"]),
+        };
+
+    private bool _cargando;
+    private bool _showSede;
+    private long _sedeSeleccionada;
+    private List<Sede> _sedes = [];
+    private List<Usuario> _usuarios = [];
+
+    private DateTime? _desde;
+    private DateTime? _hasta;
+    private string _categoria = "";
+    // Acción exacta seleccionada; SIEMPRE relativa a la categoría vigente.
+    private string _accion = "";
+    private long? _idUsuario;
+
+    private List<BitacoraHistorialDto> _filas = [];
+    private int _pagina = 1;
+    private int _tamanoPagina = TamanosPagina.Default;
+    private int _totalRegistros;
+    private int _totalPaginas;
+
+    private BitacoraHistorialDto? _detalle;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Authz.RequierePermisoAsync(sesion.Token, PermisoCatalogo.AccesoVerBitacora);
+        }
+        catch (BusinessException)
+        {
+            Feedback.ShowError("No tienes permiso para ver la bitácora");
+            return;
+        }
+
+        _desde = DateTime.Today.AddDays(-7);
+        _showSede = sesion.IdSede is null;
+        if (_showSede)
+        {
+            try
+            {
+                _sedes = (await Sedes.GetActivasAsync()).ToList();
+            }
+            catch
+            {
+                _sedes = [];
+            }
+            _sedeSeleccionada = _sedes.FirstOrDefault()?.IdSede ?? 0;
+        }
+
+        try
+        {
+            _usuarios = (await UsuariosRepo.GetActivosAsync()).ToList();
+        }
+        catch
+        {
+            _usuarios = [];
+        }
+
+        await CargarAsync();
+    }
+
+    public void Dispose()
+    {
+        // Sin recursos propios hoy; simetría con las demás páginas con debounce.
+    }
+
+    private async Task OnSedeChangedAsync(long value)
+    {
+        _sedeSeleccionada = value;
+        await CargarAsync();
+    }
+
+    /// <summary>Cambio de rango de fechas: los date pickers disparan al cerrar.
+    /// Reset de página a 1.</summary>
+    private async Task OnDesdeChangedAsync(DateTime? value)
+    {
+        _desde = value;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnHastaChangedAsync(DateTime? value)
+    {
+        _hasta = value;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnCategoriaChangedAsync(string categoria)
+    {
+        _categoria = categoria ?? "";
+        // RESET obligatorio: la acción seleccionada podía pertenecer a la
+        // categoría anterior y ya no estaría entre las opciones válidas.
+        _accion = "";
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnAccionChangedAsync(string accion)
+    {
+        _accion = accion ?? "";
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnUsuarioChangedAsync(long? value)
+    {
+        _idUsuario = value == 0 ? null : value;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnTamanoPaginaChangedAsync(int value)
+    {
+        _tamanoPagina = value;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnPaginaChangedAsync(int value)
+    {
+        _pagina = value;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        _cargando = true;
+        try
+        {
+            var filtros = new BitacoraFiltros
+            {
+                Desde = AIsoUtcInicioDia(_desde),
+                Hasta = AIsoUtcFinDia(_hasta),
+                Categoria = _categoria.Length > 0 ? _categoria : null,
+                // Solo envía acción exacta si hay categoría elegida y coincide.
+                Accion = _accion.Length > 0 ? _accion : null,
+                IdUsuario = _idUsuario,
+            };
+            var resultado = await Bitacora.BuscarAsync(
+                sesion.Token, filtros, _pagina, _tamanoPagina,
+                _showSede ? _sedeSeleccionada : null);
+            _filas = resultado.Items.ToList();
+            _totalRegistros = resultado.TotalRegistros;
+            _totalPaginas = resultado.TotalPaginas;
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo cargar la bitácora");
+        }
+        finally
+        {
+            _cargando = false;
+            StateHasChanged();
+        }
+    }
+
+    private string ClaseBadge(string accion)
+    {
+        var prefijo = Categorias.Keys.FirstOrDefault(k => accion.StartsWith(k, StringComparison.Ordinal));
+        return prefijo switch
+        {
+            "caja." => "status-info",
+            "venta." => "status-success",
+            "membresia." => "status-info",
+            "socio." => "status-warning",
+            "cobranza." => "status-warning",
+            "acceso." => "status-info",
+            "plan." => "status-success",
+            "producto." => "status-warning",
+            _ => "status-info",
+        };
+    }
+
+    /// <summary>Los valores se escriben como pares clave:valor separados por '|'
+    /// (convención de RegistrarBitacora). Si no parsean, se muestra crudo.</summary>
+    private static List<KeyValuePair<string, string>> ParesDe(string? valor)
+    {
+        var pares = new List<KeyValuePair<string, string>>();
+        if (string.IsNullOrEmpty(valor))
+        {
+            return pares;
+        }
+
+        foreach (var parte in valor.Split('|'))
+        {
+            var idx = parte.IndexOf(':');
+            if (idx > 0)
+            {
+                pares.Add(new KeyValuePair<string, string>(parte[..idx], parte[(idx + 1)..]));
+            }
+            else
+            {
+                pares.Add(new KeyValuePair<string, string>("detalle", parte));
+            }
+        }
+        return pares;
+    }
+
+    private static string FormatearFecha(string iso)
+    {
+        if (DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dto))
+        {
+            return dto.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.GetCultureInfo("es-MX"));
+        }
+        return iso;
+    }
+
+    private static string? AIsoUtcInicioDia(DateTime? fechaLocal) =>
+        fechaLocal is null ? null : ToIsoUtc(fechaLocal.Value.Date);
+
+    private static string? AIsoUtcFinDia(DateTime? fechaLocal) =>
+        fechaLocal is null ? null : ToIsoUtc(fechaLocal.Value.Date.AddDays(1).AddMilliseconds(-1));
+
+    private static string ToIsoUtc(DateTime local)
+    {
+        var utc = local.Kind == DateTimeKind.Utc ? local : local.ToUniversalTime();
+        return utc.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
+    }
+}

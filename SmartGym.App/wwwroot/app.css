@@ -1614,3 +1614,15 @@ table.data-table {
         position: static;
     }
 }
+
+/* ---------- Bitacora ----------
+   Detalle de valores anterior/nuevo como pares clave:valor legibles. */
+.bitacora-valores {
+    margin: 0 0 0.75rem;
+    padding-left: 1.25rem;
+}
+
+.bitacora-valores li {
+    margin-bottom: 0.25rem;
+    overflow-wrap: anywhere;
+}
