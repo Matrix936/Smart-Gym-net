@@ -9,14 +9,23 @@ using Microsoft.Extensions.Logging;
 using MudBlazor;
 using MudBlazor.Services;
 using Plugin.Maui.Audio;
+using System.Globalization;
 
 namespace SmartGym.App;
 
 public static class MauiProgram
 {
-	public static MauiApp CreateMauiApp()
-	{
-		var builder = MauiApp.CreateBuilder();
+public static MauiApp CreateMauiApp()
+{
+	// Convención del proyecto: formato México (punto decimal, $ MXN, dd/mm/yyyy).
+	// Fijar ANTES de construir nada: los MudNumericField heredan la cultura del
+	// hilo; sin esto, en equipos con otra configuración regional los campos de
+	// precio esperan/esperaban coma y contradecían a los helpers es-MX de UI.
+	var culturaMx = new CultureInfo("es-MX");
+	CultureInfo.DefaultThreadCurrentCulture = culturaMx;
+	CultureInfo.DefaultThreadCurrentUICulture = culturaMx;
+
+	var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
 			.ConfigureFonts(fonts =>
