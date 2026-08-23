@@ -1,0 +1,46 @@
+/* ============================================================
+   Submenús de página (Mi Perfil, Configuración).
+   Fix de render WebView2: estas son las únicas pantallas con DOS
+   paneles backdrop-filter lado a lado (submenú + formulario).
+   El blur del submenú + las transiciones translúcidas de .sg-nav-item
+   al hacer hover/scroll provocaban parpadeo con cortes verticales,
+   exclusivo de esta disposición (Dashboard tiene más paneles pero
+   apilados/en grilla y sin ítems interactivos junto a un formulario).
+   Solución: submenú SIN blur, fondos opacos contra --color-bg y sin
+   transiciones. La línea indicadora necesita padding-left extra en los
+   ítems porque aquí no hay icono de 34px que separe (a diferencia del
+   sidebar), y sin ese aire la barra quedaba pegada al texto.
+   ============================================================ */
+
+.sg-page-subnav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    width: 220px;
+    flex-shrink: 0;
+    padding: 0.6rem 0.5rem;
+    border-radius: var(--glass-radius);
+    border: var(--glass-border);
+    /* Opaco contra el fondo real: sin capa alpha sobre blur no hay recomposición costosa. */
+    background: color-mix(in srgb, var(--color-text) 6%, var(--color-bg));
+}
+
+.sg-page-subnav .sg-nav-item {
+    width: 100%;
+    margin-bottom: 0;          /* el gap del contenedor ya separa */
+    padding-left: 20px;        /* barra indicadora (x=5..8px) sin tocar el texto */
+    border-radius: var(--radius-md);
+    transition: none;          /* la transición era el disparador del parpadeo */
+}
+
+.sg-page-subnav .sg-nav-item:hover {
+    background: color-mix(in srgb, var(--color-text) 8%, var(--color-bg));
+}
+
+.sg-page-subnav .sg-nav-item.active {
+    background: color-mix(in srgb, var(--color-primary) 16%, var(--color-bg));
+}
+
+.sg-page-subnav .sg-nav-item.active:hover {
+    background: color-mix(in srgb, var(--color-primary) 24%, var(--color-bg));
+}
