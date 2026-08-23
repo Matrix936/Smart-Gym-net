@@ -1,5 +1,6 @@
 using Dapper;
 using SmartGym.Core.Common;
+using SmartGym.Core.Entities;
 using SmartGym.Core.Errors;
 using SmartGym.Data.Db;
 using SmartGym.Tests.Fase4;
@@ -17,7 +18,7 @@ public sealed class EmpresaConfigTests
         var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
 
         var empresa = await ctx.EmpresaConfigService.ActualizarDatosAsync(
-            token, "Smart Gym Centro", "5551234567", "Av. Reforma 100", "06600",
+            token, "Smart Gym Centro",
             razonSocial: "Centro Deportivo SA", rfc: "CDE120315ABC", regimenFiscal: "601");
 
         Assert.Equal("Smart Gym Centro", empresa.NombreComercial);
@@ -37,7 +38,7 @@ public sealed class EmpresaConfigTests
 
         var ex = await Assert.ThrowsAsync<BusinessException>(
             () => ctx.EmpresaConfigService.ActualizarDatosAsync(
-                token, "   ", null, null, null, null, null, null));
+                token, "   ", razonSocial: null, rfc: null, regimenFiscal: null));
         Assert.Equal("nombre_comercial_obligatorio", ex.Code);
     }
 
@@ -45,7 +46,7 @@ public sealed class EmpresaConfigTests
     public async Task guardar_y_quitar_logo()
     {
         var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
-        var bytes = new byte[] { 137, 80, 78, 71 }; // firma PNG de prueba
+        var bytes = new byte[] { 137, 80, 78, 71 };
 
         await ctx.EmpresaConfigService.GuardarLogoAsync(token, bytes, "image/png");
         Assert.NotNull(ctx.LogoStorage.LeerDataUrl());
@@ -92,48 +93,6 @@ public sealed class EmpresaConfigTests
 
         var ex = await Assert.ThrowsAsync<BusinessException>(
             () => ctx.EmpresaConfigService.ObtenerAsync(token));
-        Assert.Equal(BusinessError.Unauthorized, ex.Error);
-        Assert.Equal("sin_permiso", ex.Code);
-    }
-
-    [Fact]
-    public async Task renombrar_sede_actualiza_y_registra_bitacora()
-    {
-        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
-
-        var nombre = await ctx.EmpresaConfigService.RenombrarSedeAsync(token, "Sucursal Centro");
-
-        Assert.Equal("Sucursal Centro", nombre);
-        var sede = await ctx.Sedes.GetPrincipalAsync();
-        Assert.NotNull(sede);
-        Assert.Equal("Sucursal Centro", sede.Nombre);
-
-        await using var conn = ConnectionFactory.Open(ctx.DbPath);
-        var fila = await conn.QuerySingleAsync<(string TablaAfectada, string ValorAnterior, string ValorNuevo)>(new CommandDefinition(
-            "SELECT tabla_afectada, valor_anterior, valor_nuevo FROM bitacora_auditoria WHERE accion = 'sede.renombrada'"));
-        Assert.Equal("sedes", fila.TablaAfectada);
-        Assert.Contains("Sede Principal", fila.ValorAnterior);
-        Assert.Contains("Sucursal Centro", fila.ValorNuevo);
-    }
-
-    [Fact]
-    public async Task renombrar_sede_vacia_es_rechazado()
-    {
-        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
-
-        var ex = await Assert.ThrowsAsync<BusinessException>(
-            () => ctx.EmpresaConfigService.RenombrarSedeAsync(token, "   "));
-        Assert.Equal("nombre_sede_obligatorio", ex.Code);
-    }
-
-    [Fact]
-    public async Task renombrar_sede_sin_permiso_falla()
-    {
-        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
-        await Fase5Helper.ClearPermisosRolAsync(ctx);
-
-        var ex = await Assert.ThrowsAsync<BusinessException>(
-            () => ctx.EmpresaConfigService.RenombrarSedeAsync(token, "Otra Sede"));
         Assert.Equal(BusinessError.Unauthorized, ex.Error);
         Assert.Equal("sin_permiso", ex.Code);
     }

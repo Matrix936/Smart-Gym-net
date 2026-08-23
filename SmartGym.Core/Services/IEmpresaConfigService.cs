@@ -1,16 +1,21 @@
+using SmartGym.Core.Common;
 using SmartGym.Core.Entities;
 
 namespace SmartGym.Core.Services;
 
 public interface IEmpresaConfigService
 {
-    /// <summary>Config de empresa + logo actual (data URL para preview en UI).</summary>
-    Task<(EmpresaConfigFiscal Empresa, string? LogoDataUrl)> ObtenerAsync(string token, CancellationToken ct = default);
+    /// <summary>Empresa (fila única) + datos de contacto de la sede del usuario + logo actual.</summary>
+    Task<(EmpresaConfigFiscal Empresa, Sede Sede, string? LogoDataUrl)> ObtenerAsync(
+        string token, CancellationToken ct = default);
 
-    /// <summary>Guarda los datos editables de la empresa (fila única creada por el SetupWizard).</summary>
-    Task<EmpresaConfigFiscal> ActualizarDatosAsync(string token, string nombreComercial, string? telefono,
-        string? direccion, string? codigoPostal, string? razonSocial, string? rfc, string? regimenFiscal,
-        CancellationToken ct = default);
+    /// <summary>Datos fiscales/comerciales de la empresa (nombre, razón social, RFC, régimen).</summary>
+    Task<EmpresaConfigFiscal> ActualizarDatosAsync(string token, string nombreComercial,
+        string? razonSocial, string? rfc, string? regimenFiscal, CancellationToken ct = default);
+
+    /// <summary>Datos de contacto de la sede: dirección, teléfono y código postal.</summary>
+    Task GuardarContactoSedeAsync(string token, string? direccion, string? telefono,
+        string? codigoPostal, long? idSedeFrontend = null, CancellationToken ct = default);
 
     /// <summary>Guarda/sube un nuevo logo (reemplaza al anterior, limpia huérfanos).</summary>
     Task GuardarLogoAsync(string token, byte[] bytes, string mime, CancellationToken ct = default);
@@ -23,10 +28,6 @@ public interface IEmpresaConfigService
 
     Task<string?> ObtenerImpresoraAsync(string token, CancellationToken ct = default);
 
-    /// <summary>
-    /// Renombra la sede principal (la fila sembrada como "Sede Principal").
-    /// Reutiliza ISedesRepository.RenombrarAsync; sin unicidad forzada porque
-    /// en una instalación típica solo existe una sede (mismo criterio del setup).
-    /// </summary>
-    Task<string> RenombrarSedeAsync(string token, string nombreSede, CancellationToken ct = default);
+    /// <summary>Renombra la sede principal (passthrough con gate de sesión/permiso).</summary>
+    Task<string> RenombrarSedeAsync(string token, string nombre, CancellationToken ct = default);
 }

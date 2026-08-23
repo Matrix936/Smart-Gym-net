@@ -18,7 +18,7 @@ public sealed class SedesRepository : RepositoryBase, ISedesRepository
         await using var conn = ConnectionFactory.Open(DbPath);
         return await conn.QuerySingleOrDefaultAsync<Sede>(
             new CommandDefinition(
-                "SELECT id_sede, nombre, direccion, telefono, horario_apertura, horario_cierre, " +
+                "SELECT id_sede, nombre, direccion, telefono, codigo_postal, horario_apertura, horario_cierre, " +
                 "es_activa, updated_at, sincronizado, deleted_at " +
                 "FROM sedes WHERE id_sede = @id AND deleted_at IS NULL",
                 new { id = idSede }, cancellationToken: ct));
@@ -29,7 +29,7 @@ public sealed class SedesRepository : RepositoryBase, ISedesRepository
         await using var conn = ConnectionFactory.Open(DbPath);
         return await conn.QuerySingleOrDefaultAsync<Sede>(
             new CommandDefinition(
-                "SELECT id_sede, nombre, direccion, telefono, horario_apertura, horario_cierre, " +
+                "SELECT id_sede, nombre, direccion, telefono, codigo_postal, horario_apertura, horario_cierre, " +
                 "es_activa, updated_at, sincronizado, deleted_at " +
                 "FROM sedes WHERE es_activa = 1 AND deleted_at IS NULL " +
                 "ORDER BY id_sede ASC LIMIT 1",
@@ -41,7 +41,7 @@ public sealed class SedesRepository : RepositoryBase, ISedesRepository
         await using var conn = ConnectionFactory.Open(DbPath);
         var rows = await conn.QueryAsync<Sede>(
             new CommandDefinition(
-                "SELECT id_sede, nombre, direccion, telefono, horario_apertura, horario_cierre, " +
+                "SELECT id_sede, nombre, direccion, telefono, codigo_postal, horario_apertura, horario_cierre, " +
                 "es_activa, updated_at, sincronizado, deleted_at " +
                 "FROM sedes WHERE es_activa = 1 AND deleted_at IS NULL ORDER BY nombre",
                 cancellationToken: ct));
@@ -77,6 +77,18 @@ public sealed class SedesRepository : RepositoryBase, ISedesRepository
             "UPDATE sedes SET nombre = @nombre, updated_at = @updatedAt, sincronizado = 0 " +
             "WHERE id_sede = @id AND deleted_at IS NULL",
             new { id = idSede, nombre, updatedAt = DateHelper.NowIsoUtc() },
+            cancellationToken: ct));
+    }
+
+    public async Task ActualizarContactoAsync(long idSede, string? direccion, string? telefono,
+        string? codigoPostal, string updatedAt, CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        await conn.ExecuteAsync(new CommandDefinition(
+            "UPDATE sedes SET direccion = @direccion, telefono = @telefono, codigo_postal = @codigoPostal, " +
+            "updated_at = @updatedAt, sincronizado = 0 " +
+            "WHERE id_sede = @id AND deleted_at IS NULL",
+            new { id = idSede, direccion, telefono, codigoPostal, updatedAt },
             cancellationToken: ct));
     }
 }

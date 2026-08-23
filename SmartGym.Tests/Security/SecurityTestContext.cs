@@ -121,7 +121,7 @@ internal sealed class SecurityTestContext : IDisposable
         MaquinariaService = new MaquinariaService(Auth, Authz, Maquinaria, SedeResolution, Bitacora);
         FinanzasService = new FinanzasService(Auth, Authz, FinanzasRepo, SedeResolution);
         EmpresaConfigService = new EmpresaConfigService(
-            Auth, Authz, Empresa, LogoStorage, this.Configuracion, Bitacora, Sedes);
+            Auth, Authz, Empresa, Sedes, LogoStorage, Configuracion, Bitacora, SedeResolution);
     }
 
     public void Dispose()

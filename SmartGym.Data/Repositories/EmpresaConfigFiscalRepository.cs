@@ -7,6 +7,9 @@ namespace SmartGym.Data.Repositories;
 
 public sealed class EmpresaConfigFiscalRepository : RepositoryBase, IEmpresaConfigFiscalRepository
 {
+    private const string Select = "SELECT id, nombre_comercial, razon_social, rfc, regimen_fiscal, " +
+        "logo_path, updated_at, sincronizado, deleted_at FROM empresa_config_fiscal ";
+
     public EmpresaConfigFiscalRepository(string dbPath) : base(dbPath)
     {
     }
@@ -16,9 +19,7 @@ public sealed class EmpresaConfigFiscalRepository : RepositoryBase, IEmpresaConf
         await using var conn = ConnectionFactory.Open(DbPath);
         return await conn.QuerySingleOrDefaultAsync<EmpresaConfigFiscal>(
             new CommandDefinition(
-                "SELECT id, nombre_comercial, telefono, direccion, codigo_postal, razon_social, rfc, " +
-                "regimen_fiscal, logo_path, updated_at, sincronizado, deleted_at " +
-                "FROM empresa_config_fiscal WHERE deleted_at IS NULL ORDER BY id ASC LIMIT 1",
+                Select + "WHERE deleted_at IS NULL ORDER BY id ASC LIMIT 1",
                 cancellationToken: ct));
     }
 
@@ -34,16 +35,12 @@ public sealed class EmpresaConfigFiscalRepository : RepositoryBase, IEmpresaConf
         {
             await conn.ExecuteAsync(
                 new CommandDefinition(
-                    "INSERT INTO empresa_config_fiscal (nombre_comercial, telefono, direccion, codigo_postal, " +
-                    "razon_social, rfc, regimen_fiscal, logo_path, updated_at, sincronizado) " +
-                    "VALUES (@NombreComercial, @Telefono, @Direccion, @CodigoPostal, " +
-                    "@RazonSocial, @Rfc, @RegimenFiscal, @LogoPath, @UpdatedAt, @Sincronizado);",
+                    "INSERT INTO empresa_config_fiscal (nombre_comercial, razon_social, rfc, regimen_fiscal, " +
+                    "logo_path, updated_at, sincronizado) " +
+                    "VALUES (@NombreComercial, @RazonSocial, @Rfc, @RegimenFiscal, @LogoPath, @UpdatedAt, @Sincronizado);",
                     new
                     {
                         empresa.NombreComercial,
-                        empresa.Telefono,
-                        empresa.Direccion,
-                        empresa.CodigoPostal,
                         empresa.RazonSocial,
                         empresa.Rfc,
                         empresa.RegimenFiscal,
@@ -58,21 +55,16 @@ public sealed class EmpresaConfigFiscalRepository : RepositoryBase, IEmpresaConf
             await conn.ExecuteAsync(
                 new CommandDefinition(
                     "UPDATE empresa_config_fiscal " +
-                    "SET nombre_comercial = @NombreComercial, telefono = @Telefono, direccion = @Direccion, " +
-                    "codigo_postal = @CodigoPostal, razon_social = @RazonSocial, rfc = @Rfc, " +
-                    "regimen_fiscal = @RegimenFiscal, logo_path = @LogoPath, sincronizado = @Sincronizado " +
+                    "SET nombre_comercial = @NombreComercial, razon_social = @RazonSocial, rfc = @Rfc, " +
+                    "regimen_fiscal = @RegimenFiscal, logo_path = @LogoPath " +
                     "WHERE id = @Id;",
                     new
                     {
                         empresa.NombreComercial,
-                        empresa.Telefono,
-                        empresa.Direccion,
-                        empresa.CodigoPostal,
                         empresa.RazonSocial,
                         empresa.Rfc,
                         empresa.RegimenFiscal,
                         empresa.LogoPath,
-                        empresa.Sincronizado,
                         Id = existing.Value,
                     },
                     cancellationToken: ct));
