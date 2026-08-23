@@ -634,7 +634,7 @@ INSERT OR IGNORE INTO roles (nombre, descripcion) VALUES ('SUPERADMIN', 'Dueño 
 
 INSERT INTO sedes (nombre, es_activa)
 SELECT 'Sede Principal', 1
-WHERE NOT EXISTS (SELECT 1 FROM sedes WHERE nombre = 'Sede Principal' AND deleted_at IS NULL);
+WHERE NOT EXISTS (SELECT 1 FROM sedes WHERE deleted_at IS NULL);
 
 -- ============================================================================
 -- FIN

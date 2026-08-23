@@ -55,10 +55,20 @@ public sealed class SetupService : ISetupService
         // validación de duplicados: en una instalación fresca es la única fila
         // y sedes.nombre no tiene UNIQUE (no hay CRUD de sedes todavía).
         var nombreSede = datos.NombreSede?.Trim();
+        var sedesActivas = await _sedes.GetActivasAsync(ct);
+        if (sedesActivas.Count > 1)
+        {
+            // Defensa: la BD está contaminada (p.ej. por el bug histórico del
+            // seed que re-insertaba 'Sede Principal' tras un renombre). Nunca
+            // completar un setup sobre ese estado — requiere limpieza manual.
+            throw BusinessException.Conflict(
+                "La base de datos tiene más de una sede activa; limpia las sedes duplicadas antes de completar el setup",
+                "sedes_duplicadas");
+        }
+        var sede = await _sedes.GetPrincipalAsync(ct)
+            ?? throw BusinessException.NotFound("No hay sede inicial en el seed", "sede_inicial_faltante");
         if (!string.IsNullOrEmpty(nombreSede))
         {
-            var sede = await _sedes.GetPrincipalAsync(ct)
-                ?? throw BusinessException.NotFound("No hay sede inicial en el seed", "sede_inicial_faltante");
             await _sedes.RenombrarAsync(sede.IdSede, nombreSede, ct);
         }
 

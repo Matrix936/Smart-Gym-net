@@ -632,9 +632,13 @@ INSERT OR IGNORE INTO roles (nombre, descripcion) VALUES ('SUPERADMIN', 'Dueño 
 -- en el primer arranque — no se hardcodea aquí para que agregar una acción
 -- nueva sea un cambio de código versionado, no una migración manual de datos.
 
+-- Seed idempotente REAL: si el setup renombro la sede (p.ej. "Sucursal
+-- Centro"), filtrar por nombre = 'Sede Principal' re-insertaba una fila
+-- duplicada en cada arranque. La condicion correcta es por EXISTENCIA de
+-- cualquier sede activa, no por nombre.
 INSERT INTO sedes (nombre, es_activa)
 SELECT 'Sede Principal', 1
-WHERE NOT EXISTS (SELECT 1 FROM sedes WHERE nombre = 'Sede Principal' AND deleted_at IS NULL);
+WHERE NOT EXISTS (SELECT 1 FROM sedes WHERE deleted_at IS NULL);
 
 -- ============================================================================
 -- Maquinaria: equipo fisico del gimnasio por sede (no es stock vendible —
