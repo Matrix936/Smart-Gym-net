@@ -147,12 +147,6 @@
                                             <MudIcon Icon="@Icons.Material.Filled.Fingerprint" Size="Size.Small" />
                                             @(TieneHuella(socio.IdSocio) ? "Reemplazar huella" : "Registrar huella")
                                         </MudMenuItem>
-                                        <MudMenuItem OnClick="() => AbrirVenderMembresia(socio)">
-                                            <MudIcon Icon="@Icons.Material.Filled.CardMembership" Size="Size.Small" /> Vender membresía
-                                        </MudMenuItem>
-                                        <MudMenuItem OnClick="() => AbrirMembresias(socio)">
-                                            <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Small" /> Ver membresías
-                                        </MudMenuItem>
                                         <MudMenuItem OnClick="() => AbrirAccesoManual(socio)">
                                             <MudIcon Icon="@Icons.Material.Filled.Key" Size="Size.Small" /> Forzar acceso
                                         </MudMenuItem>
@@ -226,20 +220,7 @@
                              OnSaved="RecargarDespuesDeGuardar" />
 }
 
-@if (_venderAbierto)
-{
-    <VenderMembresiaDialog Open="true"
-                            Socio="_socioVender"
-                            OnClose="CerrarVenderMembresia"
-                            OnSaved="RecargarDespuesDeGuardar" />
-}
-
-@if (_membresiasAbierto)
-{
-    <SocioMembresiasDialog Open="true"
-                            Socio="_socioMembresias"
-                            OnClose="CerrarMembresias" />
-}
+@* La venta y gestión de membresías vive en /membresias (MembresiasPage). *@
 
 <ConfirmDialog IsOpen="_confirmar is not null"
                Titulo="@_confirmar?.Titulo"
@@ -277,11 +258,6 @@
     private bool _enrolarAbierto;
     private Socio? _socioEnrolar;
 
-    private bool _venderAbierto;
-    private Socio? _socioVender;
-
-    private bool _membresiasAbierto;
-    private Socio? _socioMembresias;
 
     private sealed record ConfirmarTarea(string Titulo, string Mensaje, string TextoConfirmar, Func<Task> Accion);
     private ConfirmarTarea? _confirmar;
@@ -403,30 +379,6 @@
     {
         _enrolarAbierto = false;
         _socioEnrolar = null;
-    }
-
-    private void AbrirVenderMembresia(Socio socio)
-    {
-        _socioVender = socio;
-        _venderAbierto = true;
-    }
-
-    private void CerrarVenderMembresia()
-    {
-        _venderAbierto = false;
-        _socioVender = null;
-    }
-
-    private void AbrirMembresias(Socio socio)
-    {
-        _socioMembresias = socio;
-        _membresiasAbierto = true;
-    }
-
-    private void CerrarMembresias()
-    {
-        _membresiasAbierto = false;
-        _socioMembresias = null;
     }
 
     private async Task RecargarDespuesDeGuardar() => await CargarAsync();
