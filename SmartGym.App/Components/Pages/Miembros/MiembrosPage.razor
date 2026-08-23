@@ -60,7 +60,6 @@
                 <tr>
                     <th>Nombre</th>
                     <th>Teléfono</th>
-                    <th>Email</th>
                     <th style="text-align: center;">Estado</th>
                     <th style="text-align: center;">Huella</th>
                     <th>Último acceso</th>
@@ -71,13 +70,13 @@
                 @if (_cargando)
                 {
                     <tr>
-                        <td colspan="7" class="empty-cell">Cargando...</td>
+                        <td colspan="6" class="empty-cell">Cargando...</td>
                     </tr>
                 }
                 else if (_miembros.Count == 0)
                 {
                     <tr>
-                        <td colspan="7" class="empty-cell">
+                        <td colspan="6" class="empty-cell">
                             @(_busqueda.Length > 0 || _filtroEstado.Length > 0 ? "Sin resultados para los filtros aplicados" : "No hay miembros registrados")
                         </td>
                     </tr>
@@ -89,7 +88,6 @@
                         <tr>
                             <td><strong>@NombreCompleto(socio)</strong></td>
                             <td class="muted-cell">@(socio.Telefono ?? "—")</td>
-                            <td class="muted-cell">@(socio.Email ?? "—")</td>
                             <td style="text-align: center;">
                                 <span class="status-badge @ClaseEstado(socio.Estado)">@EtiquetaEstado(socio.Estado)</span>
                             </td>
