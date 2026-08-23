@@ -20,22 +20,19 @@
 
 <div class="glass-panel">
     <div class="page-toolbar">
-        @if (_showSede && _sedes.Count > 1)
-        {
-            <MudSelect T="long"
-                       Label="Sede"
-                       Variant="Variant.Outlined"
-                       Margin="Margin.Dense"
-                       OuterClass="filter-field"
-                       RelativeWidth="DropdownWidth.Adaptive"
-                       Value="_sedeSeleccionada"
-                       ValueChanged="OnSedeChangedAsync">
-                @foreach (var sede in _sedes)
-                {
-                    <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
-                }
-            </MudSelect>
-        }
+        @* Búsqueda pegada a la izquierda; filtros primarios y secundarios a la
+           derecha. La sede es un filtro secundario APAGADO por defecto (patrón
+           FiltrosDesplegables): encenderla muestra "Todas las sedes" y solo
+           filtra al elegir una específica. *@
+        <MudTextField T="string"
+                      Class="search-field"
+                      Placeholder="Buscar por nombre del socio..."
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Margin="Margin.Dense"
+                      Immediate="true"
+                      Value="@_nombreSocio"
+                      ValueChanged="OnBusquedaChanged" />
         <MudDatePicker T="DateTime?"
                        Label="Desde"
                        Variant="Variant.Outlined"
@@ -52,6 +49,23 @@
                              VisiblesIniciales="_visiblesIniciales"
                              ConteoAplicados="ConteoAplicados"
                              VisiblesChanged="OnVisiblesChangedAsync" />
+        @if (_showSede && _sedes.Count > 1 && _filtrosVisibles.Contains("sede"))
+        {
+            <MudSelect T="long"
+                       Label="Sede"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       OuterClass="filter-field"
+                       RelativeWidth="DropdownWidth.Adaptive"
+                       Value="_sedeSeleccionada"
+                       ValueChanged="OnSedeChangedAsync">
+                <MudSelectItem Value="@SedeFiltroTodas">Todas las sedes</MudSelectItem>
+                @foreach (var sede in _sedes)
+                {
+                    <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
+                }
+            </MudSelect>
+        }
         @if (_filtrosVisibles.Contains("estado"))
         {
             <MudSelect T="string"
@@ -82,15 +96,6 @@
                 <MudSelectItem Value="@AccesoMetodos.Manual">Manual</MudSelectItem>
             </MudSelect>
         }
-        <MudTextField T="string"
-                      Class="search-field"
-                      Placeholder="Buscar por nombre del socio..."
-                      Adornment="Adornment.Start"
-                      AdornmentIcon="@Icons.Material.Filled.Search"
-                      Margin="Margin.Dense"
-                      Immediate="true"
-                      Value="@_nombreSocio"
-                      ValueChanged="OnBusquedaChanged" />
     </div>
 
     <div class="table-wrap">
@@ -187,17 +192,28 @@
     private CancellationTokenSource? _debounce;
 
     // FiltrosDesplegables: sin filtros visibles por defecto — las fechas
-    // (ultimos 7 dias) cubren el caso de uso diario; estado/metodo bajo demanda.
+    // (ultimos 7 dias) cubren el caso de uso diario; estado/metodo/sede bajo demanda.
     private readonly List<FiltrosDesplegables.FiltroDefinicion> _definicionesFiltros =
-        [new("estado", "Estado"), new("metodo", "Método")];
+        [new("estado", "Estado"), new("metodo", "Método"), new("sede", "Sede")];
     private static readonly string[] _visiblesIniciales = [];
     private HashSet<string> _filtrosVisibles = [];
 
     private int ConteoAplicados =>
-        (_filtroEstado.Length > 0 ? 1 : 0) + (_filtroMetodo.Length > 0 ? 1 : 0);
+        (_filtroEstado.Length > 0 ? 1 : 0) + (_filtroMetodo.Length > 0 ? 1 : 0) +
+        (SedeActiva is not null ? 1 : 0);
 
     private bool _showSede;
     private long _sedeSeleccionada;
+
+    /// <summary>0 = "Todas las sedes" (no se envía idSede al servicio).</summary>
+    private const long SedeFiltroTodas = 0;
+
+    /// <summary>idSede efectivo: solo cuando el filtro de sede está encendido y con sede elegida.</summary>
+    private long? SedeActiva =>
+        _showSede && _filtrosVisibles.Contains("sede") && _sedeSeleccionada > 0
+            ? _sedeSeleccionada
+            : null;
+
     private List<Sede> _sedes = [];
 
     private DateTime? _desde;
@@ -240,7 +256,7 @@
             {
                 _sedes = [];
             }
-            _sedeSeleccionada = _sedes.FirstOrDefault()?.IdSede ?? 0;
+            // Apagado por defecto: 0 = "Todas las sedes" (idSede null al servicio).
         }
 
         await CargarAsync();
@@ -313,6 +329,10 @@
         {
             _filtroMetodo = "";
         }
+        if (!_filtrosVisibles.Contains("sede"))
+        {
+            _sedeSeleccionada = SedeFiltroTodas;
+        }
         _pagina = 1;
         await CargarAsync();
     }
@@ -358,7 +378,7 @@
             };
             var resultado = await Accesos.BuscarAsync(
                 sesion.Token, filtros, _pagina, _tamanoPagina,
-                _showSede ? _sedeSeleccionada : null);
+                SedeActiva);
             _filas = resultado.Items.ToList();
             _totalRegistros = resultado.TotalRegistros;
             _totalPaginas = resultado.TotalPaginas;

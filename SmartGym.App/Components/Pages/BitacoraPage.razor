@@ -22,22 +22,9 @@
 
 <div class="glass-panel">
     <div class="page-toolbar">
-        @if (_showSede && _sedes.Count > 1)
-        {
-            <MudSelect T="long"
-                       Label="Sede"
-                       Variant="Variant.Outlined"
-                       Margin="Margin.Dense"
-                       OuterClass="filter-field"
-                       RelativeWidth="DropdownWidth.Adaptive"
-                       Value="_sedeSeleccionada"
-                       ValueChanged="OnSedeChangedAsync">
-                @foreach (var sede in _sedes)
-                {
-                    <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
-                }
-            </MudSelect>
-        }
+        @* Filtros primarios primero; la sede es un filtro secundario APAGADO
+           por defecto (patrón FiltrosDesplegables): encenderla muestra "Todas
+           las sedes" y solo filtra al elegir una específica. *@
         <MudDatePicker t="DateTime?"
                        Label="Desde"
                        Variant="Variant.Outlined"
@@ -54,6 +41,23 @@
                              VisiblesIniciales="_visiblesIniciales"
                              ConteoAplicados="ConteoAplicados"
                              VisiblesChanged="OnVisiblesChangedAsync" />
+        @if (_showSede && _sedes.Count > 1 && _filtrosVisibles.Contains("sede"))
+        {
+            <MudSelect T="long"
+                       Label="Sede"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       OuterClass="filter-field"
+                       RelativeWidth="DropdownWidth.Adaptive"
+                       Value="_sedeSeleccionada"
+                       ValueChanged="OnSedeChangedAsync">
+                <MudSelectItem Value="@SedeFiltroTodas">Todas las sedes</MudSelectItem>
+                @foreach (var sede in _sedes)
+                {
+                    <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
+                }
+            </MudSelect>
+        }
         @if (_filtrosVisibles.Contains("categoria"))
         {
         <MudSelect T="string"
@@ -267,6 +271,16 @@
     private bool _cargando;
     private bool _showSede;
     private long _sedeSeleccionada;
+
+    /// <summary>0 = "Todas las sedes" (no se envía idSede al servicio).</summary>
+    private const long SedeFiltroTodas = 0;
+
+    /// <summary>idSede efectivo: solo cuando el filtro de sede está encendido y con sede elegida.</summary>
+    private long? SedeActiva =>
+        _showSede && _filtrosVisibles.Contains("sede") && _sedeSeleccionada > 0
+            ? _sedeSeleccionada
+            : null;
+
     private List<Sede> _sedes = [];
     private List<Usuario> _usuarios = [];
 
@@ -277,16 +291,17 @@
     private string _accion = "";
     private long? _idUsuario;
 
-    // FiltrosDesplegables: categoria visible por defecto; accion/usuario ocultos.
+    // FiltrosDesplegables: categoria visible por defecto; accion/usuario/sede ocultos.
     private readonly List<FiltrosDesplegables.FiltroDefinicion> _definicionesFiltros =
-        [new("categoria", "Categoría"), new("accion", "Acción"), new("usuario", "Usuario")];
+        [new("categoria", "Categoría"), new("accion", "Acción"), new("usuario", "Usuario"), new("sede", "Sede")];
     private static readonly string[] _visiblesIniciales = ["categoria"];
     private HashSet<string> _filtrosVisibles = ["categoria"];
 
     private int ConteoAplicados =>
         (_categoria.Length > 0 ? 1 : 0) +
         (_accion.Length > 0 ? 1 : 0) +
-        (_idUsuario is not null ? 1 : 0);
+        (_idUsuario is not null ? 1 : 0) +
+        (SedeActiva is not null ? 1 : 0);
 
     private List<BitacoraHistorialDto> _filas = [];
     private int _pagina = 1;
@@ -326,7 +341,7 @@
             {
                 _sedes = [];
             }
-            _sedeSeleccionada = _sedes.FirstOrDefault()?.IdSede ?? 0;
+            // Apagado por defecto: 0 = "Todas las sedes" (idSede null al servicio).
         }
 
         try
@@ -395,6 +410,10 @@
         {
             _idUsuario = null;
         }
+        if (!_filtrosVisibles.Contains("sede"))
+        {
+            _sedeSeleccionada = SedeFiltroTodas;
+        }
         _pagina = 1;
         await CargarAsync();
     }
@@ -448,7 +467,7 @@
             };
             var resultado = await Bitacora.BuscarAsync(
                 sesion.Token, filtros, _pagina, _tamanoPagina,
-                _showSede ? _sedeSeleccionada : null);
+                SedeActiva);
             _filas = resultado.Items.ToList();
             _totalRegistros = resultado.TotalRegistros;
             _totalPaginas = resultado.TotalPaginas;

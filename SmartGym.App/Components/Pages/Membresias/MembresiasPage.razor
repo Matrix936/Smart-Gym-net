@@ -26,22 +26,10 @@
 
 <div class="glass-panel">
     <div class="page-toolbar">
-        @if (_showSede && _sedes.Count > 1)
-        {
-            <MudSelect T="long"
-                       Label="Sede"
-                       Variant="Variant.Outlined"
-                       Margin="Margin.Dense"
-                       OuterClass="filter-field"
-                       RelativeWidth="DropdownWidth.Adaptive"
-                       Value="_sedeSeleccionada"
-                       ValueChanged="OnSedeChangedAsync">
-                @foreach (var sede in _sedes)
-                {
-                    <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
-                }
-            </MudSelect>
-        }
+        @* Búsqueda pegada a la izquierda; todos los filtros van del otro lado.
+           La sede es un filtro secundario APAGADO por defecto (patrón
+           FiltrosDesplegables): encenderla muestra "Todas las sedes" y solo
+           filtra cuando se elige una específica. *@
         <MudTextField T="string"
                       Class="search-field"
                       Placeholder="Buscar por nombre del socio..."
@@ -55,6 +43,23 @@
                              VisiblesIniciales="_visiblesIniciales"
                              ConteoAplicados="ConteoAplicados"
                              VisiblesChanged="OnVisiblesChangedAsync" />
+        @if (_showSede && _sedes.Count > 1 && _filtrosVisibles.Contains("sede"))
+        {
+            <MudSelect T="long"
+                       Label="Sede"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       OuterClass="filter-field"
+                       RelativeWidth="DropdownWidth.Adaptive"
+                       Value="_sedeSeleccionada"
+                       ValueChanged="OnSedeChangedAsync">
+                <MudSelectItem Value="@SedeFiltroTodas">Todas las sedes</MudSelectItem>
+                @foreach (var sede in _sedes)
+                {
+                    <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
+                }
+            </MudSelect>
+        }
         @if (_filtrosVisibles.Contains("estado"))
         {
             <MudSelect T="string"
@@ -216,17 +221,20 @@
     private CancellationTokenSource? _debounce;
 
     // FiltrosDesplegables: catálogo declarativo + visibilidad en memoria.
-    // Default razonable: Estado visible, Plan oculto hasta que se pida.
+    // Default razonable: Estado visible; Plan y Sede ocultos hasta que se pidan.
     private readonly List<FiltrosDesplegables.FiltroDefinicion> _definicionesFiltros = new()
     {
         new("estado", "Estado"),
         new("plan", "Plan"),
+        new("sede", "Sede"),
     };
     private static readonly string[] _visiblesIniciales = ["estado"];
     private HashSet<string> _filtrosVisibles = ["estado"];
 
     private int ConteoAplicados =>
-        (_filtroEstado.Length > 0 ? 1 : 0) + (_idPlan is not null ? 1 : 0);
+        (_filtroEstado.Length > 0 ? 1 : 0)
+        + (_idPlan is not null ? 1 : 0)
+        + (_showSede && _filtrosVisibles.Contains("sede") && _sedeSeleccionada > 0 ? 1 : 0);
 
     /// <summary>Al ocultar un filtro se limpia su valor: nunca queda un filtro
     /// invisible pero aplicado silenciosamente.</summary>
@@ -241,12 +249,19 @@
         {
             _idPlan = null;
         }
+        if (!_filtrosVisibles.Contains("sede"))
+        {
+            _sedeSeleccionada = 0;
+        }
         _pagina = 1;
         await CargarAsync();
     }
 
     private bool _showSede;
     private long _sedeSeleccionada;
+
+    /// <summary>0 = "Todas las sedes" (no se envía idSede al servicio).</summary>
+    private const long SedeFiltroTodas = 0;
     private List<Sede> _sedes = [];
     private List<PlanMembresia> _planes = [];
 
@@ -293,7 +308,7 @@
             {
                 _sedes = [];
             }
-            _sedeSeleccionada = _sedes.FirstOrDefault()?.IdSede ?? 0;
+            // Apagado por defecto: 0 = "Todas las sedes" (idSede null al servicio).
         }
 
         await CargarAsync();
@@ -363,7 +378,9 @@
                 _idPlan,
                 _pagina,
                 _tamanoPagina,
-                _showSede ? _sedeSeleccionada : null);
+                _showSede && _filtrosVisibles.Contains("sede") && _sedeSeleccionada > 0
+                    ? _sedeSeleccionada
+                    : null);
             _filas = resultado.Items.ToList();
             _totalRegistros = resultado.TotalRegistros;
             _totalPaginas = resultado.TotalPaginas;
