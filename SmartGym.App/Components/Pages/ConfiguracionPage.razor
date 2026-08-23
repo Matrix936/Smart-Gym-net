@@ -63,19 +63,21 @@
                 <div class="form-row">
                     <MudTextField T="string" Label="Nombre comercial *" Variant="Variant.Outlined"
                                   Margin="Margin.Dense" Immediate="true" @bind-Value="_nombreComercial" />
+                    <MudTextField T="string" Label="Teléfono *" Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" Immediate="true" @bind-Value="_telefono" />
+                </div>
+                <div class="form-row">
+                    <MudTextField T="string" Label="Dirección *" Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" Immediate="true" @bind-Value="_direccion" />
+                    <MudTextField T="string" Label="Código postal *" Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" Immediate="true" @bind-Value="_codigoPostal" />
+                </div>
+                <div class="form-row">
+                    <MudTextField T="string" Label="Razón social" Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" Immediate="true" @bind-Value="_razonSocial" />
                     <MudTextField T="string" Label="RFC" Variant="Variant.Outlined" Margin="Margin.Dense"
                                   Immediate="true" @bind-Value="_rfc" />
                 </div>
-                <MudTextField T="string" Label="Razón social" Variant="Variant.Outlined"
-                              Margin="Margin.Dense" Immediate="true" @bind-Value="_razonSocial" />
-                <div class="form-row">
-                    <MudTextField T="string" Label="Teléfono" Variant="Variant.Outlined"
-                                  Margin="Margin.Dense" Immediate="true" @bind-Value="_telefono" />
-                    <MudTextField T="string" Label="Código postal" Variant="Variant.Outlined"
-                                  Margin="Margin.Dense" Immediate="true" @bind-Value="_codigoPostal" />
-                </div>
-                <MudTextField T="string" Label="Dirección" Variant="Variant.Outlined"
-                              Margin="Margin.Dense" Immediate="true" @bind-Value="_direccion" />
                 <MudTextField T="string" Label="Régimen fiscal" Variant="Variant.Outlined"
                               Margin="Margin.Dense" Immediate="true" @bind-Value="_regimenFiscal" />
             </div>
