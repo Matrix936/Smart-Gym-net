@@ -20,17 +20,36 @@
     </TitleContent>
     <DialogContent>
         <div style="margin-top: 0.5rem;">
-            @if (_capturando)
+            @if (_capturando || _resultado is ResultadoVisual.Completado or ResultadoVisual.Error)
             {
-                <div class="access-result access-alert-info" style="margin-top: 1rem; display: flex; align-items: center; gap: 0.75rem;">
-                    <MudProgressCircular Size="Size.Small" Color="Color.Inherit" Indeterminate="true" />
-                    <div>
-                        <div><strong>@EstadoLabel()</strong></div>
-                        <div class="muted">Sigue las instrucciones del lector biométrico</div>
+                @* Silueta de huella con relleno progresivo (clip-path) según las
+                   muestras; completado/error reutilizan los keyframes del Kiosco.
+                   El estado llega por EnrollmentStatusChanged (InvokeAsync). *@
+                <div class="huella-captura @ClaseHuella">
+                    <div class="huella-captura-icono">
+                        <div class="huella-capa huella-capa-base">@((MarkupString)HuellaSvg)</div>
+                        <div class="huella-capa huella-capa-relleno" style="@EstiloRelleno">@((MarkupString)HuellaSvg)</div>
                     </div>
+                    @if (_capturando)
+                    {
+                        <p class="huella-contador">Muestra @_muestrasCapturadas de @_muestrasRequeridas</p>
+                        <p class="muted" style="margin: 0;">@EstadoLabel()</p>
+                    }
                 </div>
             }
-            else if (_ultimoError is not null)
+
+            @if (_capturando && _ultimaEtapa == EnrollmentStage.EsperandoDedo && _muestrasCapturadas == 0)
+            {
+                <div class="access-result access-alert-info" style="margin-top: 1rem;">
+                    Sigue las instrucciones del lector biométrico
+                </div>
+            }
+            else if (_ultimoError is not null && _resultado != ResultadoVisual.Error)
+            {
+                <div class="access-result access-result-ko" style="margin-top: 1rem;">@_ultimoError</div>
+            }
+
+            @if (_resultado == ResultadoVisual.Error && _ultimoError is not null)
             {
                 <div class="access-result access-result-ko" style="margin-top: 1rem;">@_ultimoError</div>
             }
@@ -69,6 +88,49 @@
     // Un socio tiene una sola huella activa (decisión de producto): no hay
     // selección de dedo, el valor es fijo.
     private const string DedoPrincipal = "principal";
+
+    /// <summary>Estado visual del resultado sobre la silueta (relleno congelado + animación).</summary>
+    private enum ResultadoVisual { Ninguno, Completado, Error }
+
+    private ResultadoVisual _resultado = ResultadoVisual.Ninguno;
+
+    private string ClaseHuella => _resultado switch
+    {
+        ResultadoVisual.Completado => "completado",
+        ResultadoVisual.Error => "error",
+        _ => "",
+    };
+
+    /// <summary>Clip del relleno: abajo → arriba, 0% de muestra = tapado al 100%.</summary>
+    private string EstiloRelleno
+    {
+        get
+        {
+            var pct = _muestrasRequeridas == 0
+                ? 0
+                : Math.Clamp(_muestrasCapturadas * 100 / _muestrasRequeridas, 0, 100);
+            if (_resultado == ResultadoVisual.Completado)
+            {
+                pct = 100;
+            }
+            return $"clip-path: inset({100 - pct}% 0 0 0);";
+        }
+    }
+
+    /// <summary>
+    /// Huella estilizada como arcos concéntricos (whorl), trazo coherente con el
+    /// set Solar (stroke currentColor). Se dibuja dos veces: base tenue + capa de
+    /// relleno recortada por clip-path según las muestras capturadas.
+    /// </summary>
+    private const string HuellaSvg = """
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+            <path d="M6,34 A18,18 0 1 1 42,34" />
+            <path d="M11,34 A13,13 0 1 1 37,34" opacity=".85" />
+            <path d="M15.5,34 A8.5,8.5 0 1 1 32.5,34" opacity=".7" />
+            <path d="M19.5,34 A4.5,4.5 0 1 1 28.5,34" opacity=".55" />
+            <circle cx="24" cy="32.5" r="1.6" fill="currentColor" stroke="none" />
+        </svg>
+        """;
 
     private bool _visible;
     private MudDialog _mudDialog = default!;
@@ -120,6 +182,7 @@
     {
         _ultimoError = null;
         _capturando = true;
+        _resultado = ResultadoVisual.Ninguno;
         _muestrasCapturadas = 0;
         _muestrasRequeridas = 4;
         _ultimaEtapa = EnrollmentStage.EsperandoDedo;
@@ -166,11 +229,14 @@
         switch (resultado.Estado)
         {
             case EnrollmentStage.Completado:
+                // Celebración sobre la silueta antes de cerrar.
+                _resultado = ResultadoVisual.Completado;
                 try
                 {
                     await Biometricos.RegistrarTemplateAsync(Socio!.IdSocio, DedoPrincipal, resultado.TemplatePath!);
                     Feedback.ShowSuccess("Huella registrada correctamente");
                     await OnSaved.InvokeAsync();
+                    await Task.Delay(600);
                     await _mudDialog.CloseAsync();
                 }
                 catch
@@ -182,12 +248,14 @@
                 break;
 
             case EnrollmentStage.Duplicado:
+                _resultado = ResultadoVisual.Error; // relleno congelado + shake
                 _ultimoError = "Esta huella ya est\u00e1 registrada para otro socio. Verifica con el titular o contacta al administrador.";
                 Feedback.ShowError(_ultimoError);
                 StateHasChanged();
                 break;
 
             case EnrollmentStage.Error:
+                _resultado = ResultadoVisual.Error;
                 _ultimoError = resultado.Error ?? "Error durante el enrolamiento";
                 Feedback.ShowError(_ultimoError);
                 StateHasChanged();
