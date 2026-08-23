@@ -572,6 +572,14 @@ table.data-table {
     padding: 1.5rem 1.75rem;
 }
 
+/* NOTA (estilos de login de otra sesion): las reglas .auth-logo* y .login-*
+   que siguen pertenecen al bloque de login/logo de la otra sesion IA. Fueron
+   incluidas sin intencion en el commit 77c9473 ("Ventas: Tipo como filtro...")
+   junto con el fix de alineacion del embudo, porque ambas ediciones tocaban
+   app.css en paralelo. Ya estan en main — NO duplicarlas al commitear ese
+   bloque. Ver tambien docs/migracion-dotnet/10 para el patron de inclusion
+   accidental entre sesiones paralelas. */
+
 .auth-logo-wrap {
     display: flex;
     justify-content: center;
