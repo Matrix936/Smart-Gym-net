@@ -94,6 +94,8 @@
             }
         </MudSelect>
         }
+        @if (_filtrosVisibles.Contains("usuario"))
+        {
         <MudSelect T="long?"
                    Label="Usuario"
                    Variant="Variant.Outlined"
