@@ -16,7 +16,7 @@ public sealed class SociosRepository : RepositoryBase, ISociosRepository
 
     private const string SearchWhere =
         "WHERE deleted_at IS NULL " +
-        "AND (@query IS NULL OR nombre LIKE '%' || @query || '%' COLLATE NOCASE " +
+        "AND (@query IS NULL OR sin_acentos(nombre) LIKE '%' || sin_acentos(@query) || '%' COLLATE NOCASE " +
         "OR email LIKE '%' || @query || '%' COLLATE NOCASE " +
         "OR telefono LIKE '%' || @query || '%' COLLATE NOCASE) " +
         "AND (@estado IS NULL OR estado = @estado COLLATE NOCASE) ";

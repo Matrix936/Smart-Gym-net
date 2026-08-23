@@ -58,7 +58,7 @@ public sealed class MaquinariaRepository : RepositoryBase, IMaquinariaRepository
 
     private const string SearchWhere =
         "WHERE deleted_at IS NULL AND id_sede = @idSede " +
-        "AND (@nombre IS NULL OR nombre LIKE '%' || @nombre || '%' COLLATE NOCASE) " +
+        "AND (@nombre IS NULL OR sin_acentos(nombre) LIKE '%' || sin_acentos(@nombre) || '%' COLLATE NOCASE) " +
         "AND (@estado IS NULL OR estado = @estado) " +
         "AND (@esActivo IS NULL OR es_activo = @esActivo) ";
 

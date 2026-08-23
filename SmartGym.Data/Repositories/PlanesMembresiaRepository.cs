@@ -14,8 +14,8 @@ public sealed class PlanesMembresiaRepository : RepositoryBase, IPlanesMembresia
 
     private const string SearchWhere =
         "WHERE deleted_at IS NULL " +
-        "AND (@query IS NULL OR nombre LIKE '%' || @query || '%' COLLATE NOCASE " +
-        "OR descripcion LIKE '%' || @query || '%' COLLATE NOCASE) " +
+        "AND (@query IS NULL OR sin_acentos(nombre) LIKE '%' || sin_acentos(@query) || '%' COLLATE NOCASE " +
+        "OR sin_acentos(descripcion) LIKE '%' || sin_acentos(@query) || '%' COLLATE NOCASE) " +
         "AND (@esActivo IS NULL OR es_activo = @esActivo) ";
 
     public PlanesMembresiaRepository(string dbPath) : base(dbPath)
