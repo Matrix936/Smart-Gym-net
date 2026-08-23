@@ -24,12 +24,12 @@
 <div style="display: flex; gap: 1rem; align-items: flex-start;">
     <div class="glass-panel" style="width: 220px; flex-shrink: 0; padding: 0.5rem;">
         <button type="button" class="nav-item @(_seccion == SeccionPerfil.Datos ? "active" : "")"
-                style="width: 100%; border: none; background: transparent; cursor: pointer; text-align: left;"
+                style="width: 100%; border: none; cursor: pointer; text-align: left;"
                 @onclick="IrADatos">
             Datos generales
         </button>
         <button type="button" class="nav-item @(_seccion == SeccionPerfil.Password ? "active" : "")"
-                style="width: 100%; border: none; background: transparent; cursor: pointer; text-align: left;"
+                style="width: 100%; border: none; cursor: pointer; text-align: left;"
                 @onclick="IrAPassword">
             Contraseña
         </button>
