@@ -8,7 +8,7 @@
 
         <MudStepper @bind-ActiveIndex="_step" CenterLabels="true" Class="sg-wizard-steps">
             <ChildContent>
-            <MudStep Title="Logo">
+            <MudStep Title="Logo" Completed="@(_logoBytes is not null)">
                 <div class="logo-step" style="margin-top: 1rem;">
                     <p class="step-subtitle">Logo de la empresa (opcional)</p>
 
@@ -33,7 +33,7 @@
                 </div>
             </MudStep>
 
-            <MudStep Title="Empresa">
+            <MudStep Title="Empresa" Completed="@EmpresaCompleta">
                 <div class="wizard-form">
                     <p class="step-subtitle">Datos del negocio</p>
                     <FormField Label="Nombre comercial" @bind-Value="_empresa.NombreComercial" />
@@ -48,7 +48,7 @@
                 </div>
             </MudStep>
 
-            <MudStep Title="Administrador">
+            <MudStep Title="Administrador" Completed="@AdminCompleto">
                 <div class="wizard-form">
                     <p class="step-subtitle">Superadministrador</p>
                     <FormField Label="Nombre(s)" @bind-Value="_admin.Nombre" />
@@ -153,6 +153,22 @@
     private string? _logoPreview;
     private byte[]? _logoBytes;
     private string? _logoMime;
+
+    /// <summary>El paso de empresa está completo cuando los campos obligatorios tienen valor.</summary>
+    private bool EmpresaCompleta =>
+        !string.IsNullOrWhiteSpace(_empresa.NombreComercial) &&
+        !string.IsNullOrWhiteSpace(_empresa.Telefono) &&
+        !string.IsNullOrWhiteSpace(_empresa.Direccion) &&
+        !string.IsNullOrWhiteSpace(_empresa.CodigoPostal);
+
+    /// <summary>El paso de administrador está completo cuando los campos obligatorios tienen valor.</summary>
+    private bool AdminCompleto =>
+        !string.IsNullOrWhiteSpace(_admin.Nombre) &&
+        !string.IsNullOrWhiteSpace(_admin.ApellidoPaterno) &&
+        !string.IsNullOrWhiteSpace(_admin.Email) &&
+        _admin.Email.Contains('@') &&
+        _admin.Password.Length >= 8 &&
+        _admin.Password == _admin.PasswordConfirm;
 
     private readonly EmpresaDatos _empresa = new();
     private readonly AdminDatos _admin = new();
