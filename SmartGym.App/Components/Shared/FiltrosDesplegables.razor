@@ -1,0 +1,91 @@
+@* FiltrosDesplegables: botón embudo con contador de filtros aplicados que
+   abre un popover con switches para mostrar/ocultar los filtros secundarios
+   del módulo. El buscador principal NUNCA pasa por aquí (siempre visible).
+   El estado de visibilidad vive en memoria de este componente (no persiste
+   entre reinicios); el padre se entera vía VisiblesChanged y es responsable
+   de limpiar el valor de cualquier filtro que se oculte. *@
+@using MudBlazor
+
+<span class="filtros-toggle-wrap">
+    <MudMenu AnchorOrigin="Origin.BottomLeft"
+             TransformOrigin="Origin.TopLeft"
+             CloseOnItemClick="false"
+             Class="filtros-menu">
+        <ActivatorContent>
+            <MudIconButton Icon="@Icons.Material.Filled.FilterAlt"
+                           Variant="Variant.Outlined"
+                           Size="Size.Small"
+                           aria-label="Filtros"
+                           title="Mostrar/ocultar filtros" />
+        </ActivatorContent>
+        <ChildContent>
+            <div class="filtros-popover">
+                <p class="form-section" style="margin: 0 0 0.35rem;">Filtros visibles</p>
+                @foreach (var filtro in Filtros)
+                {
+                    var activo = _visibles.Contains(filtro.Clave);
+                    <div class="filtros-item">
+                        <MudSwitch T="bool"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   Value="@activo"
+                                   ValueChanged="@(v => AlternarAsync(filtro.Clave, v))" />
+                        <span>@filtro.Etiqueta</span>
+                    </div>
+                }
+            </div>
+        </ChildContent>
+    </MudMenu>
+    @if (ConteoAplicados > 0)
+    {
+        <span class="filtros-contador">@ConteoAplicados</span>
+    }
+</span>
+
+@code {
+    /// <summary>Catálogo de filtros secundarios disponibles en el módulo.</summary>
+    [Parameter] public IReadOnlyList<FiltroDefinicion> Filtros { get; set; } = Array.Empty<FiltroDefinicion>();
+
+    /// <summary>Claves visibles al primer render (default razonable del módulo).</summary>
+    [Parameter] public IEnumerable<string>? VisiblesIniciales { get; set; }
+
+    /// <summary>Cuántos filtros tienen un VALOR aplicado ahora mismo (badge numérico).</summary>
+    [Parameter] public int ConteoAplicados { get; set; }
+
+    /// <summary>Notifica el nuevo conjunto de claves visibles tras cada toggle.</summary>
+    [Parameter] public EventCallback<IReadOnlyList<string>> VisiblesChanged { get; set; }
+
+    private HashSet<string> _visibles = new(StringComparer.Ordinal);
+    private bool _inicializado;
+
+    protected override void OnParametersSet()
+    {
+        // Semilla única desde el padre; después el estado vive aquí dentro.
+        if (!_inicializado && VisiblesIniciales is not null)
+        {
+            _visibles = new HashSet<string>(VisiblesIniciales, StringComparer.Ordinal);
+            _inicializado = true;
+        }
+    }
+
+    private async Task AlternarAsync(string clave, bool visible)
+    {
+        if (visible)
+        {
+            _visibles.Add(clave);
+        }
+        else
+        {
+            _visibles.Remove(clave);
+        }
+
+        if (VisiblesChanged.HasDelegate)
+        {
+            await VisiblesChanged.InvokeAsync(_visibles.ToList());
+        }
+        StateHasChanged();
+    }
+
+    /// <summary>Definición declarativa de un filtro secundario.</summary>
+    public sealed record FiltroDefinicion(string Clave, string Etiqueta);
+}

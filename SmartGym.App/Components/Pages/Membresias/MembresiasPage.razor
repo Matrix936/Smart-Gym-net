@@ -51,33 +51,43 @@
                       Immediate="true"
                       Value="@_nombreSocio"
                       ValueChanged="OnBusquedaChanged" />
-        <MudSelect T="string"
-                   OuterClass="filter-field"
-                   RelativeWidth="DropdownWidth.Adaptive"
-                   Label="Estado"
-                   Margin="Margin.Dense"
-                   Variant="Variant.Outlined"
-                   Value="@_filtroEstado"
-                   ValueChanged="OnFiltroEstadoChangedAsync">
-            <MudSelectItem Value="@("")">Todos</MudSelectItem>
-            <MudSelectItem Value="@MembresiaEstados.Activa">@EtiquetaEstado(MembresiaEstados.Activa)</MudSelectItem>
-            <MudSelectItem Value="@MembresiaEstados.Vencida">@EtiquetaEstado(MembresiaEstados.Vencida)</MudSelectItem>
-            <MudSelectItem Value="@MembresiaEstados.Congelada">@EtiquetaEstado(MembresiaEstados.Congelada)</MudSelectItem>
-            <MudSelectItem Value="@MembresiaEstados.Cancelada">@EtiquetaEstado(MembresiaEstados.Cancelada)</MudSelectItem>
-        </MudSelect>
-        <MudSelect T="long?"
-                   Label="Plan"
-                   Variant="Variant.Outlined"
-                   Margin="Margin.Dense"
-                   Clearable="true"
-                   Value="_idPlan"
-                   ValueChanged="OnPlanFiltroChangedAsync">
-            <MudSelectItem T="long?" Value="null">Todos</MudSelectItem>
-            @foreach (var plan in _planes)
-            {
-                <MudSelectItem Value="@((long?)plan.IdPlan)">@plan.Nombre</MudSelectItem>
-            }
-        </MudSelect>
+        <FiltrosDesplegables Filtros="_definicionesFiltros"
+                             VisiblesIniciales="_visiblesIniciales"
+                             ConteoAplicados="ConteoAplicados"
+                             VisiblesChanged="OnVisiblesChangedAsync" />
+        @if (_filtrosVisibles.Contains("estado"))
+        {
+            <MudSelect T="string"
+                       OuterClass="filter-field"
+                       RelativeWidth="DropdownWidth.Adaptive"
+                       Label="Estado"
+                       Margin="Margin.Dense"
+                       Variant="Variant.Outlined"
+                       Value="@_filtroEstado"
+                       ValueChanged="OnFiltroEstadoChangedAsync">
+                <MudSelectItem Value="@("")">Todos</MudSelectItem>
+                <MudSelectItem Value="@MembresiaEstados.Activa">@EtiquetaEstado(MembresiaEstados.Activa)</MudSelectItem>
+                <MudSelectItem Value="@MembresiaEstados.Vencida">@EtiquetaEstado(MembresiaEstados.Vencida)</MudSelectItem>
+                <MudSelectItem Value="@MembresiaEstados.Congelada">@EtiquetaEstado(MembresiaEstados.Congelada)</MudSelectItem>
+                <MudSelectItem Value="@MembresiaEstados.Cancelada">@EtiquetaEstado(MembresiaEstados.Cancelada)</MudSelectItem>
+            </MudSelect>
+        }
+        @if (_filtrosVisibles.Contains("plan"))
+        {
+            <MudSelect T="long?"
+                       Label="Plan"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Clearable="true"
+                       Value="_idPlan"
+                       ValueChanged="OnPlanFiltroChangedAsync">
+                <MudSelectItem T="long?" Value="null">Todos</MudSelectItem>
+                @foreach (var plan in _planes)
+                {
+                    <MudSelectItem Value="@((long?)plan.IdPlan)">@plan.Nombre</MudSelectItem>
+                }
+            </MudSelect>
+        }
     </div>
 
     <div class="table-wrap">
@@ -204,6 +214,36 @@
     private string _filtroEstado = "";
     private long? _idPlan;
     private CancellationTokenSource? _debounce;
+
+    // FiltrosDesplegables: catálogo declarativo + visibilidad en memoria.
+    // Default razonable: Estado visible, Plan oculto hasta que se pida.
+    private readonly List<FiltrosDesplegables.FiltroDefinicion> _definicionesFiltros = new()
+    {
+        new("estado", "Estado"),
+        new("plan", "Plan"),
+    };
+    private static readonly string[] _visiblesIniciales = ["estado"];
+    private HashSet<string> _filtrosVisibles = ["estado"];
+
+    private int ConteoAplicados =>
+        (_filtroEstado.Length > 0 ? 1 : 0) + (_idPlan is not null ? 1 : 0);
+
+    /// <summary>Al ocultar un filtro se limpia su valor: nunca queda un filtro
+    /// invisible pero aplicado silenciosamente.</summary>
+    private async Task OnVisiblesChangedAsync(IReadOnlyList<string> visibles)
+    {
+        _filtrosVisibles = visibles.ToHashSet(StringComparer.Ordinal);
+        if (!_filtrosVisibles.Contains("estado"))
+        {
+            _filtroEstado = "";
+        }
+        if (!_filtrosVisibles.Contains("plan"))
+        {
+            _idPlan = null;
+        }
+        _pagina = 1;
+        await CargarAsync();
+    }
 
     private bool _showSede;
     private long _sedeSeleccionada;
