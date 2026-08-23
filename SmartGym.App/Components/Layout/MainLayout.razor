@@ -1,4 +1,4 @@
-﻿@* MainLayout (AppLayout.tsx): sidebar colapsable 260↔72 (logo + nav agrupada) y topbar glass
+@* MainLayout (AppLayout.tsx): sidebar colapsable 260↔72 (logo + nav agrupada) y topbar glass
    con fecha/hora es-MX, badge de sincronización, cambio de tema y avatar con menú de usuario. *@
 @using System.Globalization
 @using SmartGym.Core.Repositories
@@ -31,7 +31,7 @@
                 <span>Sincronizado</span>
             </div>
             <ThemeToggle />
-            <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" PaperClass="sg-user-paper">
+            <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" paperClass="sg-user-paper">
                 <ActivatorContent>
                     @* MudBlazor v9: ActivatorContent recibe MenuContext; hay que llamar
                        context.ToggleAsync explicito (ver MiembrosPage.razor para la referencia). *@

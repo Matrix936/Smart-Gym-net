@@ -60,13 +60,13 @@ else
                        Color="@(_atajoActivo == "mes" ? Color.Primary : Color.Default)"
                        Size="Size.Small"
                        OnClick='() => AplicarAtajoMesAsync()'>Este mes</MudButton>
-            <MudDatePicker T="DateTime?"
+            <MudDatePicker t="DateTime?"
                            Label="Desde"
                            Variant="Variant.Outlined"
                            Margin="Margin.Dense"
                            Date="_desde"
                            DateChanged="OnDesdeChangedAsync" />
-            <MudDatePicker T="DateTime?"
+            <MudDatePicker t="DateTime?"
                            Label="Hasta"
                            Variant="Variant.Outlined"
                            Margin="Margin.Dense"
@@ -121,7 +121,7 @@ else
                     <p class="form-section">Ingresos por día</p>
                     <MudChart ChartType="ChartType.Line"
                               ChartSeries="@_serie"
-                              XAxisLabels="@_etiquetasDias"
+                              xAxisLabels="@_etiquetasDias"
                               Width="100%"
                               Height="350px" />
                 </div>

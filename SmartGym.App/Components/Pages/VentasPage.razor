@@ -1,4 +1,11 @@
 @page "/ventas"
+@* El generador de Razor emite el código con contexto nullable desactivado y
+   ignora "#nullable enable" a nivel de archivo (dotnet/razor#8720, backlog).
+   Este page usa anotaciones anulables en markup (T="long?", (long?) casts del
+   selector de vendedor), así que suprimimos CS8669 para todo el archivo. *@
+@{
+#pragma warning disable CS8669
+}
 @* VentasPage: historial unificado de lo que mueve dinero en caja — ventas POS,
    cancelaciones, pagos de membresía y abonos. Fuente: caja_movimientos con
    joins polimórficos (ver CajaMovimientosRepository.BuscarHistorialAsync).
@@ -38,13 +45,13 @@
                 }
             </MudSelect>
         }
-        <MudDatePicker T="DateTime?"
+        <MudDatePicker t="DateTime?"
                        Label="Desde"
                        Variant="Variant.Outlined"
                        Margin="Margin.Dense"
                        Date="_desde"
                        DateChanged="OnDesdeChangedAsync" />
-        <MudDatePicker T="DateTime?"
+        <MudDatePicker t="DateTime?"
                        Label="Hasta"
                        Variant="Variant.Outlined"
                        Margin="Margin.Dense"
