@@ -189,6 +189,11 @@ else
             _sedeSeleccionada = _sedes.FirstOrDefault()?.IdSede ?? 0;
         }
 
+        // Default: este mes (del día 1 a hoy).
+        var hoy = DateTime.Today;
+        _desde = new DateTime(hoy.Year, hoy.Month, 1);
+        _hasta = hoy;
+
         await CargarAsync();
     }
 
