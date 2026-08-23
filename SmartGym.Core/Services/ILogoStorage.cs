@@ -16,4 +16,7 @@ public interface ILogoStorage
 
     /// <summary>Borra archivos "logo.*" que no correspondan a la extensión actual.</summary>
     void EliminarHuérfanos(string extension);
+
+    /// <summary>Elimina el logo actual (todos los "logo.*") — para la acción "quitar logo" de Configuración.</summary>
+    void Eliminar();
 }

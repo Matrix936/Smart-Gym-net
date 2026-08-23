@@ -80,6 +80,20 @@ public sealed class LogoStorage : ILogoStorage
         return null;
     }
 
+    public void Eliminar()
+    {
+        var dir = Path.Combine(_baseDir, "logos");
+        if (!Directory.Exists(dir))
+        {
+            return;
+        }
+
+        foreach (var file in Directory.GetFiles(dir, "logo.*"))
+        {
+            File.Delete(file);
+        }
+    }
+
     private static string MimeDe(string extension) => extension.ToLowerInvariant() switch
     {
         ".png" => "image/png",

@@ -43,6 +43,8 @@ internal sealed class SecurityTestContext : IDisposable
     public VentasRepository Ventas { get; }
     public MaquinariaRepository Maquinaria { get; }
     public FinanzasRepository FinanzasRepo { get; }
+    public LogoStorage LogoStorage { get; }
+    public ConfiguracionRepository Configuracion { get; }
 
     public AuthService Auth { get; }
     public AuthorizationService Authz { get; }
@@ -60,6 +62,7 @@ internal sealed class SecurityTestContext : IDisposable
     public BitacoraService BitacoraService { get; }
     public MaquinariaService MaquinariaService { get; }
     public FinanzasService FinanzasService { get; }
+    public EmpresaConfigService EmpresaConfigService { get; }
 
     public SecurityTestContext()
     {
@@ -69,7 +72,7 @@ internal sealed class SecurityTestContext : IDisposable
 
         var sesiones = new SesionesRepository(DbPath);
         var cuentas = new CuentasRecordadasRepository(DbPath);
-        var config = new ConfiguracionRepository(DbPath);
+        Configuracion = new ConfiguracionRepository(DbPath);
         var logo = new LogoStorage(LogosDir);
 
         Usuarios = new UsuariosRepository(DbPath);
@@ -97,10 +100,11 @@ internal sealed class SecurityTestContext : IDisposable
         Ventas = new VentasRepository(DbPath);
         Maquinaria = new MaquinariaRepository(DbPath);
         FinanzasRepo = new FinanzasRepository(DbPath);
+        LogoStorage = new LogoStorage(LogosDir);
 
         Auth = new AuthService(Usuarios, sesiones, cuentas, SessionState, new SesionStore(LogosDir), Bitacora);
         Authz = new AuthorizationService(Auth, Roles, Permisos);
-        Setup = new SetupService(Usuarios, Roles, Empresa, config, logo);
+        Setup = new SetupService(Usuarios, Roles, Empresa, Configuracion, logo);
         SedeResolution = new SedeResolutionService(Sedes);
         SociosService = new SociosService(Auth, Authz, Socios, Bitacora, SedeResolution);
         // NOTA: firma actualizada para el CajaService en curso de otra línea de
@@ -116,6 +120,8 @@ internal sealed class SecurityTestContext : IDisposable
         BitacoraService = new BitacoraService(Auth, Authz, Bitacora, SedeResolution);
         MaquinariaService = new MaquinariaService(Auth, Authz, Maquinaria, SedeResolution, Bitacora);
         FinanzasService = new FinanzasService(Auth, Authz, FinanzasRepo, SedeResolution);
+        EmpresaConfigService = new EmpresaConfigService(
+            Auth, Authz, Empresa, LogoStorage, this.Configuracion, Bitacora);
     }
 
     public void Dispose()

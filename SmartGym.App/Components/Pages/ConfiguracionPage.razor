@@ -1,0 +1,338 @@
+@page "/configuracion"
+@* ConfiguracionPage: datos de empresa editables post-setup + preferencia de
+   impresora (solo guardar la seleccion — sin flujo de impresion). Tres acciones
+   independientes con submits separados, mismo criterio que Mi Perfil.
+   Impresoras enumeradas via PrinterSettings (WinForms ya referenciado por el
+   SDK DPFP); decision documentada en el bloque. *@
+@using System.Drawing.Printing
+@using Microsoft.AspNetCore.Components.Forms
+@using MudBlazor
+@using SmartGym.Core.Authorization
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Services
+@using SmartGym.App.Services
+
+<div class="page-head">
+    <div>
+        <h4>Configuración</h4>
+        <p class="page-sub">Datos de la empresa y preferencias del equipo.</p>
+    </div>
+</div>
+
+<div class="glass-panel">
+    <p class="form-section">Datos de la empresa</p>
+    @if (!_cargandoEmpresa)
+    {
+        <div class="form-fields" style="max-width: 560px;" @onkeydown="HandleDatosKeyDown">
+            <div class="form-row">
+                <MudTextField T="string" Label="Nombre comercial *" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" Immediate="true" @bind-Value="_nombreComercial" />
+                <MudTextField T="string" Label="RFC" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Immediate="true" @bind-Value="_rfc" />
+            </div>
+            <MudTextField T="string" Label="Razón social" Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Immediate="true" @bind-Value="_razonSocial" />
+            <div class="form-row">
+                <MudTextField T="string" Label="Teléfono" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" Immediate="true" @bind-Value="_telefono" />
+                <MudTextField T="string" Label="Código postal" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" Immediate="true" @bind-Value="_codigoPostal" />
+            </div>
+            <MudTextField T="string" Label="Dirección" Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Immediate="true" @bind-Value="_direccion" />
+            <MudTextField T="string" Label="Régimen fiscal" Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Immediate="true" @bind-Value="_regimenFiscal" />
+        </div>
+        <div style="margin-top: 0.75rem;">
+            <AsyncButton Text="Guardar datos de empresa"
+                         LoadingText="Guardando..."
+                         IsLoading="_guardandoDatos"
+                         OnClick="GuardarDatosAsync" />
+        </div>
+    }
+</div>
+
+<div class="glass-panel" style="margin-top: 1rem;">
+    <p class="form-section">Logo</p>
+    <div style="display: flex; align-items: center; gap: 1.25rem;">
+        @if (_logoDataUrl is not null)
+        {
+            <img src="@_logoDataUrl" alt="Logo" style="max-height: 64px; max-width: 160px;" />
+        }
+        else
+        {
+            <span class="muted">Sin logo</span>
+        }
+        <InputFile OnChange="OnLogoSeleccionadoAsync" accept=".png,.svg,.jpg,.jpeg,.webp" />
+        @if (_logoDataUrl is not null)
+        {
+            <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="QuitarLogoAsync">Quitar logo</MudButton>
+        }
+    </div>
+</div>
+
+<div class="glass-panel" style="margin-top: 1rem;">
+    <p class="form-section">Impresora</p>
+    <p class="muted" style="margin-bottom: 0.75rem;">
+        Se guarda tu selección para cuando exista la impresión de tickets. Sin flujo de impresión todavía.
+    </p>
+    <div class="form-fields" style="max-width: 480px;">
+        <MudSelect T="string"
+                   Label="Impresora"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Value="_impresora"
+                   ValueChanged="OnImpresoraChangedAsync">
+            @foreach (var impresora in _impresoras)
+            {
+                <MudSelectItem Value="@impresora">@impresora</MudSelectItem>
+            }
+        </MudSelect>
+        <AsyncButton Text="Guardar impresora"
+                     LoadingText="Guardando..."
+                     IsLoading="_guardandoImpresora"
+                     OnClick="GuardarImpresoraAsync" />
+    </div>
+</div>
+
+@code {
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private IEmpresaConfigService EmpresaConfig { get; set; } = default!;
+    [Inject] private IAuthorizationService Authz { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    private bool _tienePermiso;
+    private bool _cargandoEmpresa = true;
+    private string _nombreComercial = "";
+    private string _telefono = "";
+    private string _direccion = "";
+    private string _codigoPostal = "";
+    private string _razonSocial = "";
+    private string _rfc = "";
+    private string _regimenFiscal = "";
+    private string? _logoDataUrl;
+    private bool _guardandoDatos;
+
+    private List<string> _impresoras = [];
+    private string? _impresora;
+    private bool _guardandoImpresora;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Authz.RequierePermisoAsync(sesion.Token, PermisoCatalogo.ConfiguracionEditar);
+            _tienePermiso = true;
+        }
+        catch (BusinessException)
+        {
+            Feedback.ShowError("No tienes permiso para editar la configuración");
+            return;
+        }
+
+        try
+        {
+            var (empresa, logoDataUrl) = await EmpresaConfig.ObtenerAsync(sesion.Token);
+            _nombreComercial = empresa.NombreComercial;
+            _telefono = empresa.Telefono;
+            _direccion = empresa.Direccion;
+            _codigoPostal = empresa.CodigoPostal;
+            _razonSocial = empresa.RazonSocial ?? "";
+            _rfc = empresa.Rfc ?? "";
+            _regimenFiscal = empresa.RegimenFiscal ?? "";
+            _logoDataUrl = logoDataUrl;
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+
+        // Enumeración local de impresoras instaladas (API de Windows via WinForms,
+        // ya referenciado por el SDK biométrico). Si falla, la lista queda vacía
+        // y la preferencia simplemente no se puede elegir en esta sesión.
+        try
+        {
+            foreach (string nombre in PrinterSettings.InstalledPrinters)
+            {
+                _impresoras.Add(nombre);
+            }
+        }
+        catch
+        {
+            _impresoras = [];
+        }
+
+        try
+        {
+            _impresora = await EmpresaConfig.ObtenerImpresoraAsync(sesion.Token);
+        }
+        catch (BusinessException)
+        {
+            // Sin permiso o sin sesion: el selector queda vacio.
+        }
+
+        _cargandoEmpresa = false;
+        StateHasChanged();
+    }
+
+    private async Task OnLogoSeleccionadoAsync(InputFileChangeEventArgs e)
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        const long maxBytes = 512 * 1024;
+        var archivo = e.File;
+        if (archivo.Size > maxBytes)
+        {
+            Feedback.ShowWarning("El logo excede el máximo de 512 KB");
+            return;
+        }
+
+        try
+        {
+            using var stream = archivo.OpenReadStream(maxBytes);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            await EmpresaConfig.GuardarLogoAsync(sesion.Token, ms.ToArray(), archivo.ContentType);
+            Feedback.ShowSuccess("Logo actualizado");
+
+            // Refresca preview releyendo del storage.
+            var (_, logoDataUrl) = await EmpresaConfig.ObtenerAsync(sesion.Token);
+            _logoDataUrl = logoDataUrl;
+            StateHasChanged();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo guardar el logo");
+        }
+    }
+
+    private async Task QuitarLogoAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await EmpresaConfig.QuitarLogoAsync(sesion.Token);
+            _logoDataUrl = null;
+            Feedback.ShowSuccess("Logo eliminado");
+            StateHasChanged();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+    }
+
+    private void HandleDatosKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_guardandoDatos)
+        {
+            _ = GuardarDatosAsync();
+        }
+    }
+
+    private async Task GuardarDatosAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _guardandoDatos)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_nombreComercial))
+        {
+            Feedback.ShowWarning("El nombre comercial es obligatorio");
+            return;
+        }
+
+        _guardandoDatos = true;
+        try
+        {
+            await EmpresaConfig.ActualizarDatosAsync(
+                sesion.Token,
+                _nombreComercial.Trim(),
+                _telefono.Trim(),
+                _direccion.Trim(),
+                _codigoPostal.Trim(),
+                NullSiVacio(_razonSocial),
+                NullSiVacio(_rfc),
+                NullSiVacio(_regimenFiscal));
+            Feedback.ShowSuccess("Datos de empresa actualizados");
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo actualizar la configuración");
+        }
+        finally
+        {
+            _guardandoDatos = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnImpresoraChangedAsync(string? impresora)
+    {
+        _impresora = impresora;
+    }
+
+    private async Task GuardarImpresoraAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _guardandoImpresora)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_impresora))
+        {
+            Feedback.ShowWarning("Selecciona una impresora");
+            return;
+        }
+
+        _guardandoImpresora = true;
+        try
+        {
+            await EmpresaConfig.GuardarImpresoraAsync(
+                sesion.Token, _impresora.Trim());
+            Feedback.ShowSuccess("Impresora guardada");
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo guardar la impresora");
+        }
+        finally
+        {
+            _guardandoImpresora = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string? NullSiVacio(string texto) =>
+        string.IsNullOrWhiteSpace(texto) ? null : texto.Trim();
+}
