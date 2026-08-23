@@ -1626,3 +1626,27 @@ table.data-table {
     margin-bottom: 0.25rem;
     overflow-wrap: anywhere;
 }
+
+/* ---------- Finanzas ----------
+   Tarjetas resumen del dashboard. */
+.finanzas-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+}
+
+.finanzas-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 1rem 1.25rem;
+    background: var(--color-surface-2);
+    border: var(--glass-border);
+    border-radius: var(--radius-md);
+}
+
+.finanzas-monto {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
