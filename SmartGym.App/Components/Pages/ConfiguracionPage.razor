@@ -92,20 +92,27 @@ else if (_seccion == SeccionConfig.Logo)
 {
     <div class="glass-panel" style="flex: 1; min-width: 0;">
         <p class="form-section">Logo</p>
-        <div style="display: flex; align-items: center; gap: 1.25rem;">
+        @* Preview grande (mismo criterio del SetupWizard) con X en la esquina,
+           siempre visible — sin botón de texto aparte. Quitar es directo, como
+           antes (nunca tuvo ConfirmDialog). El input nativo va oculto dentro
+           del label para que "Escoger foto" se vea como botón del sistema. *@
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem;">
             @if (_logoDataUrl is not null)
             {
-                <img src="@_logoDataUrl" alt="Logo" style="max-height: 64px; max-width: 160px;" />
+                <div class="logo-preview">
+                    <img src="@_logoDataUrl" alt="Logo" />
+                    <MudIconButton Class="logo-remove" Size="Size.Small" Icon="@Icons.Material.Filled.Close"
+                                   OnClick="QuitarLogoAsync" aria-label="Quitar logo" />
+                </div>
             }
             else
             {
                 <span class="muted">Sin logo</span>
             }
-            <InputFile OnChange="OnLogoSeleccionadoAsync" accept=".png,.svg,.jpg,.jpeg,.webp" />
-            @if (_logoDataUrl is not null)
-            {
-                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="QuitarLogoAsync">Quitar logo</MudButton>
-            }
+            <label class="btn btn-primary logo-inputfile-trigger">
+                Escoger foto
+                <InputFile OnChange="OnLogoSeleccionadoAsync" accept=".png,.svg,.jpg,.jpeg,.webp" class="logo-input-file" />
+            </label>
         </div>
     </div>
 }
@@ -142,6 +149,7 @@ else
     [Inject] private IEmpresaConfigService EmpresaConfig { get; set; } = default!;
     [Inject] private IAuthorizationService Authz { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
+    [Inject] private SmartGym.App.Services.ILogoState LogoState { get; set; } = default!;
 
     // Navegación por secciones, mismo patrón que Mi Perfil.
     private enum SeccionConfig { Empresa, Logo, Impresora }
@@ -263,9 +271,10 @@ else
             await EmpresaConfig.GuardarLogoAsync(sesion.Token, ms.ToArray(), archivo.ContentType);
             Feedback.ShowSuccess("Logo actualizado");
 
-            // Refresca preview releyendo del storage.
+            // Refresca preview releyendo del storage y avisa al sidebar (patrón ThemeState).
             var (_, logoDataUrl) = await EmpresaConfig.ObtenerAsync(sesion.Token);
             _logoDataUrl = logoDataUrl;
+            LogoState.NotificarCambio();
             StateHasChanged();
         }
         catch (BusinessException ex)
@@ -290,6 +299,7 @@ else
         {
             await EmpresaConfig.QuitarLogoAsync(sesion.Token);
             _logoDataUrl = null;
+            LogoState.NotificarCambio();
             Feedback.ShowSuccess("Logo eliminado");
             StateHasChanged();
         }

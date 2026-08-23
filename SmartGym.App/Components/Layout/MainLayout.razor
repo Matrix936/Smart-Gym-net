@@ -9,6 +9,8 @@
 @inject IAuthService Auth
 @inject IEmpresaConfigFiscalRepository EmpresaRepo
 @inject ILogoStorage LogoStorage
+@inject SmartGym.App.Services.ILogoState LogoState
+@implements IDisposable
 
 <div class="sg-shell @(_collapsed ? "sg-shell-collapsed" : null)">
     <aside class="sg-sidebar">
@@ -79,6 +81,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // El sidebar persiste entre navegaciones: si Configuración cambia el
+        // logo, el evento lo refresca sin recargar la app (patrón ThemeState).
+        LogoState.Changed += OnLogoChanged;
         _logoUrl = LogoStorage.LeerDataUrl() ?? string.Empty;
 
         var empresa = await EmpresaRepo.GetAsync();
@@ -136,6 +141,12 @@
         }
     }
 
+    private void OnLogoChanged()
+    {
+        _logoUrl = LogoStorage.LeerDataUrl() ?? string.Empty;
+        InvokeAsync(StateHasChanged);
+    }
+
     private void IrMiPerfil() => Nav.NavigateTo("/mi-perfil");
 
     private void IrConfiguracion() => Nav.NavigateTo("/configuracion");
@@ -146,5 +157,9 @@
         Nav.NavigateTo("/", forceLoad: true);
     }
 
-    public void Dispose() => _reloj?.Dispose();
+    public void Dispose()
+    {
+        LogoState.Changed -= OnLogoChanged;
+        _reloj?.Dispose();
+    }
 }

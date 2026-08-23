@@ -759,6 +759,16 @@ table.data-table {
     height: 13px;
 }
 
+/* Input de archivo nativo oculto dentro del label "Escoger foto" (Configuración,
+   sección Logo): el label dispara el picker y el botón hereda .btn/.btn-primary. */
+.logo-input-file {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
 /* display:grid crea su propio contexto de formato — los márgenes verticales de
    los campos de adentro NO colapsan con lo de afuera (a diferencia de dos campos
    apilados directamente, que sí colapsan a un solo margen de 10px). Sin esto,

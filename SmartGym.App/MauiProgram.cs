@@ -105,6 +105,9 @@ public static MauiApp CreateMauiApp()
 		var templatesDir = Path.Combine(dataDir, "Templates");
 		builder.Services.AddSingleton<IBiometricCaptureService>(_ => new BiometricCaptureService(templatesDir));
 
+		// Singleton: notifica al sidebar persistente cuando Configuración cambia el logo.
+		builder.Services.AddSingleton<ILogoState, LogoState>();
+
 		// ---- Kiosco como ventana MAUI separada (ver docs/migracion-dotnet) ----
 		builder.Services.AddSingleton<IKioscoWindowService, KioscoWindowService>();
 
