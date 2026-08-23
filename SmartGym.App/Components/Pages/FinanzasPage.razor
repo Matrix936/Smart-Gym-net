@@ -1,0 +1,321 @@
+@page "/finanzas"
+@* FinanzasPage: dashboard de solo lectura sobre caja_movimientos (misma fuente
+   que /ventas) con comparación contra el periodo anterior equivalente.
+   Gráfica con MudChart (incluido en MudBlazor — sin dependencia nueva). *@
+@implements IDisposable
+@using System.Globalization
+@using MudBlazor
+@using SmartGym.Core.Authorization
+@using SmartGym.Core.Common
+@using SmartGym.Core.Services
+@using SmartGym.App.Services
+
+<div class="page-head">
+    <div>
+        <h4>Finanzas</h4>
+        <p class="page-sub">Ingresos y actividad de la sede en el periodo elegido.</p>
+    </div>
+</div>
+
+@if (!_tienePermiso)
+{
+    <div class="glass-panel">
+        <p class="muted">No tienes permiso para ver Finanzas.</p>
+    </div>
+}
+else
+{
+    @if (_showSede && _sedes.Count > 1)
+    {
+        <div class="glass-panel" style="margin-bottom: 1rem;">
+            <div class="page-toolbar">
+                <MudSelect T="long"
+                           Label="Sede"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           OuterClass="filter-field"
+                           RelativeWidth="DropdownWidth.Adaptive"
+                           Value="_sedeSeleccionada"
+                           ValueChanged="OnSedeChangedAsync">
+                    @foreach (var sede in _sedes)
+                    {
+                        <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+        </div>
+    }
+
+    <div class="glass-panel">
+        <div class="page-toolbar">
+            <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick='() => AplicarAtajoAsync(0)'>Hoy</MudButton>
+            <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick='() => AplicarAtajoSemanaAsync()'>Esta semana</MudButton>
+            <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick='() => AplicarAtajoMesAsync()'>Este mes</MudButton>
+            <MudDatePicker T="DateTime?"
+                           Label="Desde"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Date="_desde"
+                           DateChanged="OnDesdeChangedAsync" />
+            <MudDatePicker T="DateTime?"
+                           Label="Hasta"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Date="_hasta"
+                           DateChanged="OnHastaChangedAsync" />
+        </div>
+
+        @if (_cargando)
+        {
+            <p class="muted">Calculando...</p>
+        }
+        else if (_dashboard is null)
+        {
+            <p class="muted">Sin datos para mostrar.</p>
+        }
+        else
+        {
+            <div class="finanzas-cards">
+                <div class="finanzas-card">
+                    <span class="summary-label">Ingresos del periodo</span>
+                    <span class="finanzas-monto">@FormatearMonto(_dashboard.Actual.IngresosCentavos)</span>
+                    <span class="@ClaseVariacion(_dashboard.Actual.IngresosCentavos, _dashboard.IngresosPeriodoAnterior)">
+                        @TextoVariacion(_dashboard.Actual.IngresosCentavos, _dashboard.IngresosPeriodoAnterior)
+                    </span>
+                </div>
+                <div class="finanzas-card">
+                    <span class="summary-label">Neto (ingresos − egresos)</span>
+                    <span class="finanzas-monto">@FormatearMonto(_dashboard.Actual.NetoCentavos)</span>
+                    <span class="@ClaseVariacion(_dashboard.Actual.NetoCentavos, _dashboard.NetoPeriodoAnterior)">
+                        @TextoVariacion(_dashboard.Actual.NetoCentavos, _dashboard.NetoPeriodoAnterior)
+                    </span>
+                </div>
+                <div class="finanzas-card">
+                    <span class="summary-label">Productos (POS)</span>
+                    <span class="finanzas-monto">@FormatearMonto(_dashboard.Actual.IngresosProductos)</span>
+                </div>
+                <div class="finanzas-card">
+                    <span class="summary-label">Membresías</span>
+                    <span class="finanzas-monto">@FormatearMonto(_dashboard.Actual.IngresosMembresias)</span>
+                    <span class="muted">@_dashboard.MembresiasNuevas nueva(s) en el periodo</span>
+                </div>
+                <div class="finanzas-card">
+                    <span class="summary-label">Socios activos</span>
+                    <span class="finanzas-monto">@_dashboard.SociosActivos</span>
+                    <span class="muted">con membresía vigente</span>
+                </div>
+            </div>
+
+            @if (_dashboard.Actual.SerieDiaria.Count > 0)
+            {
+                <div style="margin-top: 1.25rem;">
+                    <p class="form-section">Ingresos por día</p>
+                    <MudChart ChartType="ChartType.Line"
+                              ChartSeries="@_serie"
+                              XAxisLabels="@_etiquetasDias"
+                              Width="100%"
+                              Height="350px" />
+                </div>
+            }
+
+            <div class="table-wrap" style="margin-top: 1rem;">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Concepto</th><th style="text-align: right;">Este periodo</th><th style="text-align: right;">Periodo anterior</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Ingresos totales</td><td style="text-align: right;">@FormatearMonto(_dashboard.Actual.IngresosCentavos)</td><td style="text-align: right;" class="muted-cell">@FormatearMonto(_dashboard.IngresosPeriodoAnterior)</td></tr>
+                        <tr><td>— Productos (POS)</td><td style="text-align: right;">@FormatearMonto(_dashboard.Actual.IngresosProductos)</td><td></td></tr>
+                        <tr><td>— Membresías</td><td style="text-align: right;">@FormatearMonto(_dashboard.Actual.IngresosMembresias)</td><td></td></tr>
+                        <tr><td>— Abonos / otros</td><td style="text-align: right;">@FormatearMonto(_dashboard.Actual.IngresosAbonos + _dashboard.Actual.IngresosOtros)</td><td></td></tr>
+                        <tr><td>Egresos (cancelaciones)</td><td style="text-align: right;">−@FormatearMonto(_dashboard.Actual.EgresosCentavos)</td><td style="text-align: right;" class="muted-cell">−@FormatearMonto(_dashboard.EgresosPeriodoAnterior)</td></tr>
+                        <tr><td><strong>Neto</strong></td><td style="text-align: right;"><strong>@FormatearMonto(_dashboard.Actual.NetoCentavos)</strong></td><td style="text-align: right;" class="muted-cell">@FormatearMonto(_dashboard.NetoPeriodoAnterior)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private IFinanzasService Finanzas { get; set; } = default!;
+    [Inject] private IAuthorizationService Authz { get; set; } = default!;
+    [Inject] private ISedesRepository Sedes { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    private bool _tienePermiso;
+    private bool _cargando;
+    private bool _showSede;
+    private long _sedeSeleccionada;
+    private List<Sede> _sedes = [];
+
+    private DateTime? _desde;
+    private DateTime? _hasta;
+    private FinanzasDashboardDto? _dashboard;
+    private List<ChartSeries<decimal>> _serie = [];
+    private string[] _etiquetasDias = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Authz.RequierePermisoAsync(sesion.Token, PermisoCatalogo.FinanzasVer);
+            _tienePermiso = true;
+        }
+        catch (BusinessException)
+        {
+            Feedback.ShowError("No tienes permiso para ver Finanzas");
+            return;
+        }
+
+        _showSede = sesion.IdSede is null;
+        if (_showSede)
+        {
+            try
+            {
+                _sedes = (await Sedes.GetActivasAsync()).ToList();
+            }
+            catch
+            {
+                _sedes = [];
+            }
+            _sedeSeleccionada = _sedes.FirstOrDefault()?.IdSede ?? 0;
+        }
+
+        await CargarAsync();
+    }
+
+    public void Dispose()
+    {
+    }
+
+    private Task OnSedeChangedAsync(long value)
+    {
+        _sedeSeleccionada = value;
+        return CargarAsync();
+    }
+
+    /// <summary>MudDatePicker bindea con Date/DateChanged (no Value/ValueChanged).</summary>
+    private async Task OnDesdeChangedAsync(DateTime? value)
+    {
+        _desde = value;
+        await CargarAsync();
+    }
+
+    private async Task OnHastaChangedAsync(DateTime? value)
+    {
+        _hasta = value;
+        await CargarAsync();
+    }
+
+    private Task AplicarAtajoAsync(int diasAtras) =>
+        AplicarRangoAsync(DateTime.Today.AddDays(-diasAtras), DateTime.Today);
+
+    private Task AplicarAtajoSemanaAsync()
+    {
+        var hoy = DateTime.Today;
+        var lunes = hoy.AddDays(-(((int)hoy.DayOfWeek + 6) % 7));
+        return AplicarRangoAsync(lunes, hoy);
+    }
+
+    private Task AplicarAtajoMesAsync()
+    {
+        var hoy = DateTime.Today;
+        return AplicarRangoAsync(new DateTime(hoy.Year, hoy.Month, 1), hoy);
+    }
+
+    private async Task AplicarRangoAsync(DateTime desde, DateTime hasta)
+    {
+        _desde = desde;
+        _hasta = hasta;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || !_tienePermiso || _desde is null || _hasta is null)
+        {
+            return;
+        }
+
+        _cargando = true;
+        try
+        {
+            var desdeIso = ToIsoInicioDia(_desde);
+            var hastaIso = ToIsoFinDia(_hasta);
+            _dashboard = await Finanzas.ObtenerDashboardAsync(
+                sesion.Token, desdeIso, hastaIso,
+                _showSede ? _sedeSeleccionada : null);
+
+            // Serie para MudChart: montos en pesos (decimal) y etiquetas dd/MM.
+            _serie =
+            [
+                new ChartSeries<decimal>
+                {
+                    Name = "Ingresos",
+                    Data = _dashboard.Actual.SerieDiaria.Select(d => (decimal)d.IngresosCentavos / 100m).ToArray(),
+                },
+            ];
+            _etiquetasDias = _dashboard.Actual.SerieDiaria
+                .Select(d => d.Dia.Length >= 10 ? d.Dia[8..10] + "/" + d.Dia[5..7] : d.Dia)
+                .ToArray();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo calcular el dashboard");
+        }
+        finally
+        {
+            _cargando = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string ClaseVariacion(long actual, long anterior)
+    {
+        if (anterior == 0)
+        {
+            return "muted";
+        }
+        return actual >= anterior ? "status-success" : "status-danger";
+    }
+
+    private static string TextoVariacion(long actual, long anterior)
+    {
+        if (anterior == 0)
+        {
+            return "sin periodo de comparación";
+        }
+        var delta = actual - anterior;
+        var flecha = delta >= 0 ? "▲" : "▼";
+        var pct = Math.Round(delta * 100m / anterior, 0);
+        return $"{flecha} {Math.Abs(pct)}% vs. periodo anterior";
+    }
+
+    private static string FormatearMonto(long centavos) =>
+        (centavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("es-MX"));
+
+    private static string ToIsoInicioDia(DateTime? fechaLocal) =>
+        fechaLocal is null ? "2000-01-01T00:00:00.000Z" : ToIso(fechaLocal.Value.Date);
+
+    private static string ToIsoFinDia(DateTime? fechaLocal) =>
+        fechaLocal is null ? "2999-12-31T23:59:59.999Z" : ToIso(fechaLocal.Value.Date.AddDays(1).AddMilliseconds(-1));
+
+    private static string ToIso(DateTime local)
+    {
+        var utc = local.Kind == DateTimeKind.Utc ? local : local.ToUniversalTime();
+        return utc.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
+    }
+}
