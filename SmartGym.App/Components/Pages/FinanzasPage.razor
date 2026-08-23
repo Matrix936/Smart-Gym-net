@@ -219,9 +219,16 @@ else
     }
 
     /// <summary>MudDatePicker bindea con Date/DateChanged (no Value/ValueChanged).
-    /// Un cambio manual de fechas apaga el atajo activo: pasa a rango personalizado.</summary>
+    /// Un cambio manual de fechas apaga el atajo activo: pasa a rango personalizado.
+    /// El guard de igualdad es obligatorio: al aplicar un atajo, el picker emite un
+    /// DateChanged ECO con el valor que nosotros mismos le asignamos — sin el guard,
+    /// ese eco tardío borra el resaltado del botón recién presionado.</summary>
     private async Task OnDesdeChangedAsync(DateTime? value)
     {
+        if (value == _desde)
+        {
+            return;
+        }
         _desde = value;
         _atajoActivo = null;
         await CargarAsync();
@@ -229,6 +236,10 @@ else
 
     private async Task OnHastaChangedAsync(DateTime? value)
     {
+        if (value == _hasta)
+        {
+            return;
+        }
         _hasta = value;
         _atajoActivo = null;
         await CargarAsync();
