@@ -50,6 +50,12 @@
                        Margin="Margin.Dense"
                        Date="_hasta"
                        DateChanged="OnHastaChangedAsync" />
+        <FiltrosDesplegables Filtros="_definicionesFiltros"
+                             VisiblesIniciales="_visiblesIniciales"
+                             ConteoAplicados="ConteoAplicados"
+                             VisiblesChanged="OnVisiblesChangedAsync" />
+        @if (_filtrosVisibles.Contains("categoria"))
+        {
         <MudSelect T="string"
                    OuterClass="filter-field"
                    RelativeWidth="DropdownWidth.Adaptive"
@@ -64,6 +70,9 @@
                 <MudSelectItem Value="@categoria">@Categorias[categoria].Etiqueta</MudSelectItem>
             }
         </MudSelect>
+        }
+        @if (_filtrosVisibles.Contains("accion"))
+        {
         @* Dependiente: solo acciones de la categoría elegida; cambiar categoría
            resetea la selección (ver OnCategoriaChangedAsync). *@
         <MudSelect T="string"
@@ -84,6 +93,7 @@
                 }
             }
         </MudSelect>
+        }
         <MudSelect T="long?"
                    Label="Usuario"
                    Variant="Variant.Outlined"
@@ -97,6 +107,7 @@
                 <MudSelectItem Value="@((long?)u.IdUsuario)">@($"{u.Nombre} {u.ApellidoPaterno}".Trim())</MudSelectItem>
             }
         </MudSelect>
+        }
     </div>
 
     <div class="table-wrap">
@@ -264,6 +275,17 @@
     private string _accion = "";
     private long? _idUsuario;
 
+    // FiltrosDesplegables: categoria visible por defecto; accion/usuario ocultos.
+    private readonly List<FiltrosDesplegables.FiltroDefinicion> _definicionesFiltros =
+        [new("categoria", "Categoría"), new("accion", "Acción"), new("usuario", "Usuario")];
+    private static readonly string[] _visiblesIniciales = ["categoria"];
+    private HashSet<string> _filtrosVisibles = ["categoria"];
+
+    private int ConteoAplicados =>
+        (_categoria.Length > 0 ? 1 : 0) +
+        (_accion.Length > 0 ? 1 : 0) +
+        (_idUsuario is not null ? 1 : 0);
+
     private List<BitacoraHistorialDto> _filas = [];
     private int _pagina = 1;
     private int _tamanoPagina = TamanosPagina.Default;
@@ -350,6 +372,27 @@
         // RESET obligatorio: la acción seleccionada podía pertenecer a la
         // categoría anterior y ya no estaría entre las opciones válidas.
         _accion = "";
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    /// <summary>Al ocultar un filtro se limpia su valor (nunca queda aplicado invisible).</summary>
+    private async Task OnVisiblesChangedAsync(IReadOnlyList<string> visibles)
+    {
+        _filtrosVisibles = visibles.ToHashSet(StringComparer.Ordinal);
+        if (!_filtrosVisibles.Contains("categoria"))
+        {
+            _categoria = "";
+            _accion = "";
+        }
+        if (!_filtrosVisibles.Contains("accion"))
+        {
+            _accion = "";
+        }
+        if (!_filtrosVisibles.Contains("usuario"))
+        {
+            _idUsuario = null;
+        }
         _pagina = 1;
         await CargarAsync();
     }
