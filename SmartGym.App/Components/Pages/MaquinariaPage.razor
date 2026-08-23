@@ -50,20 +50,27 @@
                       Immediate="true"
                       Value="@_nombre"
                       ValueChanged="OnBusquedaChanged" />
-        <MudSelect T="string"
-                   OuterClass="filter-field"
-                   RelativeWidth="DropdownWidth.Adaptive"
-                   Label="Estado"
-                   Margin="Margin.Dense"
-                   Variant="Variant.Outlined"
-                   Value="@_filtroEstado"
-                   ValueChanged="OnFiltroEstadoChangedAsync">
-            <MudSelectItem Value="@("")">Todos</MudSelectItem>
-            @foreach (var estado in MaquinaEstados.Validos)
-            {
-                <MudSelectItem Value="@estado">@EtiquetaEstado(estado)</MudSelectItem>
-            }
-        </MudSelect>
+        <FiltrosDesplegables Filtros="_definicionesFiltros"
+                             VisiblesIniciales="_visiblesIniciales"
+                             ConteoAplicados="_filtroEstado.Length > 0 ? 1 : 0"
+                             VisiblesChanged="OnVisiblesChangedAsync" />
+        @if (_filtrosVisibles.Contains("estado"))
+        {
+            <MudSelect T="string"
+                       OuterClass="filter-field"
+                       RelativeWidth="DropdownWidth.Adaptive"
+                       Label="Estado"
+                       Margin="Margin.Dense"
+                       Variant="Variant.Outlined"
+                       Value="@_filtroEstado"
+                       ValueChanged="OnFiltroEstadoChangedAsync">
+                <MudSelectItem Value="@("")">Todos</MudSelectItem>
+                @foreach (var estado in MaquinaEstados.Validos)
+                {
+                    <MudSelectItem Value="@estado">@EtiquetaEstado(estado)</MudSelectItem>
+                }
+            </MudSelect>
+        }
     </div>
 
     <div class="table-wrap">
@@ -253,6 +260,12 @@
     private string _filtroEstado = "";
     private CancellationTokenSource? _debounce;
 
+    // FiltrosDesplegables: un solo filtro secundario, visible por defecto.
+    private readonly List<FiltrosDesplegables.FiltroDefinicion> _definicionesFiltros =
+        [new("estado", "Estado")];
+    private static readonly string[] _visiblesIniciales = ["estado"];
+    private HashSet<string> _filtrosVisibles = ["estado"];
+
     private bool _showSede;
     private long _sedeSeleccionada;
     private List<Sede> _sedes = [];
@@ -341,6 +354,18 @@
         _filtroEstado = value ?? "";
         _pagina = 1;
         await CargarAsync();
+    }
+
+    /// <summary>Al ocultar el filtro se limpia su valor (nunca queda aplicado invisible).</summary>
+    private async Task OnVisiblesChangedAsync(IReadOnlyList<string> visibles)
+    {
+        _filtrosVisibles = visibles.ToHashSet(StringComparer.Ordinal);
+        if (!_filtrosVisibles.Contains("estado"))
+        {
+            _filtroEstado = "";
+            _pagina = 1;
+            await CargarAsync();
+        }
     }
 
     private async Task OnTamanoPaginaChangedAsync(int value)

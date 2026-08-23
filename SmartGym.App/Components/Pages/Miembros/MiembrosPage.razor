@@ -31,6 +31,12 @@
                       Immediate="true"
                       Value="@_busqueda"
                       ValueChanged="OnBusquedaChanged" />
+        <FiltrosDesplegables Filtros="_definicionesFiltros"
+                             VisiblesIniciales="_visiblesIniciales"
+                             ConteoAplicados="_filtroEstado.Length > 0 ? 1 : 0"
+                             VisiblesChanged="OnVisiblesChangedAsync" />
+        @if (_filtrosVisibles.Contains("estado"))
+        {
         <MudSelect T="string"
                    OuterClass="filter-field"
                    RelativeWidth="DropdownWidth.Adaptive"
@@ -45,6 +51,7 @@
                 <MudSelectItem Value="@estado">@EtiquetaEstado(estado)</MudSelectItem>
             }
         </MudSelect>
+        }
     </div>
 
     <div class="table-wrap">
@@ -241,6 +248,12 @@
     private bool _cargando;
     private string _busqueda = "";
     private string _filtroEstado = "";
+
+    // FiltrosDesplegables: un solo filtro secundario, visible por defecto.
+    private readonly List<FiltrosDesplegables.FiltroDefinicion> _definicionesFiltros =
+        [new("estado", "Estado")];
+    private static readonly string[] _visiblesIniciales = ["estado"];
+    private HashSet<string> _filtrosVisibles = ["estado"];
     private CancellationTokenSource? _debounce;
 
     private int _pagina = 1;
@@ -322,6 +335,18 @@
         _filtroEstado = value ?? "";
         _pagina = 1;
         await CargarAsync();
+    }
+
+    /// <summary>Al ocultar el filtro se limpia su valor (nunca queda aplicado invisible).</summary>
+    private async Task OnVisiblesChangedAsync(IReadOnlyList<string> visibles)
+    {
+        _filtrosVisibles = visibles.ToHashSet(StringComparer.Ordinal);
+        if (!_filtrosVisibles.Contains("estado"))
+        {
+            _filtroEstado = "";
+            _pagina = 1;
+            await CargarAsync();
+        }
     }
 
     private async Task OnTamanoPaginaChanged(int value)
