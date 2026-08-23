@@ -33,6 +33,10 @@
                       Immediate="true"
                       Value="@_nombreSocio"
                       ValueChanged="OnBusquedaChanged" />
+        <FiltrosDesplegables Filtros="_definicionesFiltros"
+                             VisiblesIniciales="_visiblesIniciales"
+                             ConteoAplicados="ConteoAplicados"
+                             VisiblesChanged="OnVisiblesChangedAsync" />
         <MudDatePicker T="DateTime?"
                        Label="Desde"
                        Variant="Variant.Outlined"
@@ -45,10 +49,6 @@
                        Margin="Margin.Dense"
                        Date="_hasta"
                        DateChanged="OnHastaChangedAsync" />
-        <FiltrosDesplegables Filtros="_definicionesFiltros"
-                             VisiblesIniciales="_visiblesIniciales"
-                             ConteoAplicados="ConteoAplicados"
-                             VisiblesChanged="OnVisiblesChangedAsync" />
         @if (_showSede && _sedes.Count > 1 && _filtrosVisibles.Contains("sede"))
         {
             <MudSelect T="long"
