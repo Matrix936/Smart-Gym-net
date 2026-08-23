@@ -88,6 +88,12 @@ var features = ExtractFeatures(sample, purpose);
 
 - **Resultado:** enrollment completo en 4 toques; template `.bin` de 1632 bytes.
 
+### ⚠️ Segunda ocurrencia del mismo patrón (detección de duplicados)
+
+Al implementar la detección de huellas duplicadas en el enrolamiento (verificación del FeatureSet final contra templates existentes), se reutilizó el FeatureSet extraído con `DataPurpose.Enrollment` para llamar `Verification.Verify()`. El motor nativo (`MC_verifyFeaturesEx`) lanzó `COMException 0xFFFFFFE3` porque el formato interno de las features no correspondía al contexto de verificación.
+
+**Regla reforzada:** cualquier código nuevo que use `DPFP.Verification.Verify()` debe verificar que el FeatureSet fue extraído con `DataPurpose.Verification` — **no reutilizar un FeatureSet extraído con `DataPurpose.Enrollment`**, aunque ambos provengan del mismo sample. Son formatos internos incompatibles del SDK.
+
 ---
 
 ## 5. Hallazgo: `Activate()` marshalado al hilo UI durante el cambio de modo
