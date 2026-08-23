@@ -22,17 +22,28 @@
 </div>
 
 <div style="display: flex; gap: 1rem; align-items: flex-start;">
-    <div class="glass-panel" style="width: 220px; flex-shrink: 0; padding: 0.5rem;">
-        <button type="button" class="nav-item @(_seccion == SeccionPerfil.Datos ? "active" : "")"
-                style="width: 100%; border: none; cursor: pointer; text-align: left;"
-                @onclick="IrADatos">
-            Datos generales
-        </button>
-        <button type="button" class="nav-item @(_seccion == SeccionPerfil.Password ? "active" : "")"
-                style="width: 100%; border: none; cursor: pointer; text-align: left;"
-                @onclick="IrAPassword">
-            Contraseña
-        </button>
+    <div class="glass-panel" style="width: 220px; flex-shrink: 0; padding: 0.5rem 0;">
+        @* Mismo patrón del sidebar (NavMenu): div.sg-nav-item, no <button>
+           (el fondo nativo del button asomaba como un rectángulo gris que
+           parpadeaba con el hover sobre el blur del panel). *@
+        <div class="sg-nav-item @(_seccion == SeccionPerfil.Datos ? "active" : null)"
+             style="width: 100%;"
+             @onclick="IrADatos"
+             @onkeydown='e => SeccionKeyDown(e, SeccionPerfil.Datos)'
+             role="button" tabindex="0"
+             aria-current="@(_seccion == SeccionPerfil.Datos ? "true" : null)">
+            <span class="sg-nav-item-indicator"></span>
+            <span class="sg-nav-item-label">Datos generales</span>
+        </div>
+        <div class="sg-nav-item @(_seccion == SeccionPerfil.Password ? "active" : null)"
+             style="width: 100%;"
+             @onclick="IrAPassword"
+             @onkeydown='e => SeccionKeyDown(e, SeccionPerfil.Password)'
+             role="button" tabindex="0"
+             aria-current="@(_seccion == SeccionPerfil.Password ? "true" : null)">
+            <span class="sg-nav-item-indicator"></span>
+            <span class="sg-nav-item-label">Contraseña</span>
+        </div>
     </div>
 
     @if (_seccion == SeccionPerfil.Datos)
@@ -163,6 +174,22 @@
         if (!_guardandoPerfil)
         {
             _seccion = SeccionPerfil.Password;
+        }
+    }
+
+    /// <summary>Los div role=button no disparan click con teclado: Enter/Espacio activan la sección.</summary>
+    private void SeccionKeyDown(KeyboardEventArgs e, SeccionPerfil seccion)
+    {
+        if (e.Key is "Enter" or " ")
+        {
+            if (seccion == SeccionPerfil.Datos)
+            {
+                IrADatos();
+            }
+            else
+            {
+                IrAPassword();
+            }
         }
     }
 
