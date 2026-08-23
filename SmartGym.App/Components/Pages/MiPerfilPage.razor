@@ -1,12 +1,12 @@
 @page "/mi-perfil"
 @* MiPerfilPage: datos y contraseña del USUARIO LOGUEADO (no un módulo del
-   gimnasio). Navegación por secciones (menu lateral, mismo look que el sidebar
-   via .nav-item) — solo una sección visible a la vez. Acciones independientes
+   gimnasio). Navegación por secciones (menu lateral, mismo patrón sg-nav-item
+   del sidebar) — solo una sección visible a la vez. Acciones independientes
    con submits separados: nunca mezclar perfil y contraseña en un mismo envío.
    EditarPerfilAsync refresca la sesión en memoria, así que el nombre cambia en
-   toda la app sin re-login. Guardar datos exige reautenticación (mismo criterio
-   que CambiarPassword/CancelarVenta/cierre de caja): la contraseña se pide en
-   un dialogo aparte para que quede claro QUE se esta confirmando. *@
+   toda la app sin re-login. AMBAS acciones exigen reautenticación al final
+   (mismo criterio que CancelarVenta/cierre de caja): la contraseña vigente se
+   pide en un dialogo aparte para que quede claro QUE se esta confirmando. *@
 @using System.ComponentModel.DataAnnotations
 @using MudBlazor
 @using SmartGym.Core.Entities
@@ -74,17 +74,17 @@
     {
         <div class="glass-panel" style="flex: 1; min-width: 0;">
             <p class="form-section">Cambiar contraseña</p>
-            @* Ya pide la contraseña actual como parte de sus propios campos
-               (actual/nueva/confirmar): no se duplica la reautenticación aquí. *@
+            @* Sin campo de contraseña actual: igual que Datos generales, la
+               clave vigente se pide al final en el dialogo de confirmación
+               (CambiarPasswordAsync la usa para su propia reautorización). *@
             <div class="form-fields" style="max-width: 480px;" @onkeydown="HandlePasswordKeyDown">
-                <PasswordField Label="Contraseña actual *" Autocomplete="current-password" @bind-Value="_passwordActual" />
                 <PasswordField Label="Nueva contraseña * (mínimo 8 caracteres)" Autocomplete="new-password" @bind-Value="_passwordNueva" />
                 <PasswordField Label="Confirmar nueva contraseña *" Autocomplete="new-password" @bind-Value="_passwordConfirmar" />
                 <div style="margin-top: 0.75rem;">
                     <AsyncButton Text="Cambiar contraseña"
                                  LoadingText="Cambiando..."
                                  IsLoading="_cambiandoPassword"
-                                 OnClick="CambiarPasswordAsync" />
+                                 OnClick="SolicitarCambioPasswordAsync" />
                 </div>
             </div>
         </div>
@@ -98,17 +98,18 @@
         <MudText Typo="Typo.h6">Confirmar cambios</MudText>
     </TitleContent>
     <DialogContent>
-        @* Reautenticación real (no un PIN aparte): confirma que quien guarda los
-           datos sabe la contraseña de su propia cuenta, mismo criterio que
-           CambiarPassword/CancelarVenta/cierre de caja. *@
+        @* Reautenticación real (no un PIN aparte): confirma que quien guarda
+           (datos o cambio de contraseña) sabe la contraseña vigente, mismo
+           criterio que CancelarVenta/cierre de caja. Un solo dialogo para las
+           dos acciones de la página. *@
         <div @onkeydown="HandleReauthKeyDown">
-            <p class="muted" style="margin-bottom: 0.5rem;">Ingresa tu contraseña para guardar los cambios.</p>
+            <p class="muted" style="margin-bottom: 0.5rem;">Ingresa tu contraseña actual para confirmar el cambio.</p>
             <PasswordField Label="Contraseña actual *" Autocomplete="current-password" @bind-Value="_reauthPassword" />
         </div>
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_guardandoPerfil" OnClick="CancelarReauth">Cancelar</MudButton>
-        <AsyncButton Text="Confirmar y guardar" LoadingText="Verificando..." IsLoading="_guardandoPerfil" OnClick="ConfirmarGuardadoAsync" />
+        <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_reautenticando" OnClick="CancelarReauth">Cancelar</MudButton>
+        <AsyncButton Text="Confirmar y guardar" LoadingText="Verificando..." IsLoading="_reautenticando" OnClick="ConfirmarReauthAsync" />
     </DialogActions>
 </MudDialog>
 
@@ -128,13 +129,17 @@
     private string _email = "";
     private bool _guardandoPerfil;
 
-    private string _passwordActual = "";
     private string _passwordNueva = "";
     private string _passwordConfirmar = "";
     private bool _cambiandoPassword;
 
-    // Reautenticación para guardar datos generales.
+    // Reautenticación compartida por las dos acciones (datos generales y
+    // contraseña): la clave vigente se pide al final, no en los formularios.
+    private enum AccionReauth { Perfil, Password }
+
+    private AccionReauth _reauthAccion = AccionReauth.Perfil;
     private bool _reauthAbierto;
+    private bool _reautenticando;
     private string _reauthPassword = "";
 
     protected override async Task OnInitializedAsync()
@@ -215,7 +220,7 @@
         await OnInitializedAsync();
     }
 
-    /// <summary>Valida los campos y abre el dialogo de reautenticación. No guarda nada todavía.</summary>
+    /// <summary>Valida los campos de datos generales y abre el dialogo. No guarda nada todavía.</summary>
     private Task SolicitarGuardadoAsync()
     {
         if (string.IsNullOrWhiteSpace(_nombre))
@@ -229,16 +234,15 @@
             return Task.CompletedTask;
         }
 
-        _reauthPassword = "";
-        _reauthAbierto = true;
+        AbrirReauth(AccionReauth.Perfil);
         return Task.CompletedTask;
     }
 
     private void HandleReauthKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter" && !_guardandoPerfil)
+        if (e.Key == "Enter" && !_reautenticando)
         {
-            _ = ConfirmarGuardadoAsync();
+            _ = ConfirmarReauthAsync();
         }
     }
 
@@ -249,11 +253,17 @@
         _reauthAbierto = visible;
     }
 
-    /// <summary>Reautoriza y recién entonces llama a EditarPerfilAsync. Si la clave es incorrecta no guarda nada.</summary>
-    private async Task ConfirmarGuardadoAsync()
+    private void AbrirReauth(AccionReauth accion)
     {
-        var sesion = Sesion.Current;
-        if (sesion is null || _guardandoPerfil)
+        _reauthAccion = accion;
+        _reauthPassword = "";
+        _reauthAbierto = true;
+    }
+
+    /// <summary>Reautoriza y recién entonces ejecuta la acción pendiente (perfil o contraseña). Si la clave es incorrecta no guarda nada.</summary>
+    private async Task ConfirmarReauthAsync()
+    {
+        if (_reautenticando || Sesion.Current is null)
         {
             return;
         }
@@ -261,6 +271,34 @@
         if (string.IsNullOrEmpty(_reauthPassword))
         {
             Feedback.ShowWarning("Ingresa tu contraseña actual");
+            return;
+        }
+
+        _reautenticando = true;
+        try
+        {
+            if (_reauthAccion == AccionReauth.Perfil)
+            {
+                await GuardarPerfilAsync();
+            }
+            else
+            {
+                await CambiarPasswordAsync();
+            }
+            _reauthAbierto = false;
+        }
+        finally
+        {
+            _reautenticando = false;
+        }
+    }
+
+    /// <summary>Precondición: reautorización ya hecha. Refresca la sesión con el perfil actualizado.</summary>
+    private async Task GuardarPerfilAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _guardandoPerfil)
+        {
             return;
         }
 
@@ -274,7 +312,6 @@
                 _apellidoPaterno?.Trim(),
                 _apellidoMaterno?.Trim(),
                 _email.Trim());
-            _reauthAbierto = false;
             Feedback.ShowSuccess("Datos actualizados");
             // Refresca el token en sesión con la info fresca (mismo token).
             Sesion.Login(actualizada);
@@ -300,23 +337,13 @@
     {
         if (e.Key == "Enter" && !_cambiandoPassword)
         {
-            _ = CambiarPasswordAsync();
+            SolicitarCambioPasswordAsync();
         }
     }
 
-    private async Task CambiarPasswordAsync()
+    /// <summary>Valida la nueva contraseña y abre el dialogo de reautenticación. No cambia nada todavía.</summary>
+    private void SolicitarCambioPasswordAsync()
     {
-        var sesion = Sesion.Current;
-        if (sesion is null || _cambiandoPassword)
-        {
-            return;
-        }
-
-        if (string.IsNullOrEmpty(_passwordActual))
-        {
-            Feedback.ShowWarning("Ingresa tu contraseña actual");
-            return;
-        }
         if (string.IsNullOrEmpty(_passwordNueva) || _passwordNueva.Length < 8)
         {
             Feedback.ShowWarning("La nueva contraseña debe tener al menos 8 caracteres");
@@ -328,13 +355,24 @@
             return;
         }
 
+        AbrirReauth(AccionReauth.Password);
+    }
+
+    /// <summary>Precondición: reautorización ya hecha (la contraseña vigente llega en _reauthPassword).</summary>
+    private async Task CambiarPasswordAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _cambiandoPassword)
+        {
+            return;
+        }
+
         _cambiandoPassword = true;
         try
         {
             await Auth.CambiarPasswordAsync(
-                sesion.Token, _passwordActual, _passwordNueva);
+                sesion.Token, _reauthPassword, _passwordNueva);
             Feedback.ShowSuccess("Contraseña cambiada");
-            _passwordActual = "";
             _passwordNueva = "";
             _passwordConfirmar = "";
             StateHasChanged();
