@@ -46,6 +46,10 @@
                         <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Size="Size.Small" Class="sg-user-item-icon" />
                         Mi Perfil
                     </MudMenuItem>
+                    <MudMenuItem OnClick="IrConfiguracion">
+                        <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Small" Class="sg-user-item-icon" />
+                        Configuración
+                    </MudMenuItem>
                     <MudMenuItem OnClick="Salir">
                         <MudIcon Icon="@Icons.Material.Filled.Logout" Size="Size.Small" Class="sg-user-item-icon" />
                         Salir
@@ -133,6 +137,8 @@
     }
 
     private void IrMiPerfil() => Nav.NavigateTo("/mi-perfil");
+
+    private void IrConfiguracion() => Nav.NavigateTo("/configuracion");
 
     private async Task Salir()
     {

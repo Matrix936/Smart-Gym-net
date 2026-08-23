@@ -1,7 +1,8 @@
 @page "/configuracion"
-@* ConfiguracionPage: datos de empresa editables post-setup + preferencia de
-   impresora (solo guardar la seleccion — sin flujo de impresion). Tres acciones
-   independientes con submits separados, mismo criterio que Mi Perfil.
+@* ConfiguracionPage: datos de empresa editables post-setup + logo + preferencia
+   de impresora (solo guardar la seleccion — sin flujo de impresion). Tres
+   acciones independientes con submits separados, mismo criterio que Mi Perfil:
+   navegacion por secciones (menu lateral sg-nav-item, una visible a la vez).
    Impresoras enumeradas via PrinterSettings (WinForms ya referenciado por el
    SDK DPFP); decision documentada en el bloque. *@
 @using System.Drawing.Printing
@@ -19,80 +20,121 @@
     </div>
 </div>
 
-<div class="glass-panel">
-    <p class="form-section">Datos de la empresa</p>
-    @if (!_cargandoEmpresa)
-    {
-        <div class="form-fields" style="max-width: 560px;" @onkeydown="HandleDatosKeyDown">
-            <div class="form-row">
-                <MudTextField T="string" Label="Nombre comercial *" Variant="Variant.Outlined"
-                              Margin="Margin.Dense" Immediate="true" @bind-Value="_nombreComercial" />
-                <MudTextField T="string" Label="RFC" Variant="Variant.Outlined" Margin="Margin.Dense"
-                              Immediate="true" @bind-Value="_rfc" />
-            </div>
-            <MudTextField T="string" Label="Razón social" Variant="Variant.Outlined"
-                          Margin="Margin.Dense" Immediate="true" @bind-Value="_razonSocial" />
-            <div class="form-row">
-                <MudTextField T="string" Label="Teléfono" Variant="Variant.Outlined"
-                              Margin="Margin.Dense" Immediate="true" @bind-Value="_telefono" />
-                <MudTextField T="string" Label="Código postal" Variant="Variant.Outlined"
-                              Margin="Margin.Dense" Immediate="true" @bind-Value="_codigoPostal" />
-            </div>
-            <MudTextField T="string" Label="Dirección" Variant="Variant.Outlined"
-                          Margin="Margin.Dense" Immediate="true" @bind-Value="_direccion" />
-            <MudTextField T="string" Label="Régimen fiscal" Variant="Variant.Outlined"
-                          Margin="Margin.Dense" Immediate="true" @bind-Value="_regimenFiscal" />
-        </div>
-        <div style="margin-top: 0.75rem;">
-            <AsyncButton Text="Guardar datos de empresa"
-                         LoadingText="Guardando..."
-                         IsLoading="_guardandoDatos"
-                         OnClick="GuardarDatosAsync" />
-        </div>
-    }
-</div>
-
-<div class="glass-panel" style="margin-top: 1rem;">
-    <p class="form-section">Logo</p>
-    <div style="display: flex; align-items: center; gap: 1.25rem;">
-        @if (_logoDataUrl is not null)
-        {
-            <img src="@_logoDataUrl" alt="Logo" style="max-height: 64px; max-width: 160px;" />
-        }
-        else
-        {
-            <span class="muted">Sin logo</span>
-        }
-        <InputFile OnChange="OnLogoSeleccionadoAsync" accept=".png,.svg,.jpg,.jpeg,.webp" />
-        @if (_logoDataUrl is not null)
-        {
-            <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="QuitarLogoAsync">Quitar logo</MudButton>
-        }
+<div style="display: flex; gap: 1rem; align-items: flex-start;">
+<div class="glass-panel" style="width: 220px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.4rem; padding: 0.6rem 0.5rem;">
+    @* Mismo patrón del sidebar y de Mi Perfil (div.sg-nav-item, no <button>):
+       solo una sección visible a la vez. *@
+    <div class="sg-nav-item @(_seccion == SeccionConfig.Empresa ? "active" : null)"
+         style="width: 100%;"
+         @onclick='() => IrA(SeccionConfig.Empresa)'
+         @onkeydown='e => SeccionKeyDown(e, SeccionConfig.Empresa)'
+         role="button" tabindex="0"
+         aria-current="@(_seccion == SeccionConfig.Empresa ? "true" : null)">
+        <span class="sg-nav-item-indicator"></span>
+        <span class="sg-nav-item-label">Datos de empresa</span>
+    </div>
+    <div class="sg-nav-item @(_seccion == SeccionConfig.Logo ? "active" : null)"
+         style="width: 100%;"
+         @onclick='() => IrA(SeccionConfig.Logo)'
+         @onkeydown='e => SeccionKeyDown(e, SeccionConfig.Logo)'
+         role="button" tabindex="0"
+         aria-current="@(_seccion == SeccionConfig.Logo ? "true" : null)">
+        <span class="sg-nav-item-indicator"></span>
+        <span class="sg-nav-item-label">Logo</span>
+    </div>
+    <div class="sg-nav-item @(_seccion == SeccionConfig.Impresora ? "active" : null)"
+         style="width: 100%;"
+         @onclick='() => IrA(SeccionConfig.Impresora)'
+         @onkeydown='e => SeccionKeyDown(e, SeccionConfig.Impresora)'
+         role="button" tabindex="0"
+         aria-current="@(_seccion == SeccionConfig.Impresora ? "true" : null)">
+        <span class="sg-nav-item-indicator"></span>
+        <span class="sg-nav-item-label">Impresora</span>
     </div>
 </div>
 
-<div class="glass-panel" style="margin-top: 1rem;">
-    <p class="form-section">Impresora</p>
-    <p class="muted" style="margin-bottom: 0.75rem;">
-        Se guarda tu selección para cuando exista la impresión de tickets. Sin flujo de impresión todavía.
-    </p>
-    <div class="form-fields" style="max-width: 480px;">
-        <MudSelect T="string"
-                   Label="Impresora"
-                   Variant="Variant.Outlined"
-                   Margin="Margin.Dense"
-                   Value="_impresora"
-                   ValueChanged="OnImpresoraChangedAsync">
-            @foreach (var impresora in _impresoras)
+@if (_seccion == SeccionConfig.Empresa)
+{
+    <div class="glass-panel" style="flex: 1; min-width: 0;">
+        <p class="form-section">Datos de la empresa</p>
+        @if (!_cargandoEmpresa)
+        {
+            <div class="form-fields" style="max-width: 560px;" @onkeydown="HandleDatosKeyDown">
+                <div class="form-row">
+                    <MudTextField T="string" Label="Nombre comercial *" Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" Immediate="true" @bind-Value="_nombreComercial" />
+                    <MudTextField T="string" Label="RFC" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Immediate="true" @bind-Value="_rfc" />
+                </div>
+                <MudTextField T="string" Label="Razón social" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" Immediate="true" @bind-Value="_razonSocial" />
+                <div class="form-row">
+                    <MudTextField T="string" Label="Teléfono" Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" Immediate="true" @bind-Value="_telefono" />
+                    <MudTextField T="string" Label="Código postal" Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" Immediate="true" @bind-Value="_codigoPostal" />
+                </div>
+                <MudTextField T="string" Label="Dirección" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" Immediate="true" @bind-Value="_direccion" />
+                <MudTextField T="string" Label="Régimen fiscal" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" Immediate="true" @bind-Value="_regimenFiscal" />
+            </div>
+            <div style="margin-top: 0.75rem;">
+                <AsyncButton Text="Guardar datos de empresa"
+                             LoadingText="Guardando..."
+                             IsLoading="_guardandoDatos"
+                             OnClick="GuardarDatosAsync" />
+            </div>
+        }
+    </div>
+}
+else if (_seccion == SeccionConfig.Logo)
+{
+    <div class="glass-panel" style="flex: 1; min-width: 0;">
+        <p class="form-section">Logo</p>
+        <div style="display: flex; align-items: center; gap: 1.25rem;">
+            @if (_logoDataUrl is not null)
             {
-                <MudSelectItem Value="@impresora">@impresora</MudSelectItem>
+                <img src="@_logoDataUrl" alt="Logo" style="max-height: 64px; max-width: 160px;" />
             }
-        </MudSelect>
-        <AsyncButton Text="Guardar impresora"
-                     LoadingText="Guardando..."
-                     IsLoading="_guardandoImpresora"
-                     OnClick="GuardarImpresoraAsync" />
+            else
+            {
+                <span class="muted">Sin logo</span>
+            }
+            <InputFile OnChange="OnLogoSeleccionadoAsync" accept=".png,.svg,.jpg,.jpeg,.webp" />
+            @if (_logoDataUrl is not null)
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="QuitarLogoAsync">Quitar logo</MudButton>
+            }
+        </div>
     </div>
+}
+else
+{
+    <div class="glass-panel" style="flex: 1; min-width: 0;">
+        <p class="form-section">Impresora</p>
+        <p class="muted" style="margin-bottom: 0.75rem;">
+            Se guarda tu selección para cuando exista la impresión de tickets. Sin flujo de impresión todavía.
+        </p>
+        <div class="form-fields" style="max-width: 480px;">
+            <MudSelect T="string"
+                       Label="Impresora"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Value="_impresora"
+                       ValueChanged="OnImpresoraChangedAsync">
+                @foreach (var impresora in _impresoras)
+                {
+                    <MudSelectItem Value="@impresora">@impresora</MudSelectItem>
+                }
+            </MudSelect>
+            <AsyncButton Text="Guardar impresora"
+                         LoadingText="Guardando..."
+                         IsLoading="_guardandoImpresora"
+                         OnClick="GuardarImpresoraAsync" />
+        </div>
+    </div>
+}
 </div>
 
 @code {
@@ -100,6 +142,22 @@
     [Inject] private IEmpresaConfigService EmpresaConfig { get; set; } = default!;
     [Inject] private IAuthorizationService Authz { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    // Navegación por secciones, mismo patrón que Mi Perfil.
+    private enum SeccionConfig { Empresa, Logo, Impresora }
+
+    private SeccionConfig _seccion = SeccionConfig.Empresa;
+
+    private void IrA(SeccionConfig seccion) => _seccion = seccion;
+
+    /// <summary>Los div role=button no disparan click con teclado: Enter/Espacio activan la sección.</summary>
+    private void SeccionKeyDown(KeyboardEventArgs e, SeccionConfig seccion)
+    {
+        if (e.Key is "Enter" or " ")
+        {
+            IrA(seccion);
+        }
+    }
 
     private bool _tienePermiso;
     private bool _cargandoEmpresa = true;
