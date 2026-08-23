@@ -24,4 +24,19 @@ public interface IAuthService
     /// <summary>Reautorización con clave (operaciones extra-sensibles) contra password_hash.</summary>
     Task ReautorizarAsync(string token, string password, CancellationToken ct = default);
     Task<IReadOnlyList<CuentaRecordadaLocal>> ListarCuentasRecordadasAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Edita nombre/apellidos/email del propio usuario logueado. Refresca la
+    /// sesión en memoria (ISessionState) para que el cambio se refleje sin
+    /// volver a loguearse. Registra usuario.perfil_editado en bitácora.
+    /// </summary>
+    Task<SessionInfo> EditarPerfilAsync(string token, string nombre, string? apellidoPaterno,
+        string? apellidoMaterno, string email, CancellationToken ct = default);
+
+    /// <summary>
+    /// Cambia la contraseña del propio usuario exigiendo la actual (misma
+    /// reautorización que CancelarVenta/cierre de caja). Registra
+    /// usuario.password_cambiado en bitácora.
+    /// </summary>
+    Task CambiarPasswordAsync(string token, string passwordActual, string passwordNueva, CancellationToken ct = default);
 }

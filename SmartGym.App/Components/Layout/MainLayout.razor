@@ -42,9 +42,9 @@
                 <ChildContent>
                     <MudMenuItem Disabled="true" Class="sg-user-header">@Session.Current?.Nombre</MudMenuItem>
                     <MudDivider />
-                    <MudMenuItem OnClick="IrConfiguracion">
-                        <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Small" Class="sg-user-item-icon" />
-                        Configuración
+                    <MudMenuItem OnClick="IrMiPerfil">
+                        <MudIcon Icon="@Icons.Material.Filled.ManageAccounts" Size="Size.Small" Class="sg-user-item-icon" />
+                        Mi Perfil
                     </MudMenuItem>
                     <MudMenuItem OnClick="Salir">
                         <MudIcon Icon="@Icons.Material.Filled.Logout" Size="Size.Small" Class="sg-user-item-icon" />
@@ -132,7 +132,7 @@
         }
     }
 
-    private void IrConfiguracion() => Nav.NavigateTo("/configuracion");
+    private void IrMiPerfil() => Nav.NavigateTo("/mi-perfil");
 
     private async Task Salir()
     {

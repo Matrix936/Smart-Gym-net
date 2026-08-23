@@ -98,7 +98,7 @@ internal sealed class SecurityTestContext : IDisposable
         Maquinaria = new MaquinariaRepository(DbPath);
         FinanzasRepo = new FinanzasRepository(DbPath);
 
-        Auth = new AuthService(Usuarios, sesiones, cuentas, SessionState, new SesionStore(LogosDir));
+        Auth = new AuthService(Usuarios, sesiones, cuentas, SessionState, new SesionStore(LogosDir), Bitacora);
         Authz = new AuthorizationService(Auth, Roles, Permisos);
         Setup = new SetupService(Usuarios, Roles, Empresa, config, logo);
         SedeResolution = new SedeResolutionService(Sedes);

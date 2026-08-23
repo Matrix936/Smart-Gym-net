@@ -70,4 +70,27 @@ public sealed class UsuariosRepository : RepositoryBase, IUsuariosRepository
                 cancellationToken: ct));
         return rows.ToList();
     }
+
+    public async Task UpdatePerfilAsync(long idUsuario, string nombre, string apellidoPaterno, string apellidoMaterno,
+        string email, string updatedAt, CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        await conn.ExecuteAsync(
+            new CommandDefinition(
+                "UPDATE usuarios SET nombre = @nombre, apellido_paterno = @apeP, apellido_materno = @apeM, " +
+                "email = @email COLLATE NOCASE, updated_at = @updatedAt " +
+                "WHERE id_usuario = @idUsuario AND deleted_at IS NULL",
+                new { idUsuario, nombre, apeP = apellidoPaterno, apeM = apellidoMaterno, email, updatedAt },
+                cancellationToken: ct));
+    }
+
+    public async Task UpdatePasswordAsync(long idUsuario, string passwordHash, string updatedAt, CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        await conn.ExecuteAsync(
+            new CommandDefinition(
+                "UPDATE usuarios SET password_hash = @passwordHash, updated_at = @updatedAt " +
+                "WHERE id_usuario = @idUsuario AND deleted_at IS NULL",
+                new { idUsuario, passwordHash, updatedAt }, cancellationToken: ct));
+    }
 }

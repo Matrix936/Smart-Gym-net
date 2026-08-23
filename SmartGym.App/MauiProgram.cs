@@ -132,7 +132,8 @@ public static MauiApp CreateMauiApp()
 			new SesionesRepository(dbPath),
 			new CuentasRecordadasRepository(dbPath),
 			new SessionState(),
-			new SesionStore(dataDir));
+			new SesionStore(dataDir),
+			new BitacoraAuditoriaRepository(dbPath));
 		var authz = new AuthorizationService(auth, roles, permisos);
 		authz.SeedSuperadminPermisosAsync().GetAwaiter().GetResult();
 	}
