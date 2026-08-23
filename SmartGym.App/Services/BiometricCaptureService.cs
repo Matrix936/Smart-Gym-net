@@ -234,7 +234,12 @@ public sealed class BiometricCaptureService : DPFP.Capture.EventHandler, IBiomet
 
             if (modo == BiometricCaptureMode.Enrolling)
             {
-                HandleEnrollmentSample(features);
+                // Doble extracción de FeatureSet: el enrolador necesita
+                // DataPurpose.Enrollment y la detección de duplicados necesita
+                // DataPurpose.Verification — son formatos internos diferentes
+                // del SDK DPFP (mismo patrón de bug que doc 04 §4).
+                var verifFeatures = ExtractFeatures(sample, DataPurpose.Verification);
+                HandleEnrollmentSample(features, verifFeatures);
             }
             else if (modo == BiometricCaptureMode.Identifying)
             {
@@ -253,7 +258,7 @@ public sealed class BiometricCaptureService : DPFP.Capture.EventHandler, IBiomet
 
     // ── Enrolamiento ──────────────────────────────────────────────────────────
 
-    private void HandleEnrollmentSample(DPFP.FeatureSet features)
+    private void HandleEnrollmentSample(DPFP.FeatureSet features, DPFP.FeatureSet? verifFeatures)
     {
         TaskCompletionSource<EnrollmentResult>? tcs = null;
         EnrollmentResult? resultado = null;
@@ -273,28 +278,7 @@ public sealed class BiometricCaptureService : DPFP.Capture.EventHandler, IBiomet
             // internamente (HRESULT 0xFFFFFFE3) ANTES de que TemplateStatus
             // llegue a Ready — capturamos la excepción y la traducimos al
             // estado Duplicado para que la UI muestre el mensaje amigable.
-            try
-            {
-                _enroller.AddFeatures(features);
-            }
-            catch (Exception ex) when (
-                _templatesExistentesDuplicado is not null &&
-                (ex.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) ||
-                 ex.Message.Contains("0xFFFFFFE3") ||
-                 ex.HResult == unchecked((int)0xFFFFFFE3)))
-            {
-                _muestrasCapturadas = _muestrasRequeridas;
-                tcs = _enrollmentTcs;
-                resultado = new EnrollmentResult
-                {
-                    Estado = EnrollmentStage.Duplicado,
-                    MuestrasCapturadas = _muestrasCapturadas,
-                    MuestrasRequeridas = _muestrasRequeridas,
-                };
-                etapaProgreso = EnrollmentStage.Duplicado;
-                completoEnrollment = true;
-                FinalizarEnrollmentSinLock();
-            }
+            _enroller.AddFeatures(features);
 
             if (!completoEnrollment)
             {
@@ -304,38 +288,39 @@ public sealed class BiometricCaptureService : DPFP.Capture.EventHandler, IBiomet
                         _muestrasCapturadas++;
                         break;
 
-                    case Enrollment.Status.Ready:
-                        // Detección de duplicados: verifica el FeatureSet final contra
-                        // los templates existentes ANTES de guardar. Reutiliza el mismo
-                        // _verificator de la identificación 1:N del Kiosco.
-                        if (_templatesExistentesDuplicado is not null)
+                case Enrollment.Status.Ready:
+                    // Detección de duplicados: usa el FeatureSet extraído con
+                    // DataPurpose.Verification (NO el de Enrollment) porque
+                    // el motor de verificación DPFP lo requiere — mismo bug
+                    // del DataPurpose documentado en doc 04 §4.
+                    if (_templatesExistentesDuplicado is not null && verifFeatures is not null)
+                    {
+                        foreach (var entry in _templatesExistentesDuplicado)
                         {
-                            foreach (var entry in _templatesExistentesDuplicado)
+                            var verif = new Verification.Result();
+                            _verificator.Verify(verifFeatures, entry.Template, ref verif);
+                            if (verif.Verified)
                             {
-                                var verif = new Verification.Result();
-                                _verificator.Verify(features, entry.Template, ref verif);
-                                if (verif.Verified)
+                                _muestrasCapturadas = _muestrasRequeridas;
+                                tcs = _enrollmentTcs;
+                                resultado = new EnrollmentResult
                                 {
-                                    _muestrasCapturadas = _muestrasRequeridas;
-                                    tcs = _enrollmentTcs;
-                                    resultado = new EnrollmentResult
-                                    {
-                                        Estado = EnrollmentStage.Duplicado,
-                                        MuestrasCapturadas = _muestrasCapturadas,
-                                        MuestrasRequeridas = _muestrasRequeridas,
-                                    };
-                                    etapaProgreso = EnrollmentStage.Duplicado;
-                                    completoEnrollment = true;
-                                    FinalizarEnrollmentSinLock();
-                                    break;
-                                }
-                            }
-
-                            if (completoEnrollment)
-                            {
+                                    Estado = EnrollmentStage.Duplicado,
+                                    MuestrasCapturadas = _muestrasCapturadas,
+                                    MuestrasRequeridas = _muestrasRequeridas,
+                                };
+                                etapaProgreso = EnrollmentStage.Duplicado;
+                                completoEnrollment = true;
+                                FinalizarEnrollmentSinLock();
                                 break;
                             }
                         }
+
+                        if (completoEnrollment)
+                        {
+                            break;
+                        }
+                    }
 
                         var path = GuardarTemplate(_enroller.Template);
                         _muestrasCapturadas = _muestrasRequeridas;
