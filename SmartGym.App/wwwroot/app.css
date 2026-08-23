@@ -1446,8 +1446,10 @@ table.data-table {
 }
 
 /* IconifyIcon inline (lucide:fingerprint): el svg llena el contenedor
-   animado — el pulso/breathe transforma al wrapper sin perder nitidez. */
+   animado — display:block evita que el alineado de línea base lo recorra
+   hacia abajo dentro del wrapper. */
 .kiosco-icon svg {
+    display: block;
     width: 100%;
     height: 100%;
 }
