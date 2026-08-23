@@ -37,6 +37,23 @@ public sealed class MembresiasService : IMembresiasService
         _sedeResolution = sedeResolution;
     }
 
+    public async Task<PagedResult<MembresiaListadoDto>> BuscarAsync(
+        string token,
+        string? nombreSocio = null,
+        string? estado = null,
+        long? idPlan = null,
+        int pagina = 1,
+        int tamanoPagina = TamanosPagina.Default,
+        long? idSedeFrontend = null,
+        CancellationToken ct = default)
+    {
+        var info = await _auth.ValidarSesionAsync(token, ct);
+        await _authz.RequierePermisoAsync(token, PermisoCatalogo.MembresiasVer, ct);
+        var idSede = await _sedeResolution.ResolverIdSedeAsync(info, idSedeFrontend, ct);
+
+        return await _membresias.BuscarAsync(idSede, nombreSocio, estado, idPlan, pagina, tamanoPagina, ct);
+    }
+
     public async Task<Membresia> VenderAsync(
         string token,
         string idSocio,

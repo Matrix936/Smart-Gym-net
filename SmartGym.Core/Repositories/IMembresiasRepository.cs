@@ -1,3 +1,4 @@
+using SmartGym.Core.Common;
 using SmartGym.Core.Entities;
 
 namespace SmartGym.Core.Repositories;
@@ -36,5 +37,19 @@ public interface IMembresiasRepository
         string idMembresia,
         string fechaCancelacion,
         BitacoraAuditoria bitacora,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Listado paginado de membresías de una sede con socio/plan resueltos y
+    /// estado efectivo calculado en SQL (misma semántica que
+    /// MembresiaEstadoCalculator: una 'activa' vence por fecha_fin pasada).
+    /// </summary>
+    Task<PagedResult<MembresiaListadoDto>> BuscarAsync(
+        long idSede,
+        string? nombreSocio,
+        string? estadoEfectivo,
+        long? idPlan,
+        int pagina,
+        int tamanoPagina,
         CancellationToken ct = default);
 }

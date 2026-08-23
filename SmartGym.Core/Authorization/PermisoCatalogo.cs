@@ -13,6 +13,7 @@ public static class PermisoCatalogo
     public const string MembresiasCrear = "membresias.crear";
     public const string MembresiasCongelar = "membresias.congelar";
     public const string MembresiasCancelar = "membresias.cancelar";
+    public const string MembresiasVer = "membresias.ver";
     public const string PosVender = "pos.vender";
     public const string PosCancelarVenta = "pos.cancelar_venta";
     public const string PosVerHistorial = "pos.ver_historial";
@@ -32,7 +33,7 @@ public static class PermisoCatalogo
     public static IReadOnlyList<string> Todas() =>
     [
         SociosCrear, SociosEditar, SociosEliminar,
-        MembresiasCrear, MembresiasCongelar, MembresiasCancelar,
+        MembresiasCrear, MembresiasCongelar, MembresiasCancelar, MembresiasVer,
         PosVender, PosCancelarVenta, PosVerHistorial, ProductosGestionar, MaquinariaGestionar,
         FinanzasVer,
         ConfiguracionEditar,

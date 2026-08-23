@@ -230,4 +230,74 @@ public sealed class MembresiasRepository : RepositoryBase, IMembresiasRepository
                 "@IdRegistroAfectado, @ValorAnterior, @ValorNuevo, @IdSede, @CreatedAt, @UpdatedAt, 0);",
                 bitacora, tx, cancellationToken: ct));
     }
+
+    // Estado efectivo en SQL con la misma semantica que
+    // MembresiaEstadoCalculator.EstadoEfectivo: una 'activa' vence cuando
+    // fecha_fin ya paso; congelada/cancelada son terminales.
+    private const string BuscarFrom =
+        "FROM membresias m " +
+        "JOIN socios s ON s.id_socio = m.id_socio " +
+        "JOIN planes_membresia p ON p.id_plan = m.id_plan " +
+        "WHERE m.deleted_at IS NULL AND m.id_sede = @idSede " +
+        "AND (@nombre IS NULL OR sin_acentos(s.nombre || ' ' || s.apellido_paterno || ' ' || s.apellido_materno) " +
+        "LIKE '%' || sin_acentos(@nombre) || '%' COLLATE NOCASE) " +
+        "AND (@idPlan IS NULL OR m.id_plan = @idPlan) " +
+        "AND (@estado IS NULL OR " +
+        "(m.estado = @estado AND @estado NOT IN ('activa','vencida')) " +
+        "OR (m.estado = 'activa' AND @estado = 'activa' AND date(m.fecha_fin) >= date('now')) " +
+        "OR (m.estado = 'activa' AND @estado = 'vencida' AND date(m.fecha_fin) < date('now'))) ";
+
+    private const string BuscarSelect =
+        "SELECT m.id_membresia AS IdMembresia, " +
+        "m.id_socio AS IdSocio, " +
+        "TRIM(s.nombre || ' ' || s.apellido_paterno || ' ' || s.apellido_materno) AS NombreSocio, " +
+        "m.id_plan AS IdPlan, " +
+        "p.nombre AS PlanNombre, " +
+        "m.fecha_inicio AS FechaInicio, " +
+        "m.fecha_fin AS FechaFin, " +
+        "m.estado AS Estado, " +
+        "CASE WHEN m.estado != 'activa' THEN m.estado " +
+        "WHEN date(m.fecha_fin) >= date('now') THEN 'activa' ELSE 'vencida' END AS EstadoEfectivo ";
+
+    public async Task<PagedResult<MembresiaListadoDto>> BuscarAsync(
+        long idSede,
+        string? nombreSocio,
+        string? estadoEfectivo,
+        long? idPlan,
+        int pagina,
+        int tamanoPagina,
+        CancellationToken ct = default)
+    {
+        if (!TamanosPagina.EsValido(tamanoPagina))
+        {
+            throw new ArgumentException($"tamanoPagina inválido: {tamanoPagina}. Valores permitidos: {string.Join(", ", TamanosPagina.Validos)}.", nameof(tamanoPagina));
+        }
+
+        var paginaEfectiva = Math.Max(pagina, 1);
+        var offset = (paginaEfectiva - 1) * tamanoPagina;
+        var nombreTrim = string.IsNullOrWhiteSpace(nombreSocio) ? null : nombreSocio.Trim();
+
+        await using var conn = ConnectionFactory.Open(DbPath);
+
+        var total = await conn.ExecuteScalarAsync<int>(
+            new CommandDefinition(
+                "SELECT COUNT(*) " + BuscarFrom,
+                new { idSede, nombre = nombreTrim, estado = estadoEfectivo, idPlan }, cancellationToken: ct));
+
+        var rows = await conn.QueryAsync<MembresiaListadoDto>(
+            new CommandDefinition(
+                BuscarSelect + BuscarFrom +
+                "ORDER BY m.created_at DESC " +
+                "LIMIT @tamanoPagina OFFSET @offset",
+                new { idSede, nombre = nombreTrim, estado = estadoEfectivo, idPlan, tamanoPagina, offset },
+                cancellationToken: ct));
+
+        return new PagedResult<MembresiaListadoDto>
+        {
+            Items = rows.ToList(),
+            TotalRegistros = total,
+            Pagina = paginaEfectiva,
+            TamanoPagina = tamanoPagina,
+        };
+    }
 }
