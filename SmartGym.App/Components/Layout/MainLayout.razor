@@ -4,7 +4,6 @@
 @using SmartGym.Core.Repositories
 @inherits LayoutComponentBase
 @inject NavigationManager Nav
-@inject IJSRuntime JS
 @inject ISessionState Session
 @inject IAuthService Auth
 @inject IEmpresaConfigFiscalRepository EmpresaRepo
@@ -86,6 +85,11 @@
         LogoState.Changed += OnLogoChanged;
         _logoUrl = LogoStorage.LeerDataUrl() ?? string.Empty;
 
+        // Auto-colapso: el sidebar arranca colapsado y se colapsa en CADA
+        // navegación (el usuario puede expandirlo puntualmente, pero cambiar
+        // de módulo lo resetea — sin persistencia del estado expandido).
+        Nav.LocationChanged += OnUbicacionCambio;
+
         var empresa = await EmpresaRepo.GetAsync();
         if (empresa is not null && !string.IsNullOrWhiteSpace(empresa.NombreComercial))
         {
@@ -95,17 +99,13 @@
         var nombre = Session.Current?.Nombre ?? string.Empty;
         _iniciales = InicialesDe(nombre);
 
-        try
-        {
-            var estado = await JS.InvokeAsync<string>("localStorage.getItem", "sidebar-open");
-            _collapsed = estado == "true";
-        }
-        catch
-        {
-            _collapsed = false;
-        }
-
         _reloj = new Timer(_ => InvokeAsync(ActualizarReloj), null, 0, 1000);
+    }
+
+    private void OnUbicacionCambio(object? sender, LocationChangedEventArgs e)
+    {
+        _collapsed = true;
+        InvokeAsync(StateHasChanged);
     }
 
     private static string InicialesDe(string nombre)
@@ -130,15 +130,8 @@
 
     private async Task ToggleSidebar()
     {
+        // Expansión puntual del usuario: dura hasta la próxima navegación.
         _collapsed = !_collapsed;
-        try
-        {
-            await JS.InvokeVoidAsync("localStorage.setItem", "sidebar-open", _collapsed ? "true" : "false");
-        }
-        catch
-        {
-            // localStorage no disponible: el estado queda en memoria.
-        }
     }
 
     private void OnLogoChanged()
@@ -160,6 +153,7 @@
     public void Dispose()
     {
         LogoState.Changed -= OnLogoChanged;
+        Nav.LocationChanged -= OnUbicacionCambio;
         _reloj?.Dispose();
     }
 }
