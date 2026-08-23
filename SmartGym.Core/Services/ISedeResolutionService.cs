@@ -20,4 +20,13 @@ public interface ISedeResolutionService
     /// si la sede indicada no existe o no está activa.
     /// </exception>
     Task<long> ResolverIdSedeAsync(SessionInfo info, long? idSedeFrontend, CancellationToken ct = default);
+
+    /// <summary>
+    /// Variante para LISTADOS: devuelve long? donde null significa "todas las
+    /// sedes". Si la sesión tiene id_sede gana (igual que el estricto); si no,
+    /// devuelve el override tal cual — null permitido, un valor concreto se
+    /// valida igual (existe y activa). PROHIBIDO en escrituras: ahí la sede es
+    /// contexto operativo y siempre debe ser concreta (ResolverIdSedeAsync).
+    /// </summary>
+    Task<long?> ResolverIdSedeOpcionalAsync(SessionInfo info, long? idSedeFrontend, CancellationToken ct = default);
 }

@@ -178,7 +178,7 @@ public sealed class AccesosRepository : RepositoryBase, IAccesosRepository
     private const string BuscarFrom =
         "FROM accesos_bitacora a " +
         "LEFT JOIN socios s ON s.id_socio = a.id_socio " +
-        "WHERE a.deleted_at IS NULL AND a.id_sede = @idSede " +
+        "WHERE a.deleted_at IS NULL AND (@idSede IS NULL OR a.id_sede = @idSede) " +
         "AND a.timestamp >= @desde AND a.timestamp <= @hasta ";
 
     private const string BuscarSelect =
@@ -191,7 +191,7 @@ public sealed class AccesosRepository : RepositoryBase, IAccesosRepository
         "a.motivo_denegacion AS MotivoDenegacion ";
 
     public async Task<PagedResult<AccesoHistorialDto>> BuscarAsync(
-        long idSede,
+        long? idSede,
         AccesoHistorialFiltros? filtros = null,
         int pagina = 1,
         int tamanoPagina = TamanosPagina.Default,

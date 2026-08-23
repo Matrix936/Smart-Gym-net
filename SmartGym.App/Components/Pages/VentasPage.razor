@@ -321,6 +321,7 @@
     [Inject] private IUsuariosRepository UsuariosRepo { get; set; } = default!;
     [Inject] private ISedesRepository Sedes { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
+    [Inject] private SmartGym.Core.Services.ITerminalConfigStore Terminal { get; set; } = default!;
 
     private bool _cargando = true;
     private bool _showSede;
@@ -426,7 +427,13 @@
             {
                 _sedes = [];
             }
-            // Apagado por defecto: 0 = "Todas las sedes" (idSede null al servicio).
+
+            // Preselección al encender el filtro: la sede de ESTA terminal
+            // (mismo mecanismo del Kiosco) si está configurada; si no, "Todas".
+            var idSedeTerminal = await Terminal.ObtenerIdSedeAsync();
+            _sedeSeleccionada = idSedeTerminal is not null && _sedes.Any(s => s.IdSede == idSedeTerminal.Value)
+                ? idSedeTerminal.Value
+                : SedeFiltroTodas;
         }
 
         try
@@ -616,10 +623,11 @@
         StateHasChanged();
         try
         {
+            // Sede de LA FILA (no la del filtro): el detalle exige sede concreta.
             _detalleVenta = await Ventas.ObtenerDetalleVentaAsync(
                 sesion.Token,
                 fila.ReferenciaId,
-                SedeActiva);
+                fila.IdSede);
         }
         catch (BusinessException ex)
         {
@@ -671,11 +679,12 @@
         _cancelando = true;
         try
         {
+            // Sede de LA FILA: la cancelación es una escritura y exige sede concreta.
             await Pos.CancelarVentaAsync(sesion.Token, new CancelarVentaInput
             {
                 IdVenta = _filaCancelando.ReferenciaId,
                 PasswordConfirmacion = _cancelacionPassword,
-            }, SedeActiva);
+            }, _filaCancelando.IdSede);
             Feedback.ShowSuccess("Venta cancelada");
             _cancelacionAbierta = false;
             await CargarAsync();

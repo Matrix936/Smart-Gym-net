@@ -32,7 +32,7 @@ public interface IAccesosRepository
     /// resuelto. Orden descendente por timestamp.
     /// </summary>
     Task<PagedResult<AccesoHistorialDto>> BuscarAsync(
-        long idSede,
+        long? idSede,
         AccesoHistorialFiltros? filtros = null,
         int pagina = 1,
         int tamanoPagina = TamanosPagina.Default,

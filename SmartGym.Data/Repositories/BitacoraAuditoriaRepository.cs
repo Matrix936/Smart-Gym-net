@@ -39,8 +39,9 @@ public sealed class BitacoraAuditoriaRepository : RepositoryBase, IBitacoraAudit
         "LEFT JOIN usuarios u ON u.id_usuario = b.id_usuario " +
         "LEFT JOIN sedes s ON s.id_sede = b.id_sede " +
         // Acciones globales (catálogos hechos por admin sin sede) son visibles
-        // desde cualquier sede: id_sede NULL no se filtra.
-        "WHERE b.deleted_at IS NULL AND (b.id_sede IS NULL OR b.id_sede = @idSede) ";
+        // desde cualquier sede: id_sede NULL no se filtra. Con @idSede NULL
+        // (modo "todas las sedes" de los listados) se devuelven todas.
+        "WHERE b.deleted_at IS NULL AND (@idSede IS NULL OR b.id_sede IS NULL OR b.id_sede = @idSede) ";
 
     private const string BuscarSelect =
         "SELECT b.created_at AS Fecha, " +
@@ -54,7 +55,7 @@ public sealed class BitacoraAuditoriaRepository : RepositoryBase, IBitacoraAudit
         "s.nombre AS SedeNombre ";
 
     public async Task<PagedResult<BitacoraHistorialDto>> BuscarAsync(
-        long idSede,
+        long? idSede,
         BitacoraFiltros? filtros = null,
         int pagina = 1,
         int tamanoPagina = TamanosPagina.Default,

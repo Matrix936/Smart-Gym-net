@@ -15,7 +15,7 @@ public interface IBitacoraAuditoriaRepository
     /// paginado y con filtros de fecha/categoría/acción/usuario. Orden descendente.
     /// </summary>
     Task<PagedResult<BitacoraHistorialDto>> BuscarAsync(
-        long idSede,
+        long? idSede,
         BitacoraFiltros? filtros = null,
         int pagina = 1,
         int tamanoPagina = TamanosPagina.Default,

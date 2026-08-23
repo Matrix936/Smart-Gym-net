@@ -17,7 +17,7 @@ public interface ICajaMovimientosRepository
     /// Ordenado por fecha descendente.
     /// </summary>
     Task<PagedResult<MovimientoHistorialDto>> BuscarHistorialAsync(
-        long idSede,
+        long? idSede,
         HistorialFiltros? filtros = null,
         int pagina = 1,
         int tamanoPagina = TamanosPagina.Default,

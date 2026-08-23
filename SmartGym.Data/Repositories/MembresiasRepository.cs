@@ -238,7 +238,7 @@ public sealed class MembresiasRepository : RepositoryBase, IMembresiasRepository
         "FROM membresias m " +
         "JOIN socios s ON s.id_socio = m.id_socio " +
         "JOIN planes_membresia p ON p.id_plan = m.id_plan " +
-        "WHERE m.deleted_at IS NULL AND m.id_sede = @idSede " +
+        "WHERE m.deleted_at IS NULL AND (@idSede IS NULL OR m.id_sede = @idSede) " +
         "AND (@nombre IS NULL OR sin_acentos(s.nombre || ' ' || s.apellido_paterno || ' ' || s.apellido_materno) " +
         "LIKE '%' || sin_acentos(@nombre) || '%' COLLATE NOCASE) " +
         "AND (@idPlan IS NULL OR m.id_plan = @idPlan) " +
@@ -260,7 +260,7 @@ public sealed class MembresiasRepository : RepositoryBase, IMembresiasRepository
         "WHEN date(m.fecha_fin) >= date('now') THEN 'activa' ELSE 'vencida' END AS EstadoEfectivo ";
 
     public async Task<PagedResult<MembresiaListadoDto>> BuscarAsync(
-        long idSede,
+        long? idSede,
         string? nombreSocio,
         string? estadoEfectivo,
         long? idPlan,

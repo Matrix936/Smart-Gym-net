@@ -44,6 +44,10 @@ public sealed class MovimientoHistorialDto
     public string MetodoPago { get; set; } = string.Empty;
     public string? ReferenciaId { get; set; }
 
+    /// <summary>Sede de la caja que originó el movimiento: permite detalle/
+    /// cancelación de una fila concreta aunque el filtro de sede esté apagado.</summary>
+    public long? IdSede { get; set; }
+
     public string? IdSocio { get; set; }
     public string? NombreSocio { get; set; }
     public long? IdVendedor { get; set; }

@@ -212,6 +212,7 @@
     [Inject] private IAuthorizationService Authz { get; set; } = default!;
     [Inject] private ISedesRepository Sedes { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
+    [Inject] private ITerminalConfigStore Terminal { get; set; } = default!;
 
     private bool _tienePermiso;
     private bool _cargando;
@@ -308,7 +309,13 @@
             {
                 _sedes = [];
             }
-            // Apagado por defecto: 0 = "Todas las sedes" (idSede null al servicio).
+
+            // Preselección al encender el filtro: la sede de ESTA terminal
+            // (mismo mecanismo del Kiosco) si está configurada; si no, "Todas".
+            var idSedeTerminal = await Terminal.ObtenerIdSedeAsync();
+            _sedeSeleccionada = idSedeTerminal is not null && _sedes.Any(s => s.IdSede == idSedeTerminal.Value)
+                ? idSedeTerminal.Value
+                : SedeFiltroTodas;
         }
 
         await CargarAsync();

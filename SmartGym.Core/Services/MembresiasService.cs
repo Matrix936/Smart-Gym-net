@@ -49,7 +49,7 @@ public sealed class MembresiasService : IMembresiasService
     {
         var info = await _auth.ValidarSesionAsync(token, ct);
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.MembresiasVer, ct);
-        var idSede = await _sedeResolution.ResolverIdSedeAsync(info, idSedeFrontend, ct);
+        var idSede = await _sedeResolution.ResolverIdSedeOpcionalAsync(info, idSedeFrontend, ct);
 
         return await _membresias.BuscarAsync(idSede, nombreSocio, estado, idPlan, pagina, tamanoPagina, ct);
     }

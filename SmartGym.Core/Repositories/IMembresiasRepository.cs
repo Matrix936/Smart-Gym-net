@@ -45,7 +45,7 @@ public interface IMembresiasRepository
     /// MembresiaEstadoCalculator: una 'activa' vence por fecha_fin pasada).
     /// </summary>
     Task<PagedResult<MembresiaListadoDto>> BuscarAsync(
-        long idSede,
+        long? idSede,
         string? nombreSocio,
         string? estadoEfectivo,
         long? idPlan,

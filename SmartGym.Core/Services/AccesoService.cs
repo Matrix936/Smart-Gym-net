@@ -56,7 +56,7 @@ public sealed class AccesoService : IAccesoService
     {
         var info = await _auth.ValidarSesionAsync(token, ct);
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.AccesoVerBitacora, ct);
-        var idSede = await _sedeResolution.ResolverIdSedeAsync(info, idSedeFrontend, ct);
+        var idSede = await _sedeResolution.ResolverIdSedeOpcionalAsync(info, idSedeFrontend, ct);
 
         return await _accesos.BuscarAsync(idSede, filtros, pagina, tamanoPagina, ct);
     }

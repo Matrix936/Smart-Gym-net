@@ -79,7 +79,7 @@ public sealed class CajaMovimientosRepository : RepositoryBase, ICajaMovimientos
         "LEFT JOIN usuarios u1 ON u1.id_usuario = v.id_vendedor " +
         "LEFT JOIN usuarios u2 ON u2.id_usuario = mp.id_vendedor " +
         "LEFT JOIN usuarios u3 ON u3.id_usuario = ccu.id_cobrador " +
-        "WHERE cs.id_sede = @idSede AND cm.deleted_at IS NULL AND cs.deleted_at IS NULL ";
+        "WHERE (@idSede IS NULL OR cs.id_sede = @idSede) AND cm.deleted_at IS NULL AND cs.deleted_at IS NULL ";
 
     private const string HistorialSelect =
         "SELECT cm.created_at AS Fecha, " +
@@ -89,6 +89,7 @@ public sealed class CajaMovimientosRepository : RepositoryBase, ICajaMovimientos
         "CASE cm.tipo WHEN 'egreso' THEN -cm.monto_centavos ELSE cm.monto_centavos END AS MontoCentavos, " +
         "cm.metodo_pago AS MetodoPago, " +
         "cm.referencia_id AS ReferenciaId, " +
+        "cs.id_sede AS IdSede, " +
         "COALESCE(v.id_socio, mem.id_socio, cc.id_socio) AS IdSocio, " +
         "TRIM(COALESCE( " +
         "s1.nombre || ' ' || s1.apellido_paterno || ' ' || s1.apellido_materno, " +
@@ -102,7 +103,7 @@ public sealed class CajaMovimientosRepository : RepositoryBase, ICajaMovimientos
         "v.estado AS EstadoVenta ";
 
     public async Task<PagedResult<MovimientoHistorialDto>> BuscarHistorialAsync(
-        long idSede,
+        long? idSede,
         HistorialFiltros? filtros = null,
         int pagina = 1,
         int tamanoPagina = TamanosPagina.Default,
