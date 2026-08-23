@@ -286,6 +286,7 @@
         try
         {
             await Authz.RequierePermisoAsync(sesion.Token, PermisoCatalogo.MaquinariaGestionar);
+            _tienePermiso = true;
         }
         catch (BusinessException)
         {
