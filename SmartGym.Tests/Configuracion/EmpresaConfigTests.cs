@@ -95,4 +95,46 @@ public sealed class EmpresaConfigTests
         Assert.Equal(BusinessError.Unauthorized, ex.Error);
         Assert.Equal("sin_permiso", ex.Code);
     }
+
+    [Fact]
+    public async Task renombrar_sede_actualiza_y_registra_bitacora()
+    {
+        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
+
+        var nombre = await ctx.EmpresaConfigService.RenombrarSedeAsync(token, "Sucursal Centro");
+
+        Assert.Equal("Sucursal Centro", nombre);
+        var sede = await ctx.Sedes.GetPrincipalAsync();
+        Assert.NotNull(sede);
+        Assert.Equal("Sucursal Centro", sede.Nombre);
+
+        await using var conn = ConnectionFactory.Open(ctx.DbPath);
+        var fila = await conn.QuerySingleAsync<(string TablaAfectada, string ValorAnterior, string ValorNuevo)>(new CommandDefinition(
+            "SELECT tabla_afectada, valor_anterior, valor_nuevo FROM bitacora_auditoria WHERE accion = 'sede.renombrada'"));
+        Assert.Equal("sedes", fila.TablaAfectada);
+        Assert.Contains("Sede Principal", fila.ValorAnterior);
+        Assert.Contains("Sucursal Centro", fila.ValorNuevo);
+    }
+
+    [Fact]
+    public async Task renombrar_sede_vacia_es_rechazado()
+    {
+        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
+
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.EmpresaConfigService.RenombrarSedeAsync(token, "   "));
+        Assert.Equal("nombre_sede_obligatorio", ex.Code);
+    }
+
+    [Fact]
+    public async Task renombrar_sede_sin_permiso_falla()
+    {
+        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
+        await Fase5Helper.ClearPermisosRolAsync(ctx);
+
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.EmpresaConfigService.RenombrarSedeAsync(token, "Otra Sede"));
+        Assert.Equal(BusinessError.Unauthorized, ex.Error);
+        Assert.Equal("sin_permiso", ex.Code);
+    }
 }

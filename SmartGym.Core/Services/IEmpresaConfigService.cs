@@ -22,4 +22,11 @@ public interface IEmpresaConfigService
     Task GuardarImpresoraAsync(string token, string nombreImpresora, CancellationToken ct = default);
 
     Task<string?> ObtenerImpresoraAsync(string token, CancellationToken ct = default);
+
+    /// <summary>
+    /// Renombra la sede principal (la fila sembrada como "Sede Principal").
+    /// Reutiliza ISedesRepository.RenombrarAsync; sin unicidad forzada porque
+    /// en una instalación típica solo existe una sede (mismo criterio del setup).
+    /// </summary>
+    Task<string> RenombrarSedeAsync(string token, string nombreSede, CancellationToken ct = default);
 }
