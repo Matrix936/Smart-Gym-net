@@ -1686,3 +1686,9 @@ table.data-table {
     gap: 0.5rem;
     padding: 0.15rem 0;
 }
+
+/* Alinea el embudo con la fila de filtros cuando los controles tienen label. */
+.form-fields .filtros-toggle-wrap {
+    align-self: flex-end;
+    margin-bottom: 2px;
+}

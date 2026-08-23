@@ -341,8 +341,8 @@
         new("metodo", "Método"),
         new("estado", "Estado venta"),
     };
-    private static readonly string[] _visiblesIniciales = ["socio"];
-    private HashSet<string> _filtrosVisibles = ["socio"];
+    private static readonly string[] _visiblesIniciales = ["tipo"];
+    private HashSet<string> _filtrosVisibles = ["tipo"];
 
     private int ConteoAplicados =>
         (_socioSeleccionado is not null ? 1 : 0) +
