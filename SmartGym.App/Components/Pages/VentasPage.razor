@@ -57,68 +57,87 @@
                        Margin="Margin.Dense"
                        Date="_hasta"
                        DateChanged="OnHastaChangedAsync" />
-        <MudAutocomplete T="Socio"
-                         Label="Socio"
-                         Variant="Variant.Outlined"
-                         Margin="Margin.Dense"
-                         SearchFunc="@BuscarSociosAsync"
-                         ToStringFunc="@(s => s is null ? "" : $"{s.Nombre} {s.ApellidoPaterno}".Trim())"
-                         MaxItems="10"
-                         MinCharacters="0"
-                         ResetValueOnEmptyText="true"
-                         Clearable="true"
-                         Value="_socioSeleccionado"
-                         ValueChanged="OnSocioChangedAsync" />
-        <MudSelect T="long?"
-                   Label="Vendedor"
-                   Variant="Variant.Outlined"
-                   Margin="Margin.Dense"
-                   Clearable="true"
-                   Value="_idVendedor"
-                   ValueChanged="OnVendedorChangedAsync">
-            <MudSelectItem T="long?" Value="null">Todos</MudSelectItem>
-            @foreach (var u in _vendedores)
-            {
-                <MudSelectItem Value="@((long?)u.IdUsuario)">@($"{u.Nombre} {u.ApellidoPaterno}".Trim())</MudSelectItem>
-            }
-        </MudSelect>
-        <MudSelect T="string?"
-                   Label="Tipo"
-                   Variant="Variant.Outlined"
-                   Margin="Margin.Dense"
-                   Clearable="true"
-                   Value="_tipo"
-                   ValueChanged="OnTipoChangedAsync">
-            <MudSelectItem T="string?" Value="null">Todos</MudSelectItem>
-            <MudSelectItem T="string?" Value="@CajaReferenciaTipos.Venta">Venta</MudSelectItem>
-            <MudSelectItem T="string?" Value="@CajaReferenciaTipos.CancelacionVenta">Cancelación</MudSelectItem>
-            <MudSelectItem T="string?" Value="@CajaReferenciaTipos.PagoMembresia">Membresía</MudSelectItem>
-            <MudSelectItem T="string?" Value="@CajaReferenciaTipos.Abono">Abono</MudSelectItem>
-        </MudSelect>
-        <MudSelect T="string?"
-                   Label="Método"
-                   Variant="Variant.Outlined"
-                   Margin="Margin.Dense"
-                   Clearable="true"
-                   Value="_metodoPago"
-                   ValueChanged="OnMetodoChangedAsync">
-            <MudSelectItem T="string?" Value="null">Todos</MudSelectItem>
-            @foreach (var m in MetodosPago.Todos)
-            {
-                <MudSelectItem T="string?" Value="@m">@Capitalizar(m)</MudSelectItem>
-            }
-        </MudSelect>
-        <MudSelect T="string?"
-                   Label="Estado venta"
-                   Variant="Variant.Outlined"
-                   Margin="Margin.Dense"
-                   Clearable="true"
-                   Value="_estadoVenta"
-                   ValueChanged="OnEstadoChangedAsync">
-            <MudSelectItem T="string?" Value="null">Todos</MudSelectItem>
-            <MudSelectItem T="string?" Value="@VentaEstados.Completada">Completada</MudSelectItem>
-            <MudSelectItem T="string?" Value="@VentaEstados.Cancelada">Cancelada</MudSelectItem>
-        </MudSelect>
+        <FiltrosDesplegables Filtros="_definicionesFiltros"
+                             VisiblesIniciales="_visiblesIniciales"
+                             ConteoAplicados="ConteoAplicados"
+                             VisiblesChanged="OnVisiblesChangedAsync" />
+        @if (_filtrosVisibles.Contains("socio"))
+        {
+            <MudAutocomplete T="Socio"
+                             Label="Socio"
+                             Variant="Variant.Outlined"
+                             Margin="Margin.Dense"
+                             SearchFunc="@BuscarSociosAsync"
+                             ToStringFunc="@(s => s is null ? "" : $"{s.Nombre} {s.ApellidoPaterno}".Trim())"
+                             MaxItems="10"
+                             MinCharacters="0"
+                             ResetValueOnEmptyText="true"
+                             Clearable="true"
+                             Value="_socioSeleccionado"
+                             ValueChanged="OnSocioChangedAsync" />
+        }
+        @if (_filtrosVisibles.Contains("vendedor"))
+        {
+            <MudSelect T="long?"
+                       Label="Vendedor"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Clearable="true"
+                       Value="_idVendedor"
+                       ValueChanged="OnVendedorChangedAsync">
+                <MudSelectItem T="long?" Value="null">Todos</MudSelectItem>
+                @foreach (var u in _vendedores)
+                {
+                    <MudSelectItem Value="@((long?)u.IdUsuario)">@($"{u.Nombre} {u.ApellidoPaterno}".Trim())</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        @if (_filtrosVisibles.Contains("tipo"))
+        {
+            <MudSelect T="string?"
+                       Label="Tipo"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Clearable="true"
+                       Value="_tipo"
+                       ValueChanged="OnTipoChangedAsync">
+                <MudSelectItem T="string?" Value="null">Todos</MudSelectItem>
+                <MudSelectItem T="string?" Value="@CajaReferenciaTipos.Venta">Venta</MudSelectItem>
+                <MudSelectItem T="string?" Value="@CajaReferenciaTipos.CancelacionVenta">Cancelación</MudSelectItem>
+                <MudSelectItem T="string?" Value="@CajaReferenciaTipos.PagoMembresia">Membresía</MudSelectItem>
+                <MudSelectItem T="string?" Value="@CajaReferenciaTipos.Abono">Abono</MudSelectItem>
+            </MudSelect>
+        }
+        @if (_filtrosVisibles.Contains("metodo"))
+        {
+            <MudSelect T="string?"
+                       Label="Método"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Clearable="true"
+                       Value="_metodoPago"
+                       ValueChanged="OnMetodoChangedAsync">
+                <MudSelectItem T="string?" Value="null">Todos</MudSelectItem>
+                @foreach (var m in MetodosPago.Todos)
+                {
+                    <MudSelectItem T="string?" Value="@m">@Capitalizar(m)</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        @if (_filtrosVisibles.Contains("estado"))
+        {
+            <MudSelect T="string?"
+                       Label="Estado venta"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Clearable="true"
+                       Value="_estadoVenta"
+                       ValueChanged="OnEstadoChangedAsync">
+                <MudSelectItem T="string?" Value="null">Todos</MudSelectItem>
+                <MudSelectItem T="string?" Value="@VentaEstados.Completada">Completada</MudSelectItem>
+                <MudSelectItem T="string?" Value="@VentaEstados.Cancelada">Cancelada</MudSelectItem>
+            </MudSelect>
+        }
     </div>
 
     @if (_cargando)
@@ -313,6 +332,25 @@
     private string? _metodoPago;
     private string? _estadoVenta;
 
+    // FiltrosDesplegables: socio visible por defecto; vendedor/tipo/método/estado ocultos.
+    private readonly List<FiltrosDesplegables.FiltroDefinicion> _definicionesFiltros = new()
+    {
+        new("socio", "Socio"),
+        new("vendedor", "Vendedor"),
+        new("tipo", "Tipo"),
+        new("metodo", "Método"),
+        new("estado", "Estado venta"),
+    };
+    private static readonly string[] _visiblesIniciales = ["socio"];
+    private HashSet<string> _filtrosVisibles = ["socio"];
+
+    private int ConteoAplicados =>
+        (_socioSeleccionado is not null ? 1 : 0) +
+        (_idVendedor is not null ? 1 : 0) +
+        (_tipo is not null ? 1 : 0) +
+        (_metodoPago is not null ? 1 : 0) +
+        (_estadoVenta is not null ? 1 : 0);
+
     private List<MovimientoHistorialDto> _filas = [];
     private int _pagina = 1;
     private int _tamanoPagina = TamanosPagina.Default;
@@ -410,6 +448,35 @@
     private async Task OnSocioChangedAsync(Socio? socio)
     {
         _socioSeleccionado = socio;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    /// <summary>Al ocultar un filtro se limpia su valor (nunca queda aplicado invisible).</summary>
+    private async Task OnVisiblesChangedAsync(IReadOnlyList<string> visibles)
+    {
+        _filtrosVisibles = visibles.ToHashSet(StringComparer.Ordinal);
+        if (_socioSeleccionado is not null && !_filtrosVisibles.Contains("socio"))
+        {
+            _socioSeleccionado = null;
+        }
+        if (!_filtrosVisibles.Contains("vendedor"))
+        {
+            _idVendedor = null;
+        }
+        if (!_filtrosVisibles.Contains("tipo"))
+        {
+            _tipo = null;
+        }
+        if (!_filtrosVisibles.Contains("metodo"))
+        {
+            _metodoPago = null;
+        }
+        if (!_filtrosVisibles.Contains("estado"))
+        {
+            _estadoVenta = null;
+        }
+        _pagina = 1;
         await CargarAsync();
     }
 
