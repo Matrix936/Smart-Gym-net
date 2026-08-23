@@ -37,14 +37,14 @@
                 <div class="wizard-form">
                     <p class="step-subtitle">Datos del negocio</p>
                     <FormField Label="Nombre comercial" @bind-Value="_empresa.NombreComercial" />
+                    <FormField Label="Nombre de la sede (opcional)"
+                               Placeholder="Sede Principal"
+                               @bind-Value="_empresa.NombreSede" />
                     <div class="form-row">
                         <FormField Label="Teléfono" @bind-Value="_empresa.Telefono" />
                         <FormField Label="Código Postal" @bind-Value="_empresa.CodigoPostal" />
                     </div>
                     <FormField Label="Dirección" @bind-Value="_empresa.Direccion" />
-                    <FormField Label="Nombre de la sede (opcional)"
-                               Placeholder="Sede Principal"
-                               @bind-Value="_empresa.NombreSede" />
                 </div>
             </MudStep>
 
