@@ -269,75 +269,107 @@ public sealed class BiometricCaptureService : DPFP.Capture.EventHandler, IBiomet
                 return;
             }
 
-            _enroller.AddFeatures(features);
-
-            switch (_enroller.TemplateStatus)
+            // El SDK DPFP puede lanzar en AddFeatures cuando detecta duplicado
+            // internamente (HRESULT 0xFFFFFFE3) ANTES de que TemplateStatus
+            // llegue a Ready — capturamos la excepción y la traducimos al
+            // estado Duplicado para que la UI muestre el mensaje amigable.
+            try
             {
-                case Enrollment.Status.Insufficient:
-                    _muestrasCapturadas++;
-                    break;
+                _enroller.AddFeatures(features);
+            }
+            catch (Exception ex) when (
+                _templatesExistentesDuplicado is not null &&
+                (ex.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) ||
+                 ex.Message.Contains("0xFFFFFFE3") ||
+                 ex.HResult == unchecked((int)0xFFFFFFE3)))
+            {
+                _muestrasCapturadas = _muestrasRequeridas;
+                tcs = _enrollmentTcs;
+                resultado = new EnrollmentResult
+                {
+                    Estado = EnrollmentStage.Duplicado,
+                    MuestrasCapturadas = _muestrasCapturadas,
+                    MuestrasRequeridas = _muestrasRequeridas,
+                };
+                etapaProgreso = EnrollmentStage.Duplicado;
+                completoEnrollment = true;
+                FinalizarEnrollmentSinLock();
+            }
 
-                case Enrollment.Status.Ready:
-                    // Detección de duplicados: verifica el FeatureSet final contra
-                    // los templates existentes ANTES de guardar. Reutiliza el mismo
-                    // _verificator de la identificación 1:N del Kiosco.
-                    if (_templatesExistentesDuplicado is not null)
-                    {
-                        foreach (var entry in _templatesExistentesDuplicado)
+            if (!completoEnrollment)
+            {
+                switch (_enroller.TemplateStatus)
+                {
+                    case Enrollment.Status.Insufficient:
+                        _muestrasCapturadas++;
+                        break;
+
+                    case Enrollment.Status.Ready:
+                        // Detección de duplicados: verifica el FeatureSet final contra
+                        // los templates existentes ANTES de guardar. Reutiliza el mismo
+                        // _verificator de la identificación 1:N del Kiosco.
+                        if (_templatesExistentesDuplicado is not null)
                         {
-                            var verif = new Verification.Result();
-                            _verificator.Verify(features, entry.Template, ref verif);
-                            if (verif.Verified)
+                            foreach (var entry in _templatesExistentesDuplicado)
                             {
-                                _muestrasCapturadas = _muestrasRequeridas;
-                                tcs = _enrollmentTcs;
-                                resultado = new EnrollmentResult
+                                var verif = new Verification.Result();
+                                _verificator.Verify(features, entry.Template, ref verif);
+                                if (verif.Verified)
                                 {
-                                    Estado = EnrollmentStage.Duplicado,
-                                    MuestrasCapturadas = _muestrasCapturadas,
-                                    MuestrasRequeridas = _muestrasRequeridas,
-                                };
-                                etapaProgreso = EnrollmentStage.Duplicado;
-                                completoEnrollment = true;
-                                FinalizarEnrollmentSinLock();
+                                    _muestrasCapturadas = _muestrasRequeridas;
+                                    tcs = _enrollmentTcs;
+                                    resultado = new EnrollmentResult
+                                    {
+                                        Estado = EnrollmentStage.Duplicado,
+                                        MuestrasCapturadas = _muestrasCapturadas,
+                                        MuestrasRequeridas = _muestrasRequeridas,
+                                    };
+                                    etapaProgreso = EnrollmentStage.Duplicado;
+                                    completoEnrollment = true;
+                                    FinalizarEnrollmentSinLock();
+                                    break;
+                                }
+                            }
+
+                            if (completoEnrollment)
+                            {
                                 break;
                             }
                         }
 
-                        if (completoEnrollment)
+                        var path = GuardarTemplate(_enroller.Template);
+                        _muestrasCapturadas = _muestrasRequeridas;
+                        tcs = _enrollmentTcs;
+                        resultado = new EnrollmentResult
                         {
-                            break;
-                        }
-                    }
+                            Estado = EnrollmentStage.Completado,
+                            TemplatePath = path,
+                            MuestrasCapturadas = _muestrasCapturadas,
+                            MuestrasRequeridas = _muestrasRequeridas,
+                        };
+                        etapaProgreso = EnrollmentStage.Completado;
+                        completoEnrollment = true;
+                        FinalizarEnrollmentSinLock();
+                        break;
 
-                    var path = GuardarTemplate(_enroller.Template);
-                    _muestrasCapturadas = _muestrasRequeridas;
-                    tcs = _enrollmentTcs;
-                    resultado = new EnrollmentResult
-                    {
-                        Estado = EnrollmentStage.Completado,
-                        TemplatePath = path,
-                        MuestrasCapturadas = _muestrasCapturadas,
-                        MuestrasRequeridas = _muestrasRequeridas,
-                    };
-                    etapaProgreso = EnrollmentStage.Completado;
-                    completoEnrollment = true;
-                    FinalizarEnrollmentSinLock();
-                    break;
-
-                case Enrollment.Status.Failed:
-                    tcs = _enrollmentTcs;
-                    resultado = new EnrollmentResult
-                    {
-                        Estado = EnrollmentStage.Error,
-                        Error = "Fallo al procesar huella",
-                        MuestrasCapturadas = _muestrasCapturadas,
-                        MuestrasRequeridas = _muestrasRequeridas,
-                    };
-                    etapaProgreso = EnrollmentStage.Error;
-                    completoEnrollment = true;
-                    FinalizarEnrollmentSinLock();
-                    break;
+                    case Enrollment.Status.Failed:
+                        tcs = _enrollmentTcs;
+                        resultado = new EnrollmentResult
+                        {
+                            Estado = EnrollmentStage.Error,
+                            Error = "Fallo al procesar huella",
+                            MuestrasCapturadas = _muestrasCapturadas,
+                            MuestrasRequeridas = _muestrasRequeridas,
+                        };
+                        etapaProgreso = EnrollmentStage.Error;
+                        completoEnrollment = true;
+                        FinalizarEnrollmentSinLock();
+                        break;
+                }
+            }
+            else
+            {
+                _arbiter.FinishEnrollment();
             }
 
             muestrasCapturadas = _muestrasCapturadas;
