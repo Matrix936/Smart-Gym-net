@@ -104,7 +104,7 @@ internal sealed class SecurityTestContext : IDisposable
 
         Auth = new AuthService(Usuarios, sesiones, cuentas, SessionState, new SesionStore(LogosDir), Bitacora);
         Authz = new AuthorizationService(Auth, Roles, Permisos);
-        Setup = new SetupService(Usuarios, Roles, Empresa, Configuracion, logo);
+        Setup = new SetupService(Usuarios, Roles, Empresa, Configuracion, Sedes, logo);
         SedeResolution = new SedeResolutionService(Sedes);
         SociosService = new SociosService(Auth, Authz, Socios, Bitacora, SedeResolution);
         // NOTA: firma actualizada para el CajaService en curso de otra línea de

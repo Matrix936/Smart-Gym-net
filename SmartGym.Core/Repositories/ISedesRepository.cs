@@ -10,4 +10,7 @@ public interface ISedesRepository
 
     /// <summary>INSERT directo (setup multi-sede y tests). Devuelve el id autoincrement.</summary>
     Task<long> InsertAsync(Sede sede, CancellationToken ct = default);
+
+    /// <summary>Renombra la sede (setup inicial: personalizar "Sede Principal").</summary>
+    Task RenombrarAsync(long idSede, string nombre, CancellationToken ct = default);
 }

@@ -11,6 +11,7 @@ public sealed class SetupService : ISetupService
     private readonly IRolesRepository _roles;
     private readonly IEmpresaConfigFiscalRepository _empresa;
     private readonly IConfiguracionRepository _config;
+    private readonly ISedesRepository _sedes;
     private readonly ILogoStorage _logoStorage;
 
     public SetupService(
@@ -18,12 +19,14 @@ public sealed class SetupService : ISetupService
         IRolesRepository roles,
         IEmpresaConfigFiscalRepository empresa,
         IConfiguracionRepository config,
+        ISedesRepository sedes,
         ILogoStorage logoStorage)
     {
         _usuarios = usuarios;
         _roles = roles;
         _empresa = empresa;
         _config = config;
+        _sedes = sedes;
         _logoStorage = logoStorage;
     }
 
@@ -45,6 +48,19 @@ public sealed class SetupService : ISetupService
 
         var rol = await _roles.GetByNameAsync("SUPERADMIN", ct)
             ?? throw BusinessException.Conflict("El rol SUPERADMIN no existe en el seed", "rol_superadmin_faltante");
+
+        // Sede opcional: el seed SQL ya crea la sede "Sede Principal"; si el
+        // usuario eligió otro nombre se renombra esa única sede. Va antes de
+        // crear el superadmin para fallar sin dejar un setup a medias. Sin
+        // validación de duplicados: en una instalación fresca es la única fila
+        // y sedes.nombre no tiene UNIQUE (no hay CRUD de sedes todavía).
+        var nombreSede = datos.NombreSede?.Trim();
+        if (!string.IsNullOrEmpty(nombreSede))
+        {
+            var sede = await _sedes.GetPrincipalAsync(ct)
+                ?? throw BusinessException.NotFound("No hay sede inicial en el seed", "sede_inicial_faltante");
+            await _sedes.RenombrarAsync(sede.IdSede, nombreSede, ct);
+        }
 
         var ahora = Core.Common.DateHelper.NowIsoUtc();
         await _usuarios.InsertAsync(new Usuario

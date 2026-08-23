@@ -69,4 +69,14 @@ public sealed class SedesRepository : RepositoryBase, ISedesRepository
                     : sede.UpdatedAt,
             }, cancellationToken: ct));
     }
+
+    public async Task RenombrarAsync(long idSede, string nombre, CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        await conn.ExecuteAsync(new CommandDefinition(
+            "UPDATE sedes SET nombre = @nombre, updated_at = @updatedAt, sincronizado = 0 " +
+            "WHERE id_sede = @id AND deleted_at IS NULL",
+            new { id = idSede, nombre, updatedAt = DateHelper.NowIsoUtc() },
+            cancellationToken: ct));
+    }
 }

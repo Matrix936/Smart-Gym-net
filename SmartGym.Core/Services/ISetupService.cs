@@ -31,6 +31,9 @@ public sealed class SetupDatos
     public required string Email { get; init; }
     public required string Password { get; init; }
 
+    /// <summary>Opcional: renombra la sede sembrada ("Sede Principal"). Nulo/vacío = dejar el nombre del seed.</summary>
+    public string? NombreSede { get; init; }
+
     public byte[]? LogoBytes { get; init; }
     public string? LogoMime { get; init; }
 }

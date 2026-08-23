@@ -11,7 +11,7 @@ public sealed class SetupTests
     private const string MimePng = "image/png";
     private const string MimeSvg = "image/svg+xml";
 
-    private static SetupDatos Datos(byte[]? logo = null, string? mime = null, string? email = null, string? password = null, string? nombreComercial = null) =>
+    private static SetupDatos Datos(byte[]? logo = null, string? mime = null, string? email = null, string? password = null, string? nombreComercial = null, string? nombreSede = null) =>
         new()
         {
             NombreComercial = nombreComercial ?? "Smart Gym",
@@ -24,6 +24,7 @@ public sealed class SetupTests
             NombreAdmin = null,
             Email = email ?? "admin@smartgym.test",
             Password = password ?? "password123",
+            NombreSede = nombreSede,
             LogoBytes = logo,
             LogoMime = mime,
         };
@@ -73,6 +74,43 @@ public sealed class SetupTests
         Assert.Null(empresa.RazonSocial);
         Assert.Null(empresa.Rfc);
         Assert.Null(empresa.RegimenFiscal);
+    }
+
+    [Fact]
+    public async Task completar_configuracion_sin_nombre_sede_mantiene_sede_del_seed()
+    {
+        using var ctx = new SecurityTestContext();
+        await ctx.Setup.CompletarConfiguracionInicialAsync(Datos());
+
+        var sede = await ctx.Sedes.GetPrincipalAsync();
+        Assert.NotNull(sede);
+        Assert.Equal("Sede Principal", sede.Nombre);
+    }
+
+    [Fact]
+    public async Task completar_configuracion_con_nombre_sede_renombra_sede_principal()
+    {
+        using var ctx = new SecurityTestContext();
+        await ctx.Setup.CompletarConfiguracionInicialAsync(Datos(nombreSede: "Sucursal Centro"));
+
+        var sede = await ctx.Sedes.GetPrincipalAsync();
+        Assert.NotNull(sede);
+        Assert.Equal("Sucursal Centro", sede.Nombre);
+
+        // El superadmin sigue autenticando (el renombre no rompe el resto del setup).
+        var login = await ctx.Auth.LoginAsync("admin@smartgym.test", "password123");
+        Assert.False(string.IsNullOrWhiteSpace(login.Token));
+    }
+
+    [Fact]
+    public async Task completar_configuracion_con_nombre_sede_vacio_mantiene_sede_del_seed()
+    {
+        using var ctx = new SecurityTestContext();
+        await ctx.Setup.CompletarConfiguracionInicialAsync(Datos(nombreSede: "   "));
+
+        var sede = await ctx.Sedes.GetPrincipalAsync();
+        Assert.NotNull(sede);
+        Assert.Equal("Sede Principal", sede.Nombre);
     }
 
     [Fact]
