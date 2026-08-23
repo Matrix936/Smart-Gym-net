@@ -7,6 +7,8 @@ public static class CuentaCobrarEstados
     public const string Parcial = "parcial";
     public const string Cobrada = "cobrada";
     public const string Incobrable = "incobrable";
+
+    public static IReadOnlyList<string> Validos() => [Pendiente, Parcial, Cobrada, Incobrable];
 }
 
 /// <summary>cuentas_cobrar — saldo pendiente de una membresía con pago parcial.</summary>

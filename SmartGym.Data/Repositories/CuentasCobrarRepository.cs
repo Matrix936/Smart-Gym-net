@@ -1,5 +1,6 @@
 using Dapper;
 using SmartGym.Core.Common;
+using SmartGym.Core.Common;
 using SmartGym.Core.Entities;
 using SmartGym.Core.Errors;
 using SmartGym.Core.Repositories;
@@ -33,6 +34,65 @@ public sealed class CuentasCobrarRepository : RepositoryBase, ICuentasCobrarRepo
             new CommandDefinition(
                 Select + "WHERE id_cuenta = @idCuenta AND deleted_at IS NULL",
                 new { idCuenta }, cancellationToken: ct));
+    }
+
+    private const string BuscarFrom =
+        "FROM cuentas_cobrar cc " +
+        "JOIN socios s ON s.id_socio = cc.id_socio " +
+        "WHERE cc.deleted_at IS NULL " +
+        "AND s.id_sede_registro = @idSede " +
+        "AND (@estado IS NULL OR cc.estado = @estado) " +
+        "AND (@nombre IS NULL OR sin_acentos(s.nombre || ' ' || s.apellido_paterno || ' ' || s.apellido_materno) " +
+        "LIKE '%' || sin_acentos(@nombre) || '%' COLLATE NOCASE) ";
+
+    private const string BuscarSelect =
+        "SELECT cc.id_cuenta AS IdCuenta, " +
+        "cc.id_socio AS IdSocio, " +
+        "TRIM(s.nombre || ' ' || s.apellido_paterno || ' ' || s.apellido_materno) AS NombreSocio, " +
+        "cc.id_membresia AS IdMembresia, " +
+        "cc.saldo_pendiente_centavos AS SaldoPendienteCentavos, " +
+        "cc.fecha_vencimiento AS FechaVencimiento, " +
+        "cc.estado AS Estado ";
+
+    public async Task<PagedResult<CuentaCobrarDto>> BuscarAsync(
+        long idSede,
+        string? estado,
+        string? nombreSocio,
+        int pagina,
+        int tamanoPagina,
+        CancellationToken ct = default)
+    {
+        if (!TamanosPagina.EsValido(tamanoPagina))
+        {
+            throw new ArgumentException($"tamanoPagina inválido: {tamanoPagina}. Valores permitidos: {string.Join(", ", TamanosPagina.Validos)}.", nameof(tamanoPagina));
+        }
+
+        var paginaEfectiva = Math.Max(pagina, 1);
+        var offset = (paginaEfectiva - 1) * tamanoPagina;
+        var nombreTrim = string.IsNullOrWhiteSpace(nombreSocio) ? null : nombreSocio.Trim();
+
+        await using var conn = ConnectionFactory.Open(DbPath);
+
+        var total = await conn.ExecuteScalarAsync<int>(
+            new CommandDefinition(
+                "SELECT COUNT(*) " + BuscarFrom,
+                new { idSede, estado, nombre = nombreTrim }, cancellationToken: ct));
+
+        var rows = await conn.QueryAsync<CuentaCobrarDto>(
+            new CommandDefinition(
+                BuscarSelect + BuscarFrom +
+                "ORDER BY cc.fecha_vencimiento ASC, cc.saldo_pendiente_centavos DESC " +
+                "LIMIT @tamanoPagina OFFSET @offset",
+                new { idSede, estado = estado ?? (object?)null, nombre = nombreTrim ?? (object?)null, tamanoPagina, offset },
+                cancellationToken: ct));
+
+        return new PagedResult<CuentaCobrarDto>
+        {
+            Items = rows.ToList(),
+            TotalRegistros = total,
+            Pagina = paginaEfectiva,
+            TamanoPagina = tamanoPagina,
+        };
     }
 
     public async Task RegistrarAbonoAsync(

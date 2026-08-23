@@ -1,3 +1,4 @@
+using SmartGym.Core.Common;
 using SmartGym.Core.Entities;
 
 namespace SmartGym.Core.Services;
@@ -22,5 +23,15 @@ public interface ICobranzaService
         string token,
         string idSocio,
         string tipo,
+        CancellationToken ct = default);
+
+    /// <summary>Listado paginado de cuentas por cobrar de la sede con socio resuelto.</summary>
+    Task<PagedResult<CuentaCobrarDto>> BuscarAsync(
+        string token,
+        long idSede,
+        string? estado = null,
+        string? nombreSocio = null,
+        int pagina = 1,
+        int tamanoPagina = TamanosPagina.Default,
         CancellationToken ct = default);
 }

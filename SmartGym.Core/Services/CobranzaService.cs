@@ -167,6 +167,21 @@ public sealed class CobranzaService : ICobranzaService
         return recordatorio;
     }
 
+    public async Task<PagedResult<CuentaCobrarDto>> BuscarAsync(
+        string token,
+        long idSede,
+        string? estado = null,
+        string? nombreSocio = null,
+        int pagina = 1,
+        int tamanoPagina = TamanosPagina.Default,
+        CancellationToken ct = default)
+    {
+        await _auth.ValidarSesionAsync(token, ct);
+        await _authz.RequierePermisoAsync(token, PermisoCatalogo.CobranzaRegistrarAbono, ct);
+
+        return await _cuentas.BuscarAsync(idSede, estado, nombreSocio, pagina, tamanoPagina, ct);
+    }
+
     private static BitacoraAuditoria RegistrarBitacora(
         SessionInfo info,
         string accion,

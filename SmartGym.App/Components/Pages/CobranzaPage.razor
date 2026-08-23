@@ -1,0 +1,446 @@
+@page "/cobranza"
+@* CobranzaPage: cuentas por cobrar de la sede con saldo pendiente.
+   Permite registrar abonos (reutilizando CobranzaService.RegistrarAbonoAsync).
+   Los datos fiscales de la empresa viven en Configuración. *@
+@implements IDisposable
+@using System.Globalization
+@using MudBlazor
+@using SmartGym.Core.Authorization
+@using SmartGym.Core.Common
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Services
+@using SmartGym.App.Services
+
+<div class="page-head">
+    <div>
+        <h4>Cobranza</h4>
+        <p class="page-sub">Cuentas por cobrar y registro de abonos.</p>
+    </div>
+</div>
+
+<div class="glass-panel">
+    <div class="page-toolbar">
+        @if (_showSede && _sedes.Count > 1)
+        {
+            <MudSelect T="long"
+                       Label="Sede"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       OuterClass="filter-field"
+                       RelativeWidth="DropdownWidth.Adaptive"
+                       Value="_sedeSeleccionada"
+                       ValueChanged="OnSedeChangedAsync">
+                @foreach (var sede in _sedes)
+                {
+                    <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        <MudTextField T="string"
+                      Class="search-field"
+                      Placeholder="Buscar por nombre del socio..."
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Margin="Margin.Dense"
+                      Immediate="true"
+                      Value="@_nombreSocio"
+                      ValueChanged="OnBusquedaChanged" />
+        <FiltrosDesplegables Filtros="_definicionesFiltros"
+                             VisiblesIniciales="_visiblesIniciales"
+                             ConteoAplicados="_filtroEstado.Length > 0 ? 1 : 0"
+                             VisiblesChanged="OnVisiblesChangedAsync" />
+        @if (_filtrosVisibles.Contains("estado"))
+        {
+            <MudSelect T="string"
+                       OuterClass="filter-field"
+                       RelativeWidth="DropdownWidth.Adaptive"
+                       Label="Estado"
+                       Margin="Margin.Dense"
+                       Variant="Variant.Outlined"
+                       Value="@_filtroEstado"
+                       ValueChanged="OnFiltroEstadoChangedAsync">
+                <MudSelectItem Value="@("")">Todos</MudSelectItem>
+                @foreach (var estado in new[] { CuentaCobrarEstados.Pendiente, CuentaCobrarEstados.Parcial, CuentaCobrarEstados.Cobrada, CuentaCobrarEstados.Incobrable })
+                {
+                    <MudSelectItem Value="@estado">@EtiquetaEstado(estado)</MudSelectItem>
+                }
+            </MudSelect>
+        }
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Socio</th>
+                    <th style="text-align: right;">Saldo pendiente</th>
+                    <th>Vencimiento</th>
+                    <th style="text-align: center;">Estado</th>
+                    <th style="text-align: center; width: 56px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_cargando)
+                {
+                    <tr><td colspan="5" class="empty-cell">Cargando...</td></tr>
+                }
+                else if (_cuentas.Count == 0)
+                {
+                    <tr><td colspan="5" class="empty-cell">Sin cuentas por cobrar para los filtros aplicados</td></tr>
+                }
+                else
+                {
+                    @foreach (var c in _cuentas)
+                    {
+                        <tr>
+                            <td><strong>@c.NombreSocio</strong></td>
+                            <td style="text-align: right;">@FormatearMonto(c.SaldoPendienteCentavos)</td>
+                            <td class="muted-cell">@FormatearFecha(c.FechaVencimiento)</td>
+                            <td style="text-align: center;">
+                                <span class="status-badge @ClaseEstado(c.Estado)">@EtiquetaEstado(c.Estado)</span>
+                            </td>
+                            <td style="text-align: center;">
+                                <MudMenu AnchorOrigin="Origin.BottomRight"
+                                         TransformOrigin="Origin.TopRight"
+                                         Class="row-menu">
+                                    <ActivatorContent>
+                                        <MudIconButton Icon="@Icons.Material.Filled.MoreVert"
+                                                       Size="Size.Small"
+                                                       Color="Color.Default"
+                                                       OnClick="@context.ToggleAsync"
+                                                       aria-label="Acciones" />
+                                    </ActivatorContent>
+                                    <ChildContent>
+                                        @if (c.Estado != CuentaCobrarEstados.Cobrada && c.Estado != CuentaCobrarEstados.Incobrable)
+                                        {
+                                            <MudMenuItem OnClick='() => AbrirAbono(c)'>
+                                                <MudIcon Icon="@Icons.Material.Filled.Payment" Size="Size.Small" /> Registrar abono
+                                            </MudMenuItem>
+                                        }
+                                    </ChildContent>
+                                </MudMenu>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (_cuentas.Count > 0)
+    {
+        <div class="table-footer">
+            <span class="muted">Mostrando @_cuentas.Count de @_totalRegistros cuenta(s)</span>
+            <div class="pagination-controls">
+                <MudSelect T="int"
+                           Label="Ver"
+                           Margin="Margin.Dense"
+                           Variant="Variant.Outlined"
+                           OuterClass="page-size-field"
+                           RelativeWidth="DropdownWidth.Adaptive"
+                           Value="_tamanoPagina"
+                           ValueChanged="OnTamanoPaginaChangedAsync">
+                    @foreach (var tamano in TamanosPagina.Validos)
+                    {
+                        <MudSelectItem Value="@tamano">@tamano</MudSelectItem>
+                    }
+                </MudSelect>
+                @if (_totalPaginas > 1)
+                {
+                    <MudPagination Count="_totalPaginas"
+                                   Selected="_pagina"
+                                   SelectedChanged="OnPaginaChangedAsync"
+                                   Color="Color.Primary"
+                                   Size="Size.Small" />
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<MudDialog Visible="_abonoAbierto"
+           VisibleChanged="v => _abonoAbierto = v"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Registrar abono — @(_cuentaAbonando?.NombreSocio)</MudText>
+    </TitleContent>
+    <DialogContent>
+        <p class="muted" style="margin-bottom: 0.75rem;">
+            Saldo pendiente: <strong>@FormatearMonto(_cuentaAbonando?.SaldoPendienteCentavos ?? 0)</strong>
+        </p>
+        <div class="form-fields" @onkeydown="HandleAbonoKeyDown">
+            <MudNumericField T="decimal"
+                             Label="Monto del abono *"
+                             Variant="Variant.Outlined"
+                             Margin="Margin.Dense"
+                             Min="0.01m"
+                             Format="F2"
+                             HideSpinButtons="true"
+                             @bind-Value="_montoAbono" />
+            <MudSelect T="string" Label="Método de pago *" Variant="Variant.Outlined"
+                       Margin="Margin.Dense" Value="_metodoAbono" ValueChanged="@(v => _metodoAbono = v)">
+                @foreach (var m in MetodosPago.Todos)
+                {
+                    <MudSelectItem Value="@m">@Capitalizar(m)</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" Disabled="_registrandoAbono" OnClick="CerrarAbono">Cancelar</MudButton>
+        <AsyncButton Text="Registrar abono"
+                     LoadingText="Registrando..."
+                     IsLoading="_registrandoAbono"
+                     OnClick="RegistrarAbonoAsync" />
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private ICobranzaService Cobranza { get; set; } = default!;
+    [Inject] private IAuthorizationService Authz { get; set; } = default!;
+    [Inject] private ISedesRepository Sedes { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    private bool _tienePermiso;
+    private bool _cargando;
+    private string _nombreSocio = "";
+    private string _filtroEstado = "";
+    private CancellationTokenSource? _debounce;
+
+    private bool _showSede;
+    private long _sedeSeleccionada;
+    private List<Sede> _sedes = [];
+
+    private List<CuentaCobrarDto> _cuentas = [];
+    private int _pagina = 1;
+    private int _tamanoPagina = TamanosPagina.Default;
+    private int _totalRegistros;
+    private int _totalPaginas;
+
+    // FiltrosDesplegables: un solo filtro secundario, visible por defecto.
+    private readonly List<FiltrosDesplegables.FiltroDefinicion> _definicionesFiltros =
+        [new("estado", "Estado")];
+    private static readonly string[] _visiblesIniciales = ["estado"];
+    private HashSet<string> _filtrosVisibles = ["estado"];
+
+    // Diálogo de abono.
+    private bool _abonoAbierto;
+    private CuentaCobrarDto? _cuentaAbonando;
+    private decimal _montoAbono;
+    private string _metodoAbono = MetodosPago.Efectivo;
+    private bool _registrandoAbono;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null) return;
+
+        try
+        {
+            await AuthzCheck(sesion);
+            _tienePermiso = true;
+        }
+        catch (BusinessException)
+        {
+            Feedback.ShowError("No tienes permiso para ver la cobranza");
+            return;
+        }
+
+        _showSede = sesion.IdSede is null;
+        if (_showSede)
+        {
+            try { _sedes = (await Sedes.GetActivasAsync()).ToList(); }
+            catch { _sedes = []; }
+            _sedeSeleccionada = _sedes.FirstOrDefault()?.IdSede ?? 0;
+        }
+
+        await CargarAsync();
+    }
+
+    public void Dispose() => _debounce?.Cancel();
+
+    private Task AuthzCheck(SessionInfo sesion) =>
+        Authz.RequierePermisoAsync(sesion.Token, PermisoCatalogo.CobranzaRegistrarAbono);
+
+    private async Task OnSedeChangedAsync(long value)
+    {
+        _sedeSeleccionada = value;
+        await CargarAsync();
+    }
+
+    /// <summary>Búsqueda con debounce de 300ms (patrón Miembros/Productos).</summary>
+    private async Task OnBusquedaChanged(string value)
+    {
+        _nombreSocio = value;
+        _pagina = 1;
+        _debounce?.Cancel();
+        var cts = _debounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(300, cts.Token);
+            await CargarAsync();
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task OnFiltroEstadoChangedAsync(string value)
+    {
+        _filtroEstado = value ?? "";
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnTamanoPaginaChangedAsync(int value)
+    {
+        _tamanoPagina = value;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnPaginaChangedAsync(int value)
+    {
+        _pagina = value;
+        await CargarAsync();
+    }
+
+    /// <summary>Al ocultar el filtro se limpia su valor (nunca queda aplicado invisible).</summary>
+    private async Task OnVisiblesChangedAsync(IReadOnlyList<string> visibles)
+    {
+        _filtrosVisibles = visibles.ToHashSet(StringComparer.Ordinal);
+        if (!_filtrosVisibles.Contains("estado"))
+        {
+            _filtroEstado = "";
+        }
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || !_tienePermiso) return;
+
+        _cargando = true;
+        try
+        {
+            var resultado = await Cobranza.BuscarAsync(
+                sesion.Token,
+                idSede: _showSede ? _sedeSeleccionada : sesion.IdSede!.Value,
+                estado: _filtroEstado.Length > 0 ? _filtroEstado : null,
+                nombreSocio: string.IsNullOrWhiteSpace(_nombreSocio) ? null : _nombreSocio.Trim(),
+                pagina: _pagina,
+                tamanoPagina: _tamanoPagina);
+            _cuentas = resultado.Items.ToList();
+            _totalRegistros = resultado.TotalRegistros;
+            _totalPaginas = resultado.TotalPaginas;
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo cargar la cobranza");
+        }
+        finally
+        {
+            _cargando = false;
+            StateHasChanged();
+        }
+    }
+
+    private void AbrirAbono(CuentaCobrarDto cuenta)
+    {
+        _cuentaAbonando = cuenta;
+        _montoAbono = 0;
+        _metodoAbono = MetodosPago.Efectivo;
+        _abonoAbierto = true;
+    }
+
+    private void CerrarAbono()
+    {
+        if (!_registrandoAbono) _abonoAbierto = false;
+    }
+
+    private void HandleAbonoKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_registrandoAbono)
+        {
+            _ = RegistrarAbonoAsync();
+        }
+    }
+
+    private async Task RegistrarAbonoAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _cuentaAbonando is null || _registrandoAbono) return;
+
+        if (_montoAbono <= 0)
+        {
+            Feedback.ShowWarning("El monto del abono debe ser mayor a cero");
+            return;
+        }
+
+        _registrandoAbono = true;
+        try
+        {
+            var montoCentavos = (long)Math.Round(_montoAbono * 100, MidpointRounding.AwayFromZero);
+            await Cobranza.RegistrarAbonoAsync(
+                sesion.Token,
+                _cuentaAbonando.IdCuenta,
+                montoCentavos,
+                _metodoAbono,
+                _showSede ? _sedeSeleccionada : null);
+
+            Feedback.ShowSuccess($"Abono de {FormatearMonto(montoCentavos)} registrado");
+            _abonoAbierto = false;
+            await CargarAsync();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo registrar el abono");
+        }
+        finally
+        {
+            _registrandoAbono = false;
+        }
+    }
+
+    private static string ClaseEstado(string estado) => estado switch
+    {
+        CuentaCobrarEstados.Pendiente => "status-warning",
+        CuentaCobrarEstados.Parcial => "status-info",
+        CuentaCobrarEstados.Cobrada => "status-success",
+        CuentaCobrarEstados.Incobrable => "status-danger",
+        _ => "status-info",
+    };
+
+    private static string EtiquetaEstado(string estado) => estado switch
+    {
+        CuentaCobrarEstados.Pendiente => "Pendiente",
+        CuentaCobrarEstados.Parcial => "Parcial",
+        CuentaCobrarEstados.Cobrada => "Cobrada",
+        CuentaCobrarEstados.Incobrable => "Incobrable",
+        _ => estado,
+    };
+
+    private static string Capitalizar(string texto) =>
+        string.IsNullOrEmpty(texto) ? texto : char.ToUpperInvariant(texto[0]) + texto[1..];
+
+    private static string FormatearMonto(long centavos) =>
+        (centavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("es-MX"));
+
+    private static string FormatearFecha(string iso)
+    {
+        if (DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dto))
+        {
+            return dto.ToLocalTime().ToString("dd/MM/yyyy", CultureInfo.GetCultureInfo("es-MX"));
+        }
+        return iso;
+    }
+}
