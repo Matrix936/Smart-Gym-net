@@ -27,8 +27,8 @@
                    El estado llega por EnrollmentStatusChanged (InvokeAsync). *@
                 <div class="huella-captura @ClaseHuella">
                     <div class="huella-captura-icono">
-                        <div class="huella-capa huella-capa-base">@((MarkupString)HuellaSvg)</div>
-                        <div class="huella-capa huella-capa-relleno" style="@EstiloRelleno">@((MarkupString)HuellaSvg)</div>
+                        <div class="huella-capa huella-capa-base"><IconifyIcon Icon="lucide:fingerprint" /></div>
+                        <div class="huella-capa huella-capa-relleno" style="@EstiloRelleno"><IconifyIcon Icon="lucide:fingerprint" /></div>
                     </div>
                     @if (_capturando)
                     {
@@ -101,7 +101,10 @@
         _ => "",
     };
 
-    /// <summary>Clip del relleno: abajo → arriba, 0% de muestra = tapado al 100%.</summary>
+    /// <summary>
+    /// Clip del relleno: ondas concéntricas que se expanden desde el centro de
+    /// la huella (circle() creciente), 0% de muestra = radio 0.
+    /// </summary>
     private string EstiloRelleno
     {
         get
@@ -113,29 +116,9 @@
             {
                 pct = 100;
             }
-            return $"clip-path: inset({100 - pct}% 0 0 0);";
+            return $"clip-path: circle({pct}% at 50% 50%);";
         }
     }
-
-    /// <summary>
-    /// Huella real (crestas papilares curvas) de Lucide `fingerprint` — licencia
-    /// ISC, atribución en código como con el set Solar. Stroke currentColor para
-    /// encajar en el mecanismo de dos capas: base tenue + capa de relleno
-    /// recortada por clip-path según las muestras capturadas.
-    /// </summary>
-    private const string HuellaSvg = """
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" />
-            <path d="M14 13.12c0 2.38 0 6.38-1 8.88" />
-            <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02" />
-            <path d="M2 12a10 10 0 0 1 18-6" />
-            <path d="M2 16h.01" />
-            <path d="M21.8 16c.2-2 .131-5.354 0-6" />
-            <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2" />
-            <path d="M8.65 22c.21-.66.45-1.32.57-2" />
-            <path d="M9 6.8a6 6 0 0 1 9 5.2v2" />
-        </svg>
-        """;
 
     private bool _visible;
     private MudDialog _mudDialog = default!;

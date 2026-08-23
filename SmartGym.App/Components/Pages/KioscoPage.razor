@@ -11,6 +11,7 @@
 @using SmartGym.Core.Errors
 @using SmartGym.Core.Repositories
 @using SmartGym.Core.Services
+@using SmartGym.App.Components.Shared
 
 <div class="kiosco-shell">
     @switch (_estado)
@@ -48,7 +49,7 @@
                 {
                     <p class="kiosco-sede-label">@_nombreSede</p>
                 }
-                <MudIcon Icon="@Icons.Material.Filled.Fingerprint" Class="kiosco-icon kiosco-icon-idle" />
+                <div class="kiosco-icon kiosco-icon-idle"><IconifyIcon Icon="lucide:fingerprint" /></div>
                 <h1 class="kiosco-title">Coloca tu dedo en el lector</h1>
             </div>
             break;
@@ -295,21 +296,30 @@
 
     private void PollCurrentMode()
     {
+        var modo = CaptureService.CurrentMode;
+        var diagLog = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Smart-Gym-net", "diag_kiosco.log");
+        var diagLine = $"[{DateTime.Now:HH:mm:ss.fff}] POLL: modo={modo}, _estado={_estado}, disposed={_disposed}";
+        File.AppendAllText(diagLog, diagLine + Environment.NewLine);
+
         if (_disposed || _estado == KioscoEstado.Resultado || _estado == KioscoEstado.SeleccionarSede
             || _estado == KioscoEstado.Cargando || _estado == KioscoEstado.SinSociosRegistrados
             || _estado == KioscoEstado.ErrorInesperado)
         {
+            File.AppendAllText(diagLog, $"[{DateTime.Now:HH:mm:ss.fff}] POLL: EARLY-RETURN (_disposed={_disposed}, _estado={_estado})\n");
             return;
         }
 
-        var modo = CaptureService.CurrentMode;
         if (modo == BiometricCaptureMode.Enrolling && _estado != KioscoEstado.LectorOcupado)
         {
+            File.AppendAllText(diagLog, $"[{DateTime.Now:HH:mm:ss.fff}] POLL: → LectorOcupado\n");
             _estado = KioscoEstado.LectorOcupado;
             StateHasChanged();
         }
         else if (modo == BiometricCaptureMode.Idle && _estado == KioscoEstado.LectorOcupado)
         {
+            File.AppendAllText(diagLog, $"[{DateTime.Now:HH:mm:ss.fff}] POLL: → reiniciando identificación\n");
             _ = IntentarIniciarIdentificacionAsync();
         }
     }
