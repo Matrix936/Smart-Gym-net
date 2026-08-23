@@ -1,0 +1,368 @@
+@page "/historial-acceso"
+@* HistorialAccesoPage: bitácora de entradas/salidas por el Kiosco (concedidos
+   y denegados con motivo). SOLO LECTURA — distinta de /bitacora (auditoría
+   administrativa). Patrón de listado de Miembros/Bitácora. *@
+@implements IDisposable
+@using System.Globalization
+@using MudBlazor
+@using SmartGym.Core.Authorization
+@using SmartGym.Core.Common
+@using SmartGym.Core.Entities
+@using SmartGym.Core.Services
+@using SmartGym.App.Services
+
+<div class="page-head">
+    <div>
+        <h4>Historial de Acceso</h4>
+        <p class="page-sub">Entradas y salidas registradas por el Kiosco en esta sede.</p>
+    </div>
+</div>
+
+<div class="glass-panel">
+    <div class="page-toolbar">
+        @if (_showSede && _sedes.Count > 1)
+        {
+            <MudSelect T="long"
+                       Label="Sede"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       OuterClass="filter-field"
+                       RelativeWidth="DropdownWidth.Adaptive"
+                       Value="_sedeSeleccionada"
+                       ValueChanged="OnSedeChangedAsync">
+                @foreach (var sede in _sedes)
+                {
+                    <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
+                }
+            </MudSelect>
+        }
+        <MudDatePicker T="DateTime?"
+                       Label="Desde"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Date="_desde"
+                       DateChanged="OnDesdeChangedAsync" />
+        <MudDatePicker T="DateTime?"
+                       Label="Hasta"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Date="_hasta"
+                       DateChanged="OnHastaChangedAsync" />
+        <MudSelect T="string"
+                   OuterClass="filter-field"
+                   RelativeWidth="DropdownWidth.Adaptive"
+                   Label="Estado"
+                   Margin="Margin.Dense"
+                   Variant="Variant.Outlined"
+                   Value="@_filtroEstado"
+                   ValueChanged="OnFiltroEstadoChangedAsync">
+            <MudSelectItem Value="@("")">Todos</MudSelectItem>
+            <MudSelectItem Value="@AccesoEstados.Concedido">Concedido</MudSelectItem>
+            <MudSelectItem Value="@AccesoEstados.Denegado">Denegado</MudSelectItem>
+        </MudSelect>
+        <MudSelect T="string"
+                   OuterClass="filter-field"
+                   RelativeWidth="DropdownWidth.Adaptive"
+                   Label="Método"
+                   Margin="Margin.Dense"
+                   Variant="Variant.Outlined"
+                   Value="@_filtroMetodo"
+                   ValueChanged="OnFiltroMetodoChangedAsync">
+            <MudSelectItem Value="@("")">Todos</MudSelectItem>
+            <MudSelectItem Value="@AccesoMetodos.Huella">Huella</MudSelectItem>
+            <MudSelectItem Value="@AccesoMetodos.Manual">Manual</MudSelectItem>
+        </MudSelect>
+        <MudTextField T="string"
+                      Class="search-field"
+                      Placeholder="Buscar por nombre del socio..."
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Margin="Margin.Dense"
+                      Immediate="true"
+                      Value="@_nombreSocio"
+                      ValueChanged="OnBusquedaChanged" />
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Fecha y hora</th>
+                    <th>Socio</th>
+                    <th style="text-align: center;">Tipo</th>
+                    <th>Método</th>
+                    <th style="text-align: center;">Estado</th>
+                    <th>Motivo de denegación</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_cargando)
+                {
+                    <tr><td colspan="6" class="empty-cell">Cargando...</td></tr>
+                }
+                else if (_filas.Count == 0)
+                {
+                    <tr><td colspan="6" class="empty-cell">Sin registros para los filtros aplicados</td></tr>
+                }
+                else
+                {
+                    @foreach (var f in _filas)
+                    {
+                        var concedido = f.Estado == AccesoEstados.Concedido;
+                        <tr>
+                            <td class="muted-cell">@FormatearFecha(f.Timestamp)</td>
+                            <td>@(f.NombreSocio ?? "—")</td>
+                            <td style="text-align: center;">
+                                <span class="status-badge @(f.Tipo == AccesoTipos.Entrada ? "status-success" : "status-info")">
+                                    @(f.Tipo == AccesoTipos.Entrada ? "Entrada" : "Salida")
+                                </span>
+                            </td>
+                            <td class="muted-cell">@Capitalizar(f.Metodo)</td>
+                            <td style="text-align: center;">
+                                <span class="status-badge @(concedido ? "status-success" : "status-danger")">
+                                    @(concedido ? "Concedido" : "Denegado")
+                                </span>
+                            </td>
+                            <td class="muted-cell">@(f.MotivoDenegacion ?? "—")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (_filas.Count > 0)
+    {
+        <div class="table-footer">
+            <span class="muted">Mostrando @_filas.Count de @_totalRegistros acceso(s)</span>
+            <div class="pagination-controls">
+                <MudSelect T="int"
+                           Label="Ver"
+                           Margin="Margin.Dense"
+                           Variant="Variant.Outlined"
+                           OuterClass="page-size-field"
+                           RelativeWidth="DropdownWidth.Adaptive"
+                           Value="_tamanoPagina"
+                           ValueChanged="OnTamanoPaginaChangedAsync">
+                    @foreach (var tamano in TamanosPagina.Validos)
+                    {
+                        <MudSelectItem Value="@tamano">@tamano</MudSelectItem>
+                    }
+                </MudSelect>
+                @if (_totalPaginas > 1)
+                {
+                    <MudPagination Count="_totalPaginas"
+                                   Selected="_pagina"
+                                   SelectedChanged="OnPaginaChangedAsync"
+                                   Color="Color.Primary"
+                                   Size="Size.Small" />
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private IAccesoService Accesos { get; set; } = default!;
+    [Inject] private IAuthorizationService Authz { get; set; } = default!;
+    [Inject] private ISedesRepository Sedes { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    private bool _tienePermiso;
+    private bool _cargando;
+    private string _nombreSocio = "";
+    private string _filtroEstado = "";
+    private string _filtroMetodo = "";
+    private CancellationTokenSource? _debounce;
+
+    private bool _showSede;
+    private long _sedeSeleccionada;
+    private List<Sede> _sedes = [];
+
+    private DateTime? _desde;
+    private DateTime? _hasta;
+
+    private List<AccesoHistorialDto> _filas = [];
+    private int _pagina = 1;
+    private int _tamanoPagina = TamanosPagina.Default;
+    private int _totalRegistros;
+    private int _totalPaginas;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Authz.RequierePermisoAsync(sesion.Token, PermisoCatalogo.AccesoVerBitacora);
+            _tienePermiso = true;
+        }
+        catch (BusinessException)
+        {
+            Feedback.ShowError("No tienes permiso para ver el historial de accesos");
+            return;
+        }
+
+        _desde = DateTime.Today.AddDays(-7);
+        _showSede = sesion.IdSede is null;
+        if (_showSede)
+        {
+            try
+            {
+                _sedes = (await Sedes.GetActivasAsync()).ToList();
+            }
+            catch
+            {
+                _sedes = [];
+            }
+            _sedeSeleccionada = _sedes.FirstOrDefault()?.IdSede ?? 0;
+        }
+
+        await CargarAsync();
+    }
+
+    public void Dispose() => _debounce?.Cancel();
+
+    private Task OnSedeChangedAsync(long value)
+    {
+        _sedeSeleccionada = value;
+        return CargarAsync();
+    }
+
+    /// <summary>Búsqueda con debounce de 300ms (patrón Miembros/Productos).</summary>
+    private async Task OnBusquedaChanged(string value)
+    {
+        _nombreSocio = value;
+        _pagina = 1;
+        _debounce?.Cancel();
+        var cts = _debounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(300, cts.Token);
+            await CargarAsync();
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+    /// <summary>MudDatePicker bindea con Date/DateChanged (no Value/ValueChanged).</summary>
+    private async Task OnDesdeChangedAsync(DateTime? value)
+    {
+        if (value == _desde)
+        {
+            return;
+        }
+        _desde = value;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnHastaChangedAsync(DateTime? value)
+    {
+        if (value == _hasta)
+        {
+            return;
+        }
+        _hasta = value;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnFiltroEstadoChangedAsync(string value)
+    {
+        _filtroEstado = value ?? "";
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnFiltroMetodoChangedAsync(string value)
+    {
+        _filtroMetodo = value ?? "";
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnTamanoPaginaChangedAsync(int value)
+    {
+        _tamanoPagina = value;
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    private async Task OnPaginaChangedAsync(int value)
+    {
+        _pagina = value;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || !_tienePermiso)
+        {
+            return;
+        }
+
+        _cargando = true;
+        try
+        {
+            var filtros = new AccesoHistorialFiltros
+            {
+                Desde = ToIsoInicioDia(_desde),
+                Hasta = ToIsoFinDia(_hasta),
+                Estado = _filtroEstado.Length > 0 ? _filtroEstado : null,
+                Metodo = _filtroMetodo.Length > 0 ? _filtroMetodo : null,
+                NombreSocio = string.IsNullOrWhiteSpace(_nombreSocio) ? null : _nombreSocio.Trim(),
+            };
+            var resultado = await Accesos.BuscarAsync(
+                sesion.Token, filtros, _pagina, _tamanoPagina,
+                _showSede ? _sedeSeleccionada : null);
+            _filas = resultado.Items.ToList();
+            _totalRegistros = resultado.TotalRegistros;
+            _totalPaginas = resultado.TotalPaginas;
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo cargar el historial de accesos");
+        }
+        finally
+        {
+            _cargando = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string Capitalizar(string texto) =>
+        string.IsNullOrEmpty(texto) ? texto : char.ToUpperInvariant(texto[0]) + texto[1..];
+
+    private static string FormatearFecha(string iso)
+    {
+        if (DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dto))
+        {
+            return dto.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.GetCultureInfo("es-MX"));
+        }
+        return iso;
+    }
+
+    private static string ToIsoInicioDia(DateTime? fechaLocal) =>
+        fechaLocal is null ? "2000-01-01T00:00:00.000Z" : ToIso(fechaLocal.Value.Date);
+
+    private static string ToIsoFinDia(DateTime? fechaLocal) =>
+        fechaLocal is null ? "2999-12-31T23:59:59.999Z" : ToIso(fechaLocal.Value.Date.AddDays(1).AddMilliseconds(-1));
+
+    private static string ToIso(DateTime local)
+    {
+        var utc = local.Kind == DateTimeKind.Utc ? local : local.ToUniversalTime();
+        return utc.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
+    }
+}

@@ -172,4 +172,86 @@ public sealed class AccesosRepository : RepositoryBase, IAccesosRepository
 
         return result!;
     }
+
+    // Indices existentes: id_socio, timestamp, id_sede (schema). El filtro de
+    // sede+timestamp usa idx_accesos_bitacora_id_sede/timestamp.
+    private const string BuscarFrom =
+        "FROM accesos_bitacora a " +
+        "LEFT JOIN socios s ON s.id_socio = a.id_socio " +
+        "WHERE a.deleted_at IS NULL AND a.id_sede = @idSede " +
+        "AND a.timestamp >= @desde AND a.timestamp <= @hasta ";
+
+    private const string BuscarSelect =
+        "SELECT a.timestamp AS Timestamp, " +
+        "a.id_socio AS IdSocio, " +
+        "TRIM(s.nombre || ' ' || s.apellido_paterno || ' ' || s.apellido_materno) AS NombreSocio, " +
+        "a.tipo AS Tipo, " +
+        "a.metodo AS Metodo, " +
+        "a.estado AS Estado, " +
+        "a.motivo_denegacion AS MotivoDenegacion ";
+
+    public async Task<PagedResult<AccesoHistorialDto>> BuscarAsync(
+        long idSede,
+        AccesoHistorialFiltros? filtros = null,
+        int pagina = 1,
+        int tamanoPagina = TamanosPagina.Default,
+        CancellationToken ct = default)
+    {
+        if (!TamanosPagina.EsValido(tamanoPagina))
+        {
+            throw new ArgumentException($"tamanoPagina inválido: {tamanoPagina}. Valores permitidos: {string.Join(", ", TamanosPagina.Validos)}.", nameof(tamanoPagina));
+        }
+
+        var paginaEfectiva = Math.Max(pagina, 1);
+        var offset = (paginaEfectiva - 1) * tamanoPagina;
+
+        filtros ??= new AccesoHistorialFiltros();
+
+        var where = BuscarFrom;
+        var parametros = new DynamicParameters();
+        parametros.Add("idSede", idSede);
+        parametros.Add("desde", filtros.Desde ?? string.Empty);
+        parametros.Add("hasta", filtros.Hasta ?? "2999-12-31T23:59:59.999Z");
+        parametros.Add("tamanoPagina", tamanoPagina);
+        parametros.Add("offset", offset);
+
+        if (!string.IsNullOrEmpty(filtros.Estado))
+        {
+            where += "AND a.estado = @estado ";
+            parametros.Add("estado", filtros.Estado);
+        }
+        if (!string.IsNullOrEmpty(filtros.Metodo))
+        {
+            where += "AND a.metodo = @metodo ";
+            parametros.Add("metodo", filtros.Metodo);
+        }
+        if (!string.IsNullOrEmpty(filtros.NombreSocio))
+        {
+            where += "AND sin_acentos(s.nombre || ' ' || s.apellido_paterno || ' ' || s.apellido_materno) " +
+                "LIKE '%' || sin_acentos(@nombre) || '%' COLLATE NOCASE ";
+            parametros.Add("nombre", filtros.NombreSocio.Trim());
+        }
+
+        await using var conn = ConnectionFactory.Open(DbPath);
+
+        var total = await conn.ExecuteScalarAsync<int>(
+            new CommandDefinition(
+                "SELECT COUNT(*) " + where,
+                parametros, cancellationToken: ct));
+
+        var rows = await conn.QueryAsync<AccesoHistorialDto>(
+            new CommandDefinition(
+                BuscarSelect + where +
+                "ORDER BY a.timestamp DESC " +
+                "LIMIT @tamanoPagina OFFSET @offset",
+                parametros, cancellationToken: ct));
+
+        return new PagedResult<AccesoHistorialDto>
+        {
+            Items = rows.ToList(),
+            TotalRegistros = total,
+            Pagina = paginaEfectiva,
+            TamanoPagina = tamanoPagina,
+        };
+    }
 }

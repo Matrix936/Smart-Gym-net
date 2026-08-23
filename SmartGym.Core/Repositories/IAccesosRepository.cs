@@ -1,3 +1,4 @@
+using SmartGym.Core.Common;
 using SmartGym.Core.Entities;
 
 namespace SmartGym.Core.Repositories;
@@ -25,4 +26,15 @@ public interface IAccesosRepository
 
     /// <summary>Lee un registro de la bitácora (para aserciones y la pantalla de bitácora).</summary>
     Task<AccesoBitacora?> GetByIdAsync(string idAcceso, CancellationToken ct = default);
+
+    /// <summary>
+    /// Historial paginado de intentos de acceso de una sede con el socio
+    /// resuelto. Orden descendente por timestamp.
+    /// </summary>
+    Task<PagedResult<AccesoHistorialDto>> BuscarAsync(
+        long idSede,
+        AccesoHistorialFiltros? filtros = null,
+        int pagina = 1,
+        int tamanoPagina = TamanosPagina.Default,
+        CancellationToken ct = default);
 }

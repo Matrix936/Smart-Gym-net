@@ -1,3 +1,4 @@
+using SmartGym.Core.Common;
 using SmartGym.Core.Entities;
 
 namespace SmartGym.Core.Services;
@@ -23,5 +24,14 @@ public interface IAccesoService
         string idSocio,
         long idSede,
         long? idDispositivo = null,
+        CancellationToken ct = default);
+
+    /// <summary>Historial de accesos de la sede (solo lectura, permiso acceso.ver_bitacora).</summary>
+    Task<PagedResult<AccesoHistorialDto>> BuscarAsync(
+        string token,
+        AccesoHistorialFiltros? filtros = null,
+        int pagina = 1,
+        int tamanoPagina = TamanosPagina.Default,
+        long? idSedeFrontend = null,
         CancellationToken ct = default);
 }
