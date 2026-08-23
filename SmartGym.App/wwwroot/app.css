@@ -1768,3 +1768,50 @@ table.data-table {
     gap: 0.5rem;
     padding: 0.15rem 0;
 }
+
+/* ---------- Morfeo de iconos en menus (tres puntos <-> X) ----------
+   Dos SVG superpuestos con transicion CSS pura (opacity + rotate 200ms).
+   El morfeo se activa con :hover sobre el toggle; al hacer clic el menu
+   se abre normalmente pero el icono ya esta en estado X como indicador
+   visual de que hay acciones disponibles. */
+.morph-toggle {
+    position: relative;
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.morph-toggle svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 4px;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.morph-toggle .morph-more {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+}
+
+.morph-toggle .morph-close {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.5);
+}
+
+.morph-toggle:hover .morph-more,
+.morph-toggle:focus-visible .morph-more {
+    opacity: 0;
+    transform: rotate(90deg) scale(0.5);
+}
+
+.morph-toggle:hover .morph-close,
+.morph-toggle:focus-visible .morph-close {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+}
