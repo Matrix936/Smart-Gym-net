@@ -48,9 +48,18 @@ else
 
     <div class="glass-panel">
         <div class="page-toolbar">
-            <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick='() => AplicarAtajoAsync(0)'>Hoy</MudButton>
-            <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick='() => AplicarAtajoSemanaAsync()'>Esta semana</MudButton>
-            <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick='() => AplicarAtajoMesAsync()'>Este mes</MudButton>
+            <MudButton Variant="@(_atajoActivo == "hoy" ? Variant.Filled : Variant.Outlined)"
+                       Color="@(_atajoActivo == "hoy" ? Color.Primary : Color.Default)"
+                       Size="Size.Small"
+                       OnClick='() => AplicarAtajoAsync(0)'>Hoy</MudButton>
+            <MudButton Variant="@(_atajoActivo == "semana" ? Variant.Filled : Variant.Outlined)"
+                       Color="@(_atajoActivo == "semana" ? Color.Primary : Color.Default)"
+                       Size="Size.Small"
+                       OnClick='() => AplicarAtajoSemanaAsync()'>Esta semana</MudButton>
+            <MudButton Variant="@(_atajoActivo == "mes" ? Variant.Filled : Variant.Outlined)"
+                       Color="@(_atajoActivo == "mes" ? Color.Primary : Color.Default)"
+                       Size="Size.Small"
+                       OnClick='() => AplicarAtajoMesAsync()'>Este mes</MudButton>
             <MudDatePicker T="DateTime?"
                            Label="Desde"
                            Variant="Variant.Outlined"
@@ -152,6 +161,8 @@ else
 
     private DateTime? _desde;
     private DateTime? _hasta;
+    /// <summary>Atajo activo ("hoy"/"semana"/"mes") o null si el rango es personalizado.</summary>
+    private string? _atajoActivo = "mes";
     private FinanzasDashboardDto? _dashboard;
     private List<ChartSeries<decimal>> _serie = [];
     private string[] _etiquetasDias = [];
@@ -207,33 +218,44 @@ else
         return CargarAsync();
     }
 
-    /// <summary>MudDatePicker bindea con Date/DateChanged (no Value/ValueChanged).</summary>
+    /// <summary>MudDatePicker bindea con Date/DateChanged (no Value/ValueChanged).
+    /// Un cambio manual de fechas apaga el atajo activo: pasa a rango personalizado.</summary>
     private async Task OnDesdeChangedAsync(DateTime? value)
     {
         _desde = value;
+        _atajoActivo = null;
         await CargarAsync();
     }
 
     private async Task OnHastaChangedAsync(DateTime? value)
     {
         _hasta = value;
+        _atajoActivo = null;
         await CargarAsync();
     }
 
     private Task AplicarAtajoAsync(int diasAtras) =>
-        AplicarRangoAsync(DateTime.Today.AddDays(-diasAtras), DateTime.Today);
+        AplicarRangoAsync("hoy", DateTime.Today.AddDays(-diasAtras), DateTime.Today);
 
     private Task AplicarAtajoSemanaAsync()
     {
         var hoy = DateTime.Today;
         var lunes = hoy.AddDays(-(((int)hoy.DayOfWeek + 6) % 7));
-        return AplicarRangoAsync(lunes, hoy);
+        return AplicarRangoAsync("semana", lunes, hoy);
     }
 
     private Task AplicarAtajoMesAsync()
     {
         var hoy = DateTime.Today;
-        return AplicarRangoAsync(new DateTime(hoy.Year, hoy.Month, 1), hoy);
+        return AplicarRangoAsync("mes", new DateTime(hoy.Year, hoy.Month, 1), hoy);
+    }
+
+    private async Task AplicarRangoAsync(string atajo, DateTime desde, DateTime hasta)
+    {
+        _atajoActivo = atajo;
+        _desde = desde;
+        _hasta = hasta;
+        await CargarAsync();
     }
 
     private async Task AplicarRangoAsync(DateTime desde, DateTime hasta)
