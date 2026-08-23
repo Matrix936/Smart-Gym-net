@@ -48,30 +48,40 @@
                        Margin="Margin.Dense"
                        Date="_hasta"
                        DateChanged="OnHastaChangedAsync" />
-        <MudSelect T="string"
-                   OuterClass="filter-field"
-                   RelativeWidth="DropdownWidth.Adaptive"
-                   Label="Estado"
-                   Margin="Margin.Dense"
-                   Variant="Variant.Outlined"
-                   Value="@_filtroEstado"
-                   ValueChanged="OnFiltroEstadoChangedAsync">
-            <MudSelectItem Value="@("")">Todos</MudSelectItem>
-            <MudSelectItem Value="@AccesoEstados.Concedido">Concedido</MudSelectItem>
-            <MudSelectItem Value="@AccesoEstados.Denegado">Denegado</MudSelectItem>
-        </MudSelect>
-        <MudSelect T="string"
-                   OuterClass="filter-field"
-                   RelativeWidth="DropdownWidth.Adaptive"
-                   Label="Método"
-                   Margin="Margin.Dense"
-                   Variant="Variant.Outlined"
-                   Value="@_filtroMetodo"
-                   ValueChanged="OnFiltroMetodoChangedAsync">
-            <MudSelectItem Value="@("")">Todos</MudSelectItem>
-            <MudSelectItem Value="@AccesoMetodos.Huella">Huella</MudSelectItem>
-            <MudSelectItem Value="@AccesoMetodos.Manual">Manual</MudSelectItem>
-        </MudSelect>
+        <FiltrosDesplegables Filtros="_definicionesFiltros"
+                             VisiblesIniciales="_visiblesIniciales"
+                             ConteoAplicados="ConteoAplicados"
+                             VisiblesChanged="OnVisiblesChangedAsync" />
+        @if (_filtrosVisibles.Contains("estado"))
+        {
+            <MudSelect T="string"
+                       OuterClass="filter-field"
+                       RelativeWidth="DropdownWidth.Adaptive"
+                       Label="Estado"
+                       Margin="Margin.Dense"
+                       Variant="Variant.Outlined"
+                       Value="@_filtroEstado"
+                       ValueChanged="OnFiltroEstadoChangedAsync">
+                <MudSelectItem Value="@("")">Todos</MudSelectItem>
+                <MudSelectItem Value="@AccesoEstados.Concedido">Concedido</MudSelectItem>
+                <MudSelectItem Value="@AccesoEstados.Denegado">Denegado</MudSelectItem>
+            </MudSelect>
+        }
+        @if (_filtrosVisibles.Contains("metodo"))
+        {
+            <MudSelect T="string"
+                       OuterClass="filter-field"
+                       RelativeWidth="DropdownWidth.Adaptive"
+                       Label="Método"
+                       Margin="Margin.Dense"
+                       Variant="Variant.Outlined"
+                       Value="@_filtroMetodo"
+                       ValueChanged="OnFiltroMetodoChangedAsync">
+                <MudSelectItem Value="@("")">Todos</MudSelectItem>
+                <MudSelectItem Value="@AccesoMetodos.Huella">Huella</MudSelectItem>
+                <MudSelectItem Value="@AccesoMetodos.Manual">Manual</MudSelectItem>
+            </MudSelect>
+        }
         <MudTextField T="string"
                       Class="search-field"
                       Placeholder="Buscar por nombre del socio..."
@@ -176,6 +186,16 @@
     private string _filtroMetodo = "";
     private CancellationTokenSource? _debounce;
 
+    // FiltrosDesplegables: sin filtros visibles por defecto — las fechas
+    // (ultimos 7 dias) cubren el caso de uso diario; estado/metodo bajo demanda.
+    private readonly List<FiltrosDesplegables.FiltroDefinicion> _definicionesFiltros =
+        [new("estado", "Estado"), new("metodo", "Método")];
+    private static readonly string[] _visiblesIniciales = [];
+    private HashSet<string> _filtrosVisibles = [];
+
+    private int ConteoAplicados =>
+        (_filtroEstado.Length > 0 ? 1 : 0) + (_filtroMetodo.Length > 0 ? 1 : 0);
+
     private bool _showSede;
     private long _sedeSeleccionada;
     private List<Sede> _sedes = [];
@@ -277,6 +297,22 @@
     private async Task OnFiltroEstadoChangedAsync(string value)
     {
         _filtroEstado = value ?? "";
+        _pagina = 1;
+        await CargarAsync();
+    }
+
+    /// <summary>Al ocultar un filtro se limpia su valor (nunca queda aplicado invisible).</summary>
+    private async Task OnVisiblesChangedAsync(IReadOnlyList<string> visibles)
+    {
+        _filtrosVisibles = visibles.ToHashSet(StringComparer.Ordinal);
+        if (!_filtrosVisibles.Contains("estado"))
+        {
+            _filtroEstado = "";
+        }
+        if (!_filtrosVisibles.Contains("metodo"))
+        {
+            _filtroMetodo = "";
+        }
         _pagina = 1;
         await CargarAsync();
     }
