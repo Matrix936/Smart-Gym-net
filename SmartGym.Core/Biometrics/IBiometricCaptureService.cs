@@ -21,11 +21,14 @@ public interface IBiometricCaptureService
 
     /// <summary>
     /// Inicia una sesión de enrolamiento y espera hasta que termine (completada,
-    /// con error o cancelada). Reportado con default en 4 muestras — el mismo
+    /// con error o cancelada). Reportado con default en 4 muestras - el mismo
     /// número que usaba BiometricEngine.cs del prototipo Tauri (ver doc 04 §4:
     /// "enrollment completo en 4 toques").
+    /// Si templatesExistentes no es null, verifica el FeatureSet final contra
+    /// cada template antes de guardarlo. Si hay match, retorna Estado=Duplicado.
     /// </summary>
-    Task<EnrollmentResult> StartEnrollmentAsync(string idSocio, string dedo, int muestrasRequeridas = 4, CancellationToken ct = default);
+    Task<EnrollmentResult> StartEnrollmentAsync(string idSocio, string dedo, int muestrasRequeridas = 4,
+        IReadOnlyList<string>? templatesExistentes = null, CancellationToken ct = default);
 
     /// <summary>Cancela una sesión de enrolamiento en curso. No-op si CurrentMode no es Enrolling.</summary>
     void CancelEnrollment();

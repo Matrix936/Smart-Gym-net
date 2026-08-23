@@ -19,6 +19,7 @@ public enum EnrollmentStage
     EsperandoDedo,
     Capturando,
     Completado,
+    Duplicado,
     Error,
     Cancelado,
 }

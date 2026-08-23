@@ -43,6 +43,7 @@ public sealed class BiometricCaptureService : DPFP.Capture.EventHandler, IBiomet
     // archivo (prefijo antes del primer '_') por convencion de
     // GuardarTemplate — acoplamiento documentado, no accidental.
     private List<TemplateCargado>? _templatesCargados;
+    private List<TemplateCargado>? _templatesExistentesDuplicado;
 
     public BiometricCaptureMode CurrentMode => _arbiter.CurrentMode;
     public bool IsReaderConnected { get { lock (_lock) return _readerConnected; } }
@@ -62,7 +63,8 @@ public sealed class BiometricCaptureService : DPFP.Capture.EventHandler, IBiomet
         _capturer.StartCapture();
     }
 
-    public Task<EnrollmentResult> StartEnrollmentAsync(string idSocio, string dedo, int muestrasRequeridas = 4, CancellationToken ct = default)
+    public Task<EnrollmentResult> StartEnrollmentAsync(string idSocio, string dedo, int muestrasRequeridas = 4,
+        IReadOnlyList<string>? templatesExistentes = null, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(idSocio))
         {
@@ -94,6 +96,9 @@ public sealed class BiometricCaptureService : DPFP.Capture.EventHandler, IBiomet
             _muestrasRequeridas = muestrasRequeridas;
             _muestrasCapturadas = 0;
             _enroller.Clear();
+            _templatesExistentesDuplicado = templatesExistentes is not null && templatesExistentes.Count > 0
+                ? CargarTemplates(templatesExistentes)
+                : null;
 
             tcs = new TaskCompletionSource<EnrollmentResult>(TaskCreationOptions.RunContinuationsAsynchronously);
             _enrollmentTcs = tcs;
@@ -273,6 +278,38 @@ public sealed class BiometricCaptureService : DPFP.Capture.EventHandler, IBiomet
                     break;
 
                 case Enrollment.Status.Ready:
+                    // Detección de duplicados: verifica el FeatureSet final contra
+                    // los templates existentes ANTES de guardar. Reutiliza el mismo
+                    // _verificator de la identificación 1:N del Kiosco.
+                    if (_templatesExistentesDuplicado is not null)
+                    {
+                        foreach (var entry in _templatesExistentesDuplicado)
+                        {
+                            var verif = new Verification.Result();
+                            _verificator.Verify(features, entry.Template, ref verif);
+                            if (verif.Verified)
+                            {
+                                _muestrasCapturadas = _muestrasRequeridas;
+                                tcs = _enrollmentTcs;
+                                resultado = new EnrollmentResult
+                                {
+                                    Estado = EnrollmentStage.Duplicado,
+                                    MuestrasCapturadas = _muestrasCapturadas,
+                                    MuestrasRequeridas = _muestrasRequeridas,
+                                };
+                                etapaProgreso = EnrollmentStage.Duplicado;
+                                completoEnrollment = true;
+                                FinalizarEnrollmentSinLock();
+                                break;
+                            }
+                        }
+
+                        if (completoEnrollment)
+                        {
+                            break;
+                        }
+                    }
+
                     var path = GuardarTemplate(_enroller.Template);
                     _muestrasCapturadas = _muestrasRequeridas;
                     tcs = _enrollmentTcs;

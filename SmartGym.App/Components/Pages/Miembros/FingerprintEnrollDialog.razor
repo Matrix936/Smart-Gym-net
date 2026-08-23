@@ -125,10 +125,24 @@
         _ultimaEtapa = EnrollmentStage.EsperandoDedo;
         StateHasChanged();
 
+        // Templates globales (sin filtro de sede) excluyendo los del socio
+        // actual — re-enrolamiento no debe matchear contra sí mismo.
+        List<string> templatesExistentes;
+        try
+        {
+            var todos = await Biometricos.GetTodosLosTemplatesActivosAsync(Socio!.IdSocio);
+            templatesExistentes = todos.ToList();
+        }
+        catch
+        {
+            templatesExistentes = [];
+        }
+
         EnrollmentResult resultado;
         try
         {
-            resultado = await CaptureService.StartEnrollmentAsync(Socio!.IdSocio, DedoPrincipal, 4);
+            resultado = await CaptureService.StartEnrollmentAsync(
+                Socio!.IdSocio, DedoPrincipal, 4, templatesExistentes);
         }
         catch (Exception ex)
         {
@@ -165,6 +179,12 @@
                     Feedback.ShowError(_ultimoError);
                     StateHasChanged();
                 }
+                break;
+
+            case EnrollmentStage.Duplicado:
+                _ultimoError = "Esta huella ya est\u00e1 registrada para otro socio. Verifica con el titular o contacta al administrador.";
+                Feedback.ShowError(_ultimoError);
+                StateHasChanged();
                 break;
 
             case EnrollmentStage.Error:

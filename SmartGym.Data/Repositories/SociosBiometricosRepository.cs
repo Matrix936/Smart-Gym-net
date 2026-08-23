@@ -35,6 +35,18 @@ public sealed class SociosBiometricosRepository : RepositoryBase, ISociosBiometr
         return rows.ToList();
     }
 
+    public async Task<IReadOnlyList<string>> GetTodosLosTemplatesActivosAsync(string? idSocioExcluir = null, CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        var rows = await conn.QueryAsync<string>(new CommandDefinition(
+            "SELECT DISTINCT archivo_template_path " +
+            "FROM socios_biometricos " +
+            "WHERE es_activa = 1 AND deleted_at IS NULL " +
+            "AND (@idSocioExcluir IS NULL OR id_socio != @idSocioExcluir)",
+            new { idSocioExcluir }, cancellationToken: ct));
+        return rows.ToList();
+    }
+
     /// <summary>
     /// Batch para el indicador de huella en Miembros: en vez de una consulta por
     /// socio (N+1), una sola query devuelve todos los ids con template activo.
