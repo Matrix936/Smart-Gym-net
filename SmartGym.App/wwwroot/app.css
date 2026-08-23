@@ -760,13 +760,21 @@ table.data-table {
 }
 
 /* Input de archivo nativo oculto dentro del label "Escoger foto" (Configuración,
-   sección Logo): el label dispara el picker y el botón hereda .btn/.btn-primary. */
+   sección Logo): el label dispara el picker y el trigger replica el estilo del
+   AsyncButton/MudButton filled primario ("Guardar impresora") — fondo primario
+   sólido, no el gradiente de .btn-primary. */
 .logo-input-file {
     position: absolute;
     width: 1px;
     height: 1px;
     opacity: 0;
     pointer-events: none;
+}
+
+.logo-inputfile-trigger {
+    background: var(--mud-palette-primary);
+    color: var(--mud-palette-primary-text);
+    border-radius: var(--mud-default-borders-radius, 16px);
 }
 
 /* display:grid crea su propio contexto de formato — los márgenes verticales de
