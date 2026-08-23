@@ -12,9 +12,15 @@
              CloseOnItemClick="false"
              Class="filtros-menu">
         <ActivatorContent>
+            @* MudBlazor v9: ActivatorContent recibe MenuContext; el clic ya no
+               abre el menu implicitamente (breaking change v9), hay que llamar
+               context.ToggleAsync explicito. Ver
+               https://github.com/MudBlazor/MudBlazor/issues/12666 y
+               docs/migracion-dotnet/08-problemas-resueltos-blazor.md §5. *@
             <MudIconButton Icon="@Icons.Material.Filled.FilterAlt"
                            Variant="Variant.Outlined"
                            Size="Size.Small"
+                           OnClick="@context.ToggleAsync"
                            aria-label="Filtros"
                            title="Mostrar/ocultar filtros" />
         </ActivatorContent>
