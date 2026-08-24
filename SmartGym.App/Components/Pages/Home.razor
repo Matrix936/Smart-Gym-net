@@ -1,64 +1,347 @@
 ﻿@page "/"
+@* Dashboard (/): dos gráficas de resumen arriba (cómo va el negocio con
+   selector Hoy/Semana/Mes + afluencia por hora) y recordatorios de membresía
+   vía WhatsApp abajo. Todo de solo lectura salvo abrir el link wa.me. Cada
+   sección se gatea con su propio permiso y se oculta sin error si no aplica.
+   El resumen reutiliza IFinanzasRepository (misma fuente de dinero que
+   /finanzas); la sede usa el resolver OPCIONAL (null = todas). *@
+@using MudBlazor
+@using Microsoft.Maui.ApplicationModel
+@using SmartGym.Core.Authorization
+@using SmartGym.Core.Common
+@using SmartGym.Core.Errors
+@using SmartGym.Core.Services
+@using SmartGym.Core.Repositories
 
-<h4>Dashboard</h4>
-<p style="color: var(--color-text-muted); margin: 0.35rem 0 1.5rem;">Vista general del gimnasio.</p>
-
-<div class="metric-grid">
-    <div class="glass-panel metric-card">
-        <span class="metric-label">Socios activos</span>
-        <span class="metric-value">0</span>
-        <span class="metric-sub muted">En espera de datos</span>
-    </div>
-    <div class="glass-panel metric-card">
-        <span class="metric-label">Membresías vigentes</span>
-        <span class="metric-value">0</span>
-        <span class="metric-sub muted">En espera de datos</span>
-    </div>
-    <div class="glass-panel metric-card">
-        <span class="metric-label">Ventas hoy</span>
-        <span class="metric-value">$0.00</span>
-        <span class="metric-sub muted">En espera de datos</span>
-    </div>
-    <div class="glass-panel metric-card">
-        <span class="metric-label">Caja</span>
-        <span class="metric-value">Cerrada</span>
-        <span class="metric-sub" style="color: var(--color-text-muted);">En espera de datos</span>
+<div class="page-head">
+    <div>
+        <h4>Dashboard</h4>
+        <p class="page-sub">Vista general del gimnasio.</p>
     </div>
 </div>
 
-<div class="glass-panel">
-    <h6>Próximos pasos de la migración</h6>
-    <div class="table-wrap" style="margin-top: 0.75rem;">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Fase</th>
-                    <th>Entregable</th>
-                    <th>Estado</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Fase 0</td>
-                    <td>Scaffold .NET MAUI + Blazor Hybrid (solución, capas, tema)</td>
-                    <td><span class="status-badge status-success">Listo</span></td>
-                </tr>
-                <tr>
-                    <td>Fase 1</td>
-                    <td>Setup inicial: DB SQLite + superadmin + plan de negocio</td>
-                    <td><span class="status-badge status-info">Pendiente</span></td>
-                </tr>
-                <tr>
-                    <td>Fase 2</td>
-                    <td>Login + roles y permisos + Topbar/Sidebar con filtro</td>
-                    <td><span class="status-badge status-info">Pendiente</span></td>
-                </tr>
-                <tr>
-                    <td>Fase 3</td>
-                    <td>Socios (altas, acceso, membresías, pagos)</td>
-                    <td><span class="status-badge status-info">Pendiente</span></td>
-                </tr>
-            </tbody>
-        </table>
+@if (_verResumen)
+{
+    <div class="glass-panel">
+        <div class="page-toolbar" style="align-items: center;">
+            <p class="form-section" style="margin: 0;">Cómo va mi negocio</p>
+            <MudSelect T="string"
+                       Label="Periodo"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       OuterClass="filter-field"
+                       RelativeWidth="DropdownWidth.Adaptive"
+                       Value="@_rango"
+                       ValueChanged="OnRangoChangedAsync">
+                <MudSelectItem Value="@RangoHoy">Hoy</MudSelectItem>
+                <MudSelectItem Value="@RangoSemana">Esta semana</MudSelectItem>
+                <MudSelectItem Value="@RangoMes">Este mes</MudSelectItem>
+            </MudSelect>
+        </div>
+
+        @if (_cargandoResumen)
+        {
+            <p class="muted">Cargando...</p>
+        }
+        else
+        {
+            <div class="metric-grid">
+                <div class="glass-panel metric-card">
+                    <span class="metric-label">Ingresos del periodo</span>
+                    <span class="metric-value">@Formatear(_resumen.IngresosCentavos)</span>
+                    @if (_deltaPorcentaje is not null)
+                    {
+                        var subio = _resumen.IngresosCentavos >= _resumen.IngresosPeriodoAnteriorCentavos;
+                        <span class="metric-sub" style="color: @(subio ? "var(--color-success)" : "var(--color-error)");">
+                            @(subio ? "\u25B2" : "\u25BC") @Math.Abs(_deltaPorcentaje.Value)% vs periodo anterior (@Formatear(_resumen.IngresosPeriodoAnteriorCentavos))
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="metric-sub muted">Sin datos del periodo anterior para comparar</span>
+                    }
+                </div>
+                <div class="glass-panel metric-card">
+                    <span class="metric-label">Egresos</span>
+                    <span class="metric-value">@Formatear(_resumen.EgresosCentavos)</span>
+                    <span class="metric-sub muted">Cancelaciones del periodo</span>
+                </div>
+                <div class="glass-panel metric-card">
+                    <span class="metric-label">Neto</span>
+                    <span class="metric-value">@Formatear(_resumen.NetoCentavos)</span>
+                    <span class="metric-sub muted">Ingresos − egresos</span>
+                </div>
+            </div>
+        }
     </div>
-</div>
+}
+
+@if (_verAfluencia)
+{
+    <div class="glass-panel" style="margin-top: 1rem;">
+        <p class="form-section">Afluencia por hora — últimos 30 días (accesos concedidos)</p>
+        @if (_cargandoAfluencia)
+        {
+            <p class="muted">Cargando...</p>
+        }
+        else
+        {
+            <MudChart ChartType="ChartType.Bar"
+                      ChartSeries="@_serieAfluencia"
+                      XAxisLabels="@_etiquetasHoras"
+                      Width="100%"
+                      Height="300px" />
+        }
+    </div>
+}
+
+@if (_verRecordatorios)
+{
+    <div class="glass-panel" style="margin-top: 1rem;">
+        <p class="form-section">Recordatorios de membresía (WhatsApp)</p>
+        <p class="muted" style="margin-bottom: 0.75rem;">
+            Socios con membresía por vencer (≤ 7 días) o vencida hace ≤ 30 días, con teléfono cargado.
+        </p>
+        @if (_cargandoRecordatorios)
+        {
+            <p class="muted">Cargando...</p>
+        }
+        else if (_recordatorios.Count == 0)
+        {
+            <p class="muted">Nada por contactar en este momento.</p>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Socio</th>
+                            <th>Teléfono</th>
+                            <th>Estado</th>
+                            <th style="text-align: center; width: 180px;">Contactar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _recordatorios)
+                        {
+                            var porVencer = r.Categoria == RecordatorioCategorias.PorVencer;
+                            <tr>
+                                <td><strong>@r.NombreSocio</strong></td>
+                                <td class="muted-cell">@r.Telefono</td>
+                                <td>
+                                    <span class="status-badge @(porVencer ? "status-warning" : "status-danger")">
+                                        @(porVencer ? $"Vence en {r.Dias} día(s)" : $"Vencida hace {r.Dias} día(s)")
+                                    </span>
+                                </td>
+                                <td style="text-align: center;">
+                                    <MudButton Variant="Variant.Outlined"
+                                               Color="Color.Success"
+                                               StartIcon="@Icons.Material.Filled.Chat"
+                                               OnClick='() => EnviarWhatsAppAsync(r)'>Enviar WhatsApp</MudButton>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private const string RangoHoy = "hoy";
+    private const string RangoSemana = "semana";
+    private const string RangoMes = "mes";
+
+    [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private IDashboardService Dashboard { get; set; } = default!;
+    [Inject] private IAuthorizationService Authz { get; set; } = default!;
+    [Inject] private IFeedbackService Feedback { get; set; } = default!;
+
+    private string? _token;
+
+    // Resumen.
+    private bool _verResumen;
+    private bool _cargandoResumen = true;
+    private string _rango = RangoHoy;
+    private DashboardResumenDto _resumen = new();
+    private decimal? _deltaPorcentaje;
+
+    // Afluencia.
+    private bool _verAfluencia;
+    private bool _cargandoAfluencia = true;
+    private List<ChartSeries<decimal>> _serieAfluencia = [];
+    private string[] _etiquetasHoras = [];
+
+    // Recordatorios.
+    private bool _verRecordatorios;
+    private bool _cargandoRecordatorios = true;
+    private List<RecordatorioMembresiaDto> _recordatorios = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+        _token = sesion.Token;
+
+        // Cada sección se habilita solo con su permiso; sin permiso se oculta
+        // silenciosamente (el dashboard es la landing de todos los roles).
+        var t = sesion.Token;
+        _verResumen = await TienePermisoAsync(t, PermisoCatalogo.FinanzasVer);
+        _verAfluencia = await TienePermisoAsync(t, PermisoCatalogo.AccesoVerBitacora);
+        _verRecordatorios = await TienePermisoAsync(t, PermisoCatalogo.MembresiasVer);
+
+        if (_verResumen) { await CargarResumenAsync(); }
+        if (_verAfluencia) { await CargarAfluenciaAsync(); }
+        if (_verRecordatorios) { await CargarRecordatoriosAsync(); }
+    }
+
+    /// <summary>RequierePermiso en forma de predicado: sin permiso la sección se oculta.</summary>
+    private async Task<bool> TienePermisoAsync(string token, string permiso)
+    {
+        try
+        {
+            await Authz.RequierePermisoAsync(token, permiso);
+            return true;
+        }
+        catch (BusinessException)
+        {
+            return false;
+        }
+    }
+
+    private async Task OnRangoChangedAsync(string rango)
+    {
+        _rango = rango ?? RangoHoy;
+        await CargarResumenAsync();
+    }
+
+    private async Task CargarResumenAsync()
+    {
+        if (_token is null)
+        {
+            return;
+        }
+        _cargandoResumen = true;
+        StateHasChanged();
+        try
+        {
+            _resumen = await Dashboard.ObtenerResumenAsync(_token, _rango);
+            _deltaPorcentaje = _resumen.IngresosPeriodoAnteriorCentavos > 0
+                ? Math.Round(
+                    (_resumen.IngresosCentavos - _resumen.IngresosPeriodoAnteriorCentavos) * 100m
+                    / _resumen.IngresosPeriodoAnteriorCentavos, 1)
+                : null;
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo cargar el resumen");
+        }
+        finally
+        {
+            _cargandoResumen = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CargarAfluenciaAsync()
+    {
+        if (_token is null)
+        {
+            return;
+        }
+        _cargandoAfluencia = true;
+        StateHasChanged();
+        try
+        {
+            var afluencia = await Dashboard.ObtenerAfluenciaAsync(_token);
+            _serieAfluencia =
+            [
+                new ChartSeries<decimal>
+                {
+                    Name = "Accesos",
+                    Data = afluencia.Select(a => (decimal)a.Total).ToArray(),
+                },
+            ];
+            _etiquetasHoras = Enumerable.Range(0, 24).Select(h => $"{h}h").ToArray();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo cargar la afluencia");
+        }
+        finally
+        {
+            _cargandoAfluencia = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CargarRecordatoriosAsync()
+    {
+        if (_token is null)
+        {
+            return;
+        }
+        _cargandoRecordatorios = true;
+        StateHasChanged();
+        try
+        {
+            _recordatorios = (await Dashboard.ObtenerRecordatoriosAsync(_token)).ToList();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudieron cargar los recordatorios");
+        }
+        finally
+        {
+            _cargandoRecordatorios = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>wa.me abre WhatsApp ya precargado con el mensaje (edición dentro
+    /// de WhatsApp, comportamiento nativo del enlace).</summary>
+    private async Task EnviarWhatsAppAsync(RecordatorioMembresiaDto r)
+    {
+        try
+        {
+            var (porVencer, vencida) = await Dashboard.ObtenerPlantillasWhatsAppAsync();
+            var plantilla = r.Categoria == RecordatorioCategorias.PorVencer ? porVencer : vencida;
+            var mensaje = plantilla
+                .Replace("{nombre}", r.NombreSocio)
+                .Replace("{dias}", r.Dias.ToString());
+
+            var telefono = new string(r.Telefono.Where(char.IsDigit).ToArray());
+            if (telefono.Length == 0)
+            {
+                Feedback.ShowWarning("El socio no tiene un teléfono válido");
+                return;
+            }
+
+            await Launcher.OpenAsync(new Uri($"https://wa.me/{telefono}?text={Uri.EscapeDataString(mensaje)}"));
+        }
+        catch (Exception ex)
+        {
+            Feedback.ShowError($"No se pudo abrir WhatsApp: {ex.Message}");
+        }
+    }
+
+    private static string Formatear(long centavos) =>
+        (centavos / 100m).ToString("C", System.Globalization.CultureInfo.GetCultureInfo("es-MX"));
+}
