@@ -88,7 +88,7 @@
         {
             <MudChart ChartType="ChartType.Bar"
                       ChartSeries="@_serieAfluencia"
-                      XAxisLabels="@_etiquetasHoras"
+                      ChartLabels="@_etiquetasHoras"
                       Width="100%"
                       Height="300px" />
         }
@@ -140,7 +140,9 @@
                                                    aria-label="Enviar WhatsApp"
                                                    title="Enviar WhatsApp"
                                                    OnClick='() => EnviarWhatsAppAsync(r)'>
-                                        <IconifyIcon Icon="simple-icons:whatsapp" />
+                                        <span class="icono-boton-contenido">
+                                            <IconifyIcon Icon="simple-icons:whatsapp" />
+                                        </span>
                                     </MudIconButton>
                                 </td>
                             </tr>

@@ -407,6 +407,24 @@ table.data-table {
     text-align: left;
 }
 
+/* Icono externo (IconifyIcon/SolarIconos) dentro de un MudIconButton con
+   ChildContent — PATRÓN A SEGUIR para cualquier ícono de librería externa en
+   botones de tabla: el SVG inline es display:inline por defecto y el alineado
+   de línea base agrega espacio fantasma debajo que alarga visualmente el
+   botón (mismo bug ya corregido en .kiosco-icon svg). Envolver el icono en
+   este contenedor lo mantiene cuadrado y centrado. Primer caso: botón de
+   WhatsApp del Dashboard (simple-icons:whatsapp). */
+.icono-boton-contenido {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icono-boton-contenido svg {
+    display: block;
+    width: 20px;
+    height: 20px;
+}
 /* ---------- Miembros ---------- */
 .page-head {
     display: flex;
