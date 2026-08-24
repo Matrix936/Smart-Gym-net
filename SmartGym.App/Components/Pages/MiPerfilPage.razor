@@ -347,6 +347,23 @@
         {
             SolicitarCambioPasswordAsync();
         }
+        else if (e.Key == "Escape")
+        {
+            // Descarta la edición: limpia los campos y vuelve a leer lo guardado
+            // (mismo criterio que la sección Datos generales).
+            _ = DescartarCambioPasswordAsync();
+        }
+    }
+
+    private async Task DescartarCambioPasswordAsync()
+    {
+        if (_cambiandoPassword)
+        {
+            return;
+        }
+        _passwordNueva = "";
+        _passwordConfirmar = "";
+        await CerrarEdicion();
     }
 
     /// <summary>Valida la nueva contraseña y abre el dialogo de reautenticación. No cambia nada todavía.</summary>
