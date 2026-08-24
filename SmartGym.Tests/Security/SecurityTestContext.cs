@@ -114,7 +114,7 @@ internal sealed class SecurityTestContext : IDisposable
         // NOTA: firma actualizada para el CajaService en curso de otra línea de
         // trabajo (movimientos + bitácora); ajuste mecánico para que la suite compile.
         CajaService = new CajaService(Auth, Authz, Cajas, Movimientos, SedeResolution, Bitacora);
-        MembresiasService = new MembresiasService(Auth, Authz, Socios, Planes, Cajas, Membresias, Bitacora, SedeResolution);
+        MembresiasService = new MembresiasService(Auth, Authz, Socios, Planes, Cajas, Membresias, Congelamientos, Bitacora, SedeResolution);
         PlanesService = new PlanesMembresiaService(Auth, Authz, Planes, Bitacora);
         AccesoService = new AccesoService(Auth, Authz, Accesos, SedeResolution, CuentasCobrar);
         PosService = new PosService(Auth, Authz, Socios, Cajas, Productos, Inventario, Ventas,

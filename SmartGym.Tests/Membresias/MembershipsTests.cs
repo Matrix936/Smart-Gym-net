@@ -1,3 +1,5 @@
+using Dapper;
+using SmartGym.Data.Db;
 using SmartGym.Core.Common;
 using SmartGym.Core.Entities;
 using SmartGym.Core.Errors;
@@ -187,7 +189,80 @@ public sealed class MembershipsTests
         var ex = await Assert.ThrowsAsync<BusinessException>(
             () => ctx.MembresiasService.CongelarAsync(token, m.IdMembresia, desde, hasta));
         Assert.Equal(BusinessError.Validation, ex.Error);
-        Assert.Equal("dias_congelamiento_excedido", ex.Code);
+        Assert.Equal("dias_congelamiento_acumulado_excedido", ex.Code);
+    }
+
+    [Fact]
+    public async Task congelamiento_acumulado_rechaza_al_superar_el_maximo()
+    {
+        var (ctx, token, sedeId, planId) = await EscenarioAsync(); // max 10
+        var socio = await ctx.SociosService.CrearSocioAsync(token, Fase4Helper.DatosSocio("Iris"), sedeId);
+        await ctx.CajaService.AbrirCajaAsync(token, 0, sedeId);
+        var m = await ctx.MembresiasService.VenderAsync(token, socio.IdSocio, planId, Fase4Helper.MetodoPago, Precio, sedeId);
+
+        // Historial previo sembrado directo: 5 días ya congelados en esta membresía
+        // (hoy solo se puede congelar una vez por membresía porque 'congelada' es
+        // terminal; el sembrado permite probar el acumulado sin descongelar).
+        await SembrarCongelamientoAsync(ctx, m.IdMembresia, dias: 5);
+
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.MembresiasService.CongelarAsync(
+                token, m.IdMembresia,
+                DateHelper.ToIsoUtc(DateTime.UtcNow.AddDays(40)),
+                DateHelper.ToIsoUtc(DateTime.UtcNow.AddDays(46)))); // 5+6=11 > 10
+
+        Assert.Equal("dias_congelamiento_acumulado_excedido", ex.Code);
+        Assert.Contains("5 día(s) congelado(s)", ex.Message);
+        Assert.Contains("5 disponible(s)", ex.Message);
+    }
+
+    [Fact]
+    public async Task congelamiento_acumulado_exacto_al_maximo_se_permite()
+    {
+        var (ctx, token, sedeId, planId) = await EscenarioAsync(); // max 10
+        var socio = await ctx.SociosService.CrearSocioAsync(token, Fase4Helper.DatosSocio("Julia"), sedeId);
+        await ctx.CajaService.AbrirCajaAsync(token, 0, sedeId);
+        var m = await ctx.MembresiasService.VenderAsync(token, socio.IdSocio, planId, Fase4Helper.MetodoPago, Precio, sedeId);
+
+        await SembrarCongelamientoAsync(ctx, m.IdMembresia, dias: 5);
+
+        // 5 previos + 5 solicitados = 10 = máximo exacto → permitido.
+        var segunda = await ctx.MembresiasService.CongelarAsync(
+            token, m.IdMembresia,
+            DateHelper.ToIsoUtc(DateTime.UtcNow.AddDays(40)),
+            DateHelper.ToIsoUtc(DateTime.UtcNow.AddDays(45)));
+
+        Assert.Equal(MembresiaEstados.Congelada, segunda.Estado);
+        Assert.Equal(2, (await ctx.Congelamientos.GetByMembresiaAsync(m.IdMembresia)).Count);
+    }
+
+    [Fact]
+    public async Task renovacion_reinicia_el_congelamiento_acumulado_del_socio()
+    {
+        var (ctx, token, sedeId, planId) = await EscenarioAsync(); // max 10
+        var socio = await ctx.SociosService.CrearSocioAsync(token, Fase4Helper.DatosSocio("Karla"), sedeId);
+        await ctx.CajaService.AbrirCajaAsync(token, 0, sedeId);
+
+        // Primera membresía: agota el máximo con un congelamiento de 10 días.
+        var primera = await ctx.MembresiasService.VenderAsync(token, socio.IdSocio, planId, Fase4Helper.MetodoPago, Precio, sedeId);
+        await ctx.MembresiasService.CongelarAsync(
+            token, primera.IdMembresia,
+            DateHelper.ToIsoUtc(DateTime.UtcNow.AddDays(1)),
+            DateHelper.ToIsoUtc(DateTime.UtcNow.AddDays(11)));
+
+        // Renovación = id_membresia nuevo → su conteo arranca en cero.
+        var renovada = await ctx.MembresiasService.VenderAsync(token, socio.IdSocio, planId, Fase4Helper.MetodoPago, Precio, sedeId);
+        Assert.NotEqual(primera.IdMembresia, renovada.IdMembresia);
+
+        var inicioCongelamiento = DateHelper.ParseIsoUtc(renovada.FechaInicio).AddDays(2);
+        var congelada = await ctx.MembresiasService.CongelarAsync(
+            token, renovada.IdMembresia,
+            DateHelper.ToIsoUtc(inicioCongelamiento),
+            DateHelper.ToIsoUtc(inicioCongelamiento.AddDays(5)));
+        Assert.Equal(MembresiaEstados.Congelada, congelada.Estado);
+
+        var cuentaRenovada = await ctx.Congelamientos.GetByMembresiaAsync(renovada.IdMembresia);
+        Assert.Single(cuentaRenovada); // no arrastra los congelamientos de la anterior
     }
 
     [Fact]
@@ -260,5 +335,24 @@ public sealed class MembershipsTests
             () => ctx.MembresiasService.CancelarAsync(token, m.IdMembresia, Fase4Helper.Password));
         Assert.Equal(BusinessError.Conflict, ex.Error);
         Assert.Equal("membresia_ya_cancelada", ex.Code);
+    }
+    /// <summary>Sembra un congelamiento histórico directo en membresías_congelamientos,
+    /// para probar el acumulado sin depender de que 'congelada' no sea terminal.</summary>
+    private static async Task SembrarCongelamientoAsync(SecurityTestContext ctx, string idMembresia, int dias)
+    {
+        await using var conn = ConnectionFactory.Open(ctx.DbPath);
+        var ahora = DateHelper.NowIsoUtc();
+        var inicio = DateTime.UtcNow.AddDays(1);
+        await conn.ExecuteAsync(new CommandDefinition(
+            "INSERT INTO membresias_congelamientos (id, id_membresia, fecha_inicio, fecha_fin, motivo, autorizado_por, updated_at, sincronizado) " +
+            "VALUES (@id, @idMembresia, @inicio, @fin, 'seed', NULL, @ahora, 0)",
+            new
+            {
+                id = UuidHelper.NewV4(),
+                idMembresia,
+                inicio = DateHelper.ToIsoUtc(inicio),
+                fin = DateHelper.ToIsoUtc(inicio.AddDays(dias)),
+                ahora,
+            }));
     }
 }

@@ -14,6 +14,7 @@ public sealed class MembresiasService : IMembresiasService
     private readonly IPlanesMembresiaRepository _planes;
     private readonly ICajasSesionesRepository _cajas;
     private readonly IMembresiasRepository _membresias;
+    private readonly IMembresiasCongelamientosRepository _congelamientos;
     private readonly IBitacoraAuditoriaRepository _bitacora;
     private readonly ISedeResolutionService _sedeResolution;
 
@@ -24,6 +25,7 @@ public sealed class MembresiasService : IMembresiasService
         IPlanesMembresiaRepository planes,
         ICajasSesionesRepository cajas,
         IMembresiasRepository membresias,
+        IMembresiasCongelamientosRepository congelamientos,
         IBitacoraAuditoriaRepository bitacora,
         ISedeResolutionService sedeResolution)
     {
@@ -33,6 +35,7 @@ public sealed class MembresiasService : IMembresiasService
         _planes = planes;
         _cajas = cajas;
         _membresias = membresias;
+        _congelamientos = congelamientos;
         _bitacora = bitacora;
         _sedeResolution = sedeResolution;
     }
@@ -215,11 +218,23 @@ public sealed class MembresiasService : IMembresiasService
         var plan = await _planes.GetByIdAsync(existente.IdPlan, ct)
             ?? throw BusinessException.NotFound("Plan no encontrado", "plan_no_encontrado");
 
-        if (diasCongelacion > plan.DiasCongelamientoMax)
+        // Validación ACUMULADA por membresía: suma de todos los congelamientos
+        // previos del mismo id_membresia + los solicitados ahora. Cada venta o
+        // renovación genera un id_membresia nuevo, así que el conteo reinicia
+        // solo en cada renovación (no arrastra membresías anteriores del socio).
+        var congelamientosPrevios = await _congelamientos.GetByMembresiaAsync(idMembresia, ct);
+        var diasYaCongelados = congelamientosPrevios.Sum(c =>
+            (DateHelper.ParseIsoUtc(c.FechaFin) - DateHelper.ParseIsoUtc(c.FechaInicio)).Days);
+        var diasAcumulados = diasYaCongelados + diasCongelacion;
+
+        if (diasAcumulados > plan.DiasCongelamientoMax)
         {
+            var disponibles = Math.Max(0, plan.DiasCongelamientoMax - diasYaCongelados);
             throw BusinessException.Validation(
-                $"El congelamiento excede los días máximos del plan ({plan.DiasCongelamientoMax})",
-                "dias_congelamiento_excedido");
+                $"El congelamiento excede el máximo acumulado del plan " +
+                $"({plan.DiasCongelamientoMax} días): esta membresía ya lleva " +
+                $"{diasYaCongelados} día(s) congelado(s) y le quedan {disponibles} disponible(s)",
+                "dias_congelamiento_acumulado_excedido");
         }
 
         var nuevaFechaFin = DateHelper.ParseIsoUtc(existente.FechaFin).AddDays(diasCongelacion);
