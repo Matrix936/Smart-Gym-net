@@ -553,6 +553,11 @@
         _formFechaInicio = null;
         _formFechaFin = null;
         _componentesForm = [];
+
+        // Re-lee el catálogo: productos creados recientemente en otra pantalla
+        // deben aparecer en los selectores sin recargar la página.
+        _ = CargarProductosDisponiblesAsync();
+
         _formAbierto = true;
     }
 

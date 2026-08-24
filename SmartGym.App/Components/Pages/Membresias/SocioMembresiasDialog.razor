@@ -154,6 +154,10 @@
     [Parameter] public Socio? Socio { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
+    /// <summary>Notifica a la página contenedora tras una escritura exitosa
+    /// (congelar/cancelar) para que el listado re-traiga datos del servidor.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
     private bool _visible;
     private bool _inicializado;
     private MudDialog _mudDialog = default!;
@@ -297,6 +301,7 @@
             Feedback.ShowSuccess("Membresía congelada");
             _congelarAbierto = false;
             await CargarAsync();
+            await OnChanged.InvokeAsync();
         }
         catch (BusinessException ex)
         {
@@ -377,6 +382,7 @@
             Feedback.ShowSuccess("Membresía cancelada");
             _cancelarAbierto = false;
             await CargarAsync();
+            await OnChanged.InvokeAsync();
         }
         catch (BusinessException ex)
         {
