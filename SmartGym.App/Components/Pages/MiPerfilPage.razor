@@ -19,6 +19,9 @@
         <h4>Mi Perfil</h4>
         <p class="page-sub">Datos de tu cuenta de usuario.</p>
     </div>
+    <AyudaModulo>
+        <p>Para guardar cambios a tus datos o a tu contraseña se te pedirá la contraseña vigente, como confirmación de que eres tú.</p>
+    </AyudaModulo>
 </div>
 
 <div style="display: flex; gap: 1rem; align-items: flex-start;">
@@ -51,8 +54,8 @@
     @if (_seccion == SeccionPerfil.Datos)
     {
         <div class="glass-panel" style="flex: 1; min-width: 0;">
-            <p class="form-section">Datos generales</p>
-            <div class="form-fields" style="max-width: 480px;" @onkeydown="HandlePerfilKeyDown">
+            <p class="form-section" style="text-align: center;">Datos generales</p>
+            <div class="form-fields" style="max-width: 720px; margin: 0 auto;" @onkeydown="HandlePerfilKeyDown">
                 <MudTextField T="string" Label="Nombre *" Variant="Variant.Outlined" Margin="Margin.Dense"
                               Immediate="true" @bind-Value="_nombre" />
                 <div class="form-row">
@@ -75,14 +78,14 @@
     else
     {
         <div class="glass-panel" style="flex: 1; min-width: 0;">
-            <p class="form-section">Cambiar contraseña</p>
+            <p class="form-section" style="text-align: center;">Cambiar contraseña</p>
             @* Sin campo de contraseña actual: igual que Datos generales, la
                clave vigente se pide al final en el dialogo de confirmación
                (CambiarPasswordAsync la usa para su propia reautorización). *@
-            <div class="form-fields" style="max-width: 480px;" @onkeydown="HandlePasswordKeyDown">
+            <div class="form-fields" style="max-width: 720px; margin: 0 auto;" @onkeydown="HandlePasswordKeyDown">
                 <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
                     <div style="flex: 1;">
-                        <PasswordField Label="Nueva contraseña * (mínimo 8 caracteres)" Autocomplete="new-password" @bind-Value="_passwordNueva" />
+                        <PasswordField Label="Nueva contraseña *" Autocomplete="new-password" @bind-Value="_passwordNueva" />
                     </div>
                     <div style="flex: 1;">
                         <PasswordField Label="Confirmar nueva contraseña *" Autocomplete="new-password" @bind-Value="_passwordConfirmar" />
@@ -111,7 +114,6 @@
            criterio que CancelarVenta/cierre de caja. Un solo dialogo para las
            dos acciones de la página. *@
         <div @onkeydown="HandleReauthKeyDown">
-            <p class="muted" style="margin-bottom: 0.5rem;">Ingresa tu contraseña actual para confirmar el cambio.</p>
             <PasswordField Label="Contraseña actual *" Autocomplete="current-password" @bind-Value="_reauthPassword" />
         </div>
     </DialogContent>

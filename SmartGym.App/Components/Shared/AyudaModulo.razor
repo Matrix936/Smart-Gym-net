@@ -1,0 +1,32 @@
+@* AyudaModulo: icono "?" del módulo. La ayuda/instrucción permanente vive
+   aquí y SOLO aparece cuando el usuario la pide (popover), en vez de ocupar
+   espacio visual fijo en pantalla. Cierre por backdrop (overlay de MudMenu)
+   y por Escape. Colocación típica: esquina superior derecha del page-head
+   (margin-left:auto) o absoluta dentro de un panel (ver Style). *@
+<span class="ayuda-modulo @Class" style="@Style">
+    <MudMenu AnchorOrigin="Origin.BottomRight"
+             TransformOrigin="Origin.TopRight">
+        <ActivatorContent>
+            <span role="button" tabindex="0" aria-label="Ayuda del módulo"
+                  title="Ayuda"
+                  @onclick="@context.ToggleAsync">
+                <MudIcon Icon="@Icons.Material.Filled.HelpOutline" Color="Color.Primary" />
+            </span>
+        </ActivatorContent>
+        <ChildContent>
+            <div class="ayuda-contenido">
+                @ChildContent
+            </div>
+        </ChildContent>
+    </MudMenu>
+</span>
+
+@code {
+    /// <summary>Clases extra para posicionar el icono según la pantalla.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Estilos inline para posicionamiento absoluto dentro de paneles.</summary>
+    [Parameter] public string? Style { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

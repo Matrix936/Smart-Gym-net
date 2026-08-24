@@ -157,7 +157,11 @@ else if (_seccion == SeccionConfig.Perifericos)
     @* Reemplaza a la vieja sección "Impresora" (era solo la preferencia
        guardada para cuando existiera impresión). La clave es la misma
        (impresora.nombre): un solo selector, ahora con flujo real. *@
-    <div class="glass-panel" style="flex: 1; min-width: 0;">
+    <div class="glass-panel" style="flex: 1; min-width: 0; position: relative;">
+        <AyudaModulo Style="position: absolute; top: 0.6rem; right: 0.6rem;">
+            <p>La impresora de tickets reutiliza la preferencia histórica "Impresora". Usa el botón de ticket de prueba para validar hardware antes de vender.</p>
+            <p>Cajón monedero solo aplica a ventas en efectivo. Con impresión automática apagada (por defecto), el ticket se imprime desde el botón del recibo al confirmar la venta.</p>
+        </AyudaModulo>
         <p class="form-section" style="text-align: center;">Periféricos</p>
         <div class="form-fields" style="max-width: 720px; margin: 0 auto;">
             <MudSelect T="string"
@@ -207,10 +211,6 @@ else if (_seccion == SeccionConfig.Perifericos)
                        Color="Color.Primary"
                        Value="_imprimirAuto"
                        ValueChanged="@(v => _imprimirAuto = v)" />
-            <p class="muted" style="margin: 0;">
-                Con impresión automática apagada (por defecto), el ticket se imprime
-                desde el botón del recibo al confirmar la venta.
-            </p>
             <div style="display: flex; gap: 0.75rem; margin-top: 0.75rem;">
                 <AsyncButton Text="Guardar periféricos"
                              LoadingText="Guardando..."
@@ -227,7 +227,11 @@ else if (_seccion == SeccionConfig.Perifericos)
 }
 else if (_seccion == SeccionConfig.Pos)
 {
-    <div class="glass-panel" style="flex: 1; min-width: 0;">
+    <div class="glass-panel" style="flex: 1; min-width: 0; position: relative;">
+        <AyudaModulo Style="position: absolute; top: 0.6rem; right: 0.6rem;">
+            <p>Crédito encendido: en el POS se puede registrar un monto pagado menor al total y el saldo queda como cuenta por cobrar del socio en Cobranza. Un socio con deuda vencida no puede volver a comprar a crédito.</p>
+            <p>Apagado (por defecto): toda venta debe cubrir el total.</p>
+        </AyudaModulo>
         <p class="form-section" style="text-align: center;">Punto de venta</p>
         <div class="form-fields" style="max-width: 720px; margin: 0 auto;">
             <MudSwitch T="bool"
@@ -235,12 +239,6 @@ else if (_seccion == SeccionConfig.Pos)
                        Color="Color.Primary"
                        Value="_posPermiteCredito"
                        ValueChanged="@(v => _posPermiteCredito = v)" />
-            <p class="muted" style="margin: 0;">
-                Encendido: en el POS se puede registrar un monto pagado menor al total y
-                el saldo queda como cuenta por cobrar del socio en Cobranza. Un socio con
-                deuda vencida no puede volver a comprar a crédito. Apagado (por defecto):
-                toda venta debe cubrir el total.
-            </p>
             <div style="margin-top: 0.75rem;">
                 <AsyncButton Text="Guardar punto de venta"
                              LoadingText="Guardando..."
@@ -252,14 +250,13 @@ else if (_seccion == SeccionConfig.Pos)
 }
 else
 {
-    <div class="glass-panel" style="flex: 1; min-width: 0;">
+    <div class="glass-panel" style="flex: 1; min-width: 0; position: relative;">
+        <AyudaModulo Style="position: absolute; top: 0.6rem; right: 0.6rem;">
+            <p>Mensajes que el Dashboard usa para armar el recordatorio de cada socio.</p>
+            <p>Placeholders disponibles: <strong>{nombre}</strong> y <strong>{dias}</strong>.</p>
+            <p>Deja vacío un campo para usar el texto por defecto.</p>
+        </AyudaModulo>
         <p class="form-section" style="text-align: center;">Plantillas de WhatsApp</p>
-        @* Mensajes que el Dashboard usa para los recordatorios de membresía.
-           Placeholders {nombre} y {dias}; vacío = volver al texto por defecto. *@
-        <p class="muted" style="margin-bottom: 0.75rem; text-align: center;">
-            Se usan en el Dashboard para armar el mensaje de cada socio.
-            Placeholders disponibles: <strong>{nombre}</strong> y <strong>{dias}</strong>.
-        </p>
         <div class="form-fields" style="max-width: 720px; margin: 0 auto;">
             <MudTextField T="string"
                           Label="Plantilla: próxima a vencer"
@@ -273,7 +270,6 @@ else
                           Lines="3"
                           Margin="Margin.Dense"
                           @bind-Value="_plantillaVencida" />
-            <p class="muted" style="margin: 0;">Deja vacío un campo para usar el texto por defecto.</p>
             <div style="margin-top: 0.75rem;">
                 <AsyncButton Text="Guardar plantillas"
                              LoadingText="Guardando..."

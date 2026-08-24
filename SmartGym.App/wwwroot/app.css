@@ -1794,12 +1794,6 @@ table.data-table {
     font-weight: 700;
 }
 
-/* Atajos de teclado del POS: recordatorio discreto al pie del carrito. */
-.pos-hint {
-    font-size: 0.8rem;
-    margin-top: 0.75rem;
-}
-
 @media (max-width: 900px) {
     .pos-layout {
         flex-direction: column;
@@ -1997,4 +1991,32 @@ table.data-table {
 .ticket-preview .tk-total {
     font-size: 1rem;
     margin-top: 0.3rem;
+}
+
+/* ---------- AyudaModulo: icono ? con popover de ayuda del modulo ----------
+   La ayuda vive oculta y solo se despliega al pedirla (clic en el icono). */
+.ayuda-modulo {
+    display: inline-flex;
+    align-items: flex-start;
+}
+
+.ayuda-modulo .mud-icon-button {
+    opacity: 0.7;
+}
+
+.ayuda-contenido {
+    max-width: 300px;
+    font-size: 0.85rem;
+    color: var(--color-text);
+    padding: 0.25rem 0.5rem;
+    white-space: normal;
+}
+
+.ayuda-contenido p {
+    margin: 0 0 0.4rem;
+    overflow-wrap: anywhere;
+}
+
+.ayuda-contenido p:last-child {
+    margin-bottom: 0;
 }

@@ -97,11 +97,11 @@
 
 @if (_verRecordatorios)
 {
-    <div class="glass-panel" style="margin-top: 1rem;">
+    <div class="glass-panel" style="margin-top: 1rem; position: relative;">
+        <AyudaModulo Style="position: absolute; top: 0.6rem; right: 0.6rem;">
+            <p>Socios con membresía por vencer (≤ 7 días) o vencida hace ≤ 30 días, con teléfono cargado.</p>
+        </AyudaModulo>
         <p class="form-section">Recordatorios de membresía (WhatsApp)</p>
-        <p class="muted" style="margin-bottom: 0.75rem;">
-            Socios con membresía por vencer (≤ 7 días) o vencida hace ≤ 30 días, con teléfono cargado.
-        </p>
         @if (_cargandoRecordatorios)
         {
             <p class="muted">Cargando...</p>
