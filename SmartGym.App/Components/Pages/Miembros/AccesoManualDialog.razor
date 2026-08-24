@@ -13,7 +13,7 @@
         <MudText Typo="Typo.h6">Forzar acceso</MudText>
     </TitleContent>
     <DialogContent>
-        <div style="margin-top: 0.5rem;">
+        <div style="margin-top: 0.5rem;" @onkeydown="HandleKeyDown">
             <div class="access-result access-alert-info">
                 Marcar manualmente la entrada de <strong>@NombreCompleto</strong>.
                 Si la membresía está vencida o el socio bloqueado, se registrará el acceso como <strong>denegado</strong>.
@@ -113,6 +113,25 @@
     }
 
     private Task Cancelar() => _mudDialog.CloseAsync();
+
+    /// <summary>Enter registra el acceso (mientras no haya resultado mostrado);
+    /// Escape cierra el diálogo (nativo vía CloseOnEscapeKey, rama explícita
+    /// por consistencia con el resto de formularios).</summary>
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (_guardando)
+        {
+            return;
+        }
+        if (e.Key == "Enter" && _resultado is null)
+        {
+            _ = RegistrarAsync();
+        }
+        else if (e.Key == "Escape")
+        {
+            _ = Cancelar();
+        }
+    }
 
     private async Task RegistrarAsync()
     {

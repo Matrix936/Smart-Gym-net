@@ -260,7 +260,7 @@
     <DialogContent>
         @* Delta con signo: positivo = entrada, negativo = salida. El backend
            rechaza dejar el stock en negativo (conteo físico nunca es negativo). *@
-        <div class="form-fields" style="max-width: 320px;">
+        <div class="form-fields" style="max-width: 320px;" @onkeydown="HandleAjusteKeyDown">
             <p class="muted">Stock actual: @_stockAjustandoActual</p>
             <MudNumericField T="long"
                              Label="Ajuste (+ entrada / − salida)"
@@ -585,6 +585,23 @@
         _stockAjustandoActual = StockDe(p) ?? 0;
         _deltaAjuste = 0;
         _ajusteAbierto = true;
+    }
+
+    /// <summary>Enter aplica el ajuste; Escape cierra sin aplicar.</summary>
+    private void HandleAjusteKeyDown(KeyboardEventArgs e)
+    {
+        if (_ajustando)
+        {
+            return;
+        }
+        if (e.Key == "Escape")
+        {
+            _ajusteAbierto = false;
+        }
+        else if (e.Key == "Enter")
+        {
+            _ = AjustarStockAsync();
+        }
     }
 
     private async Task AjustarStockAsync()

@@ -322,7 +322,7 @@
             reautorización por contraseña (la validación real vive en
             PosService.CancelarVentaAsync, que además regresa stock y genera
             el egreso en caja). *@
-        <div>
+        <div @onkeydown="HandleCancelacionKeyDown">
             <p class="form-section">Se anulará la venta @(_filaCancelando?.ReferenciaId) y se generará un egreso en caja.</p>
             @if (_cancelacionPaso == 1)
             {
@@ -860,6 +860,33 @@
         if (!_cancelando)
         {
             _cancelacionAbierta = false;
+        }
+    }
+
+    /// <summary>Enter avanza paso 1→2 o confirma la cancelación en paso 2;
+    /// Escape cierra sin guardar (mismo criterio que el cierre de caja).</summary>
+    private void HandleCancelacionKeyDown(KeyboardEventArgs e)
+    {
+        if (_cancelando)
+        {
+            return;
+        }
+
+        if (e.Key == "Escape")
+        {
+            CerrarCancelacion();
+        }
+        else if (e.Key == "Enter")
+        {
+            if (_cancelacionPaso == 1)
+            {
+                _cancelacionPaso = 2;
+                StateHasChanged();
+            }
+            else
+            {
+                _ = CancelarVentaAsync();
+            }
         }
     }
 

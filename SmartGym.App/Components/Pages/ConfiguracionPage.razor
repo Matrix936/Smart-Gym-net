@@ -537,6 +537,39 @@ else
         {
             _ = GuardarDatosAsync();
         }
+        else if (e.Key == "Escape" && !_guardandoDatos)
+        {
+            // Descarta la edición: vuelve a leer empresa/sede vigentes
+            // (mismo criterio que la sub-sección Sede).
+            _ = RecargarDatosAsync();
+        }
+    }
+
+    private async Task RecargarDatosAsync()
+    {
+        // Re-lectura enfocada de los campos de la sección (no OnInitializedAsync
+        // completo: repoblaría impresoras duplicándolas).
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+        try
+        {
+            var (empresa, sede, logoDataUrl) = await EmpresaConfig.ObtenerAsync(sesion.Token);
+            _nombreComercial = empresa.NombreComercial;
+            _razonSocial = empresa.RazonSocial ?? "";
+            _rfc = empresa.Rfc ?? "";
+            _regimenFiscal = empresa.RegimenFiscal ?? "";
+            _telefono = sede.Telefono ?? "";
+            _direccion = sede.Direccion ?? "";
+            _codigoPostal = sede.CodigoPostal ?? "";
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task GuardarDatosAsync()

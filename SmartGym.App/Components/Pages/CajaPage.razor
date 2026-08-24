@@ -458,6 +458,11 @@
         {
             AvanzarAPassword();
         }
+        else if (e.Key == "Enter" && _cierrePaso == 2 && !_cerrando)
+        {
+            // Paso 2: la contraseña ya está escrita — Enter confirma el cierre.
+            _ = CerrarCajaAsync();
+        }
     }
 
     private async Task CerrarCajaAsync()
