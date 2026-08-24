@@ -122,10 +122,10 @@
                 <tr>
                     <th>Fecha</th>
                     <th>Usuario</th>
-                    <th style="text-align: center;">Acción</th>
+                    <th class="col-accion">Acción</th>
                     <th>Tabla</th>
                     <th>Sede</th>
-                    <th style="text-align: center; width: 56px;"></th>
+                    <th class="col-accion" style="width: 56px;"></th>
                 </tr>
             </thead>
             <tbody>
@@ -144,12 +144,12 @@
                         <tr>
                             <td class="muted-cell">@FormatearFecha(f.Fecha)</td>
                             <td>@(f.NombreUsuario ?? "—")</td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 <span class="status-badge @ClaseBadge(f.Accion)">@f.Accion</span>
                             </td>
                             <td class="muted-cell">@f.TablaAfectada</td>
                             <td class="muted-cell">@(f.SedeNombre ?? (f.IdSede is null ? "Global" : f.IdSede.ToString()))</td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 <MudMenu AnchorOrigin="Origin.BottomRight"
                                          TransformOrigin="Origin.TopRight"
                                          Class="row-menu">

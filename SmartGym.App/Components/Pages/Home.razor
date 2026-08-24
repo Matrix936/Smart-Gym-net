@@ -1,4 +1,4 @@
-﻿@page "/"
+@page "/"
 @* Dashboard (/): dos gráficas de resumen arriba (cómo va el negocio con
    selector Hoy/Semana/Mes + afluencia por hora) y recordatorios de membresía
    vía WhatsApp abajo. Todo de solo lectura salvo abrir el link wa.me. Cada
@@ -119,7 +119,7 @@
                             <th>Socio</th>
                             <th>Teléfono</th>
                             <th>Estado</th>
-                            <th style="text-align: center; width: 180px;">Contactar</th>
+                            <th class="col-accion" style="width: 180px;">Contactar</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -129,12 +129,12 @@
                             <tr>
                                 <td><strong>@r.NombreSocio</strong></td>
                                 <td class="muted-cell">@r.Telefono</td>
-                                <td>
+                                <td class="col-accion">
                                     <span class="status-badge @(porVencer ? "status-warning" : "status-danger")">
                                         @(porVencer ? $"Vence en {r.Dias} día(s)" : $"Vencida hace {r.Dias} día(s)")
                                     </span>
                                 </td>
-                                <td style="text-align: center;">
+                                <td class="col-accion">
                                     <MudButton Variant="Variant.Outlined"
                                                Color="Color.Success"
                                                StartIcon="@Icons.Material.Filled.Chat"

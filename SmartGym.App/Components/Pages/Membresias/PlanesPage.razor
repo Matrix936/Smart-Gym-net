@@ -59,11 +59,11 @@
                 <tr>
                     <th>Nombre</th>
                     <th>Descripción</th>
-                    <th style="text-align: center;">Vigencia</th>
-                    <th style="text-align: center;">Congelamiento máx.</th>
-                    <th style="text-align: right;">Precio</th>
-                    <th style="text-align: center;">Estado</th>
-                    <th style="text-align: center; width: 56px;"></th>
+                    <th class="col-accion">Vigencia</th>
+                    <th class="col-accion">Congelamiento máx.</th>
+                    <th class="col-numero">Precio</th>
+                    <th class="col-accion">Estado</th>
+                    <th class="col-accion" style="width: 56px;"></th>
                 </tr>
             </thead>
             <tbody>
@@ -88,15 +88,15 @@
                         <tr>
                             <td><strong>@plan.Nombre</strong></td>
                             <td class="muted-cell">@(plan.Descripcion ?? "—")</td>
-                            <td style="text-align: center;">@plan.DiasVigencia días</td>
-                            <td style="text-align: center;">@plan.DiasCongelamientoMax días</td>
-                            <td style="text-align: right;">@FormatearMonto(plan.PrecioCentavos)</td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">@plan.DiasVigencia días</td>
+                            <td class="col-accion">@plan.DiasCongelamientoMax días</td>
+                            <td class="col-numero">@FormatearMonto(plan.PrecioCentavos)</td>
+                            <td class="col-accion">
                                 <span class="status-badge @(plan.EsActivo ? "status-success" : "status-warning")">
                                     @(plan.EsActivo ? "Activo" : "Inactivo")
                                 </span>
                             </td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 <MudMenu AnchorOrigin="Origin.BottomRight"
                                          TransformOrigin="Origin.TopRight"
                                          Class="row-menu">

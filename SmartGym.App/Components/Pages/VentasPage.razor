@@ -163,8 +163,8 @@
                         <th>Concepto</th>
                         <th>Socio</th>
                         <th>Método</th>
-                        <th style="text-align: right;">Monto</th>
-                        <th style="text-align: center; width: 56px;"></th>
+                        <th class="col-numero">Monto</th>
+                        <th class="col-accion" style="width: 56px;"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -176,10 +176,10 @@
                             <td>@(string.IsNullOrEmpty(f.Concepto) ? "—" : f.Concepto)</td>
                             <td class="muted-cell">@(f.NombreSocio ?? "—")</td>
                             <td class="muted-cell">@Capitalizar(f.MetodoPago)</td>
-                            <td style="text-align: right; @(f.MontoCentavos < 0 ? "color: var(--color-error);" : "")">
+                            <td class="col-numero" style="@(f.MontoCentavos < 0 ? "color: var(--color-error);" : "")">
                                 @(f.MontoCentavos < 0 ? "−" : "")@FormatearMonto(Math.Abs(f.MontoCentavos))
                             </td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 @if (f.ReferenciaTipo == CajaReferenciaTipos.Venta || f.ReferenciaTipo == CajaReferenciaTipos.CancelacionVenta)
                                 {
                                     @* Mismo menú de tres puntos que el resto de las tablas
@@ -276,16 +276,16 @@
             <div class="table-wrap" style="margin-top: 1rem;">
                 <table class="data-table">
                     <thead>
-                        <tr><th>Producto</th><th>Cant.</th><th style="text-align: right;">P. unitario</th><th style="text-align: right;">Subtotal</th></tr>
+                        <tr><th>Producto</th><th class="col-numero">Cant.</th><th class="col-numero">P. unitario</th><th class="col-numero">Subtotal</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var item in _detalleVenta.Items)
                         {
                             <tr>
                                 <td>@(item.DescripcionProducto ?? $"#{item.IdProducto}")</td>
-                                <td>@item.Cantidad</td>
-                                <td style="text-align: right;">@FormatearMonto(item.PrecioUnitarioCentavos)</td>
-                                <td style="text-align: right;">@FormatearMonto(item.SubtotalCentavos)</td>
+                                <td class="col-numero">@item.Cantidad</td>
+                                <td class="col-numero">@FormatearMonto(item.PrecioUnitarioCentavos)</td>
+                                <td class="col-numero">@FormatearMonto(item.SubtotalCentavos)</td>
                             </tr>
                         }
                     </tbody>

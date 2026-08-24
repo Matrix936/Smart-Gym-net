@@ -103,8 +103,8 @@
                     <th>Plan</th>
                     <th>Inicio</th>
                     <th>Fin</th>
-                    <th style="text-align: center;">Estado</th>
-                    <th style="text-align: center; width: 56px;"></th>
+                    <th class="col-accion">Estado</th>
+                    <th class="col-accion" style="width: 56px;"></th>
                 </tr>
             </thead>
             <tbody>
@@ -131,10 +131,10 @@
                             <td>@f.PlanNombre</td>
                             <td class="muted-cell">@FormatearFecha(f.FechaInicio)</td>
                             <td class="muted-cell">@FormatearFecha(f.FechaFin)</td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 <span class="status-badge @ClaseEstado(f.EstadoEfectivo)">@EtiquetaEstado(f.EstadoEfectivo)</span>
                             </td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 <MudMenu AnchorOrigin="Origin.BottomRight"
                                          TransformOrigin="Origin.TopRight"
                                          Class="row-menu">

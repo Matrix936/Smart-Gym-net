@@ -78,9 +78,9 @@
             <thead>
                 <tr>
                     <th>Nombre</th>
-                    <th style="text-align: center;">Estado</th>
+                    <th class="col-accion">Estado</th>
                     <th>Notas</th>
-                    <th style="text-align: center; width: 56px;"></th>
+                    <th class="col-accion" style="width: 56px;"></th>
                 </tr>
             </thead>
             <tbody>
@@ -109,11 +109,11 @@
                                     <span class="muted" style="display: block;">@m.Descripcion</span>
                                 }
                             </td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 <span class="status-badge @ClaseEstado(m.Estado)">@EtiquetaEstado(m.Estado)</span>
                             </td>
                             <td class="muted-cell">@(m.Notas ?? "—")</td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 <MudMenu AnchorOrigin="Origin.BottomRight"
                                          TransformOrigin="Origin.TopRight"
                                          Class="row-menu">

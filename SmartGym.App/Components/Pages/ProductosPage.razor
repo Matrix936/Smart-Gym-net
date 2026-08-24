@@ -80,11 +80,11 @@
                 <tr>
                     <th>Descripción</th>
                     <th>Código</th>
-                    <th style="text-align: right;">Precio</th>
+                    <th class="col-numero">Precio</th>
                     <th>Inv.</th>
-                    <th style="text-align: right;">Stock sede</th>
-                    <th style="text-align: center;">Estado</th>
-                    <th style="text-align: center; width: 56px;"></th>
+                    <th class="col-numero">Stock sede</th>
+                    <th class="col-accion">Estado</th>
+                    <th class="col-accion" style="width: 56px;"></th>
                 </tr>
             </thead>
             <tbody>
@@ -110,17 +110,17 @@
                         <tr>
                             <td><strong>@p.Descripcion</strong></td>
                             <td class="muted-cell">@(p.CodigoBarras ?? "—")</td>
-                            <td style="text-align: right;">@FormatearMonto(p.PrecioVentaCentavos)</td>
+                            <td class="col-numero">@FormatearMonto(p.PrecioVentaCentavos)</td>
                             <td class="muted-cell">@(p.RequiereInventario ? "Sí" : "No")</td>
-                            <td style="text-align: right;" class="@(EsStockBajo(p) ? "stock-bajo" : "")">
+                            <td class="col-numero @(EsStockBajo(p) ? "stock-bajo" : "")">
                                 @(StockDe(p) is null ? "—" : StockDe(p)!.Value.ToString())
                             </td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 <span class="status-badge @(activo ? "status-success" : "status-danger")">
                                     @(activo ? "Activo" : "Inactivo")
                                 </span>
                             </td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 <MudMenu AnchorOrigin="Origin.BottomRight"
                                          TransformOrigin="Origin.TopRight"
                                          Class="row-menu">

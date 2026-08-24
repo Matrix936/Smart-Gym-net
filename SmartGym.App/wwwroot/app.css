@@ -389,6 +389,21 @@ table.data-table {
 .data-table td {
     padding: 0.85rem 1rem;
     border-bottom: var(--glass-border);
+    vertical-align: middle;
+}
+
+/* Convención de alineación horizontal por tipo de contenido:
+   texto → izquierda (default) · números/montos → derecha (.col-numero)
+   badges/íconos/acciones → centro (.col-accion). Las fechas se leen como
+   texto: izquierda. Vertical siempre centrado (regla de .data-table td). */
+.data-table th.col-numero,
+.data-table td.col-numero {
+    text-align: right;
+}
+
+.data-table th.col-accion,
+.data-table td.col-accion {
+    text-align: center;
 }
 
 /* ---------- Miembros ---------- */

@@ -104,9 +104,9 @@
                 <tr>
                     <th>Fecha y hora</th>
                     <th>Socio</th>
-                    <th style="text-align: center;">Tipo</th>
+                    <th class="col-accion">Tipo</th>
                     <th>Método</th>
-                    <th style="text-align: center;">Estado</th>
+                    <th class="col-accion">Estado</th>
                     <th>Motivo de denegación</th>
                 </tr>
             </thead>
@@ -127,13 +127,13 @@
                         <tr>
                             <td class="muted-cell">@FormatearFecha(f.Timestamp)</td>
                             <td>@(f.NombreSocio ?? "—")</td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 <span class="status-badge @(f.Tipo == AccesoTipos.Entrada ? "status-success" : "status-info")">
                                     @(f.Tipo == AccesoTipos.Entrada ? "Entrada" : "Salida")
                                 </span>
                             </td>
                             <td class="muted-cell">@Capitalizar(f.Metodo)</td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 <span class="status-badge @(concedido ? "status-success" : "status-danger")">
                                     @(concedido ? "Concedido" : "Denegado")
                                 </span>

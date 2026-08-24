@@ -60,10 +60,10 @@
                 <tr>
                     <th>Nombre</th>
                     <th>Teléfono</th>
-                    <th style="text-align: center;">Estado</th>
-                    <th style="text-align: center;">Huella</th>
+                    <th class="col-accion">Estado</th>
+                    <th class="col-accion">Huella</th>
                     <th>Último acceso</th>
-                    <th style="text-align: center; width: 56px;"></th>
+                    <th class="col-accion" style="width: 56px;"></th>
                 </tr>
             </thead>
             <tbody>
@@ -88,10 +88,10 @@
                         <tr>
                             <td><strong>@NombreCompleto(socio)</strong></td>
                             <td class="muted-cell">@(socio.Telefono ?? "—")</td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 <span class="status-badge @ClaseEstado(socio.Estado)">@EtiquetaEstado(socio.Estado)</span>
                             </td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 @if (TieneHuella(socio.IdSocio))
                                 {
                                     <MudIcon Icon="@Icons.Material.Filled.Fingerprint" Size="Size.Small" Class="huella-icon" />
@@ -102,7 +102,7 @@
                                 }
                             </td>
                             <td class="muted-cell">@FormatearFecha(socio.FechaUltimoAcceso)</td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 <MudMenu AnchorOrigin="Origin.BottomRight"
                                          TransformOrigin="Origin.TopRight"
                                          Class="row-menu">

@@ -73,10 +73,10 @@
             <thead>
                 <tr>
                     <th>Socio</th>
-                    <th style="text-align: right;">Saldo pendiente</th>
+                    <th class="col-numero">Saldo pendiente</th>
                     <th>Vencimiento</th>
-                    <th style="text-align: center;">Estado</th>
-                    <th style="text-align: center; width: 56px;"></th>
+                    <th class="col-accion">Estado</th>
+                    <th class="col-accion" style="width: 56px;"></th>
                 </tr>
             </thead>
             <tbody>
@@ -94,12 +94,12 @@
                     {
                         <tr>
                             <td><strong>@c.NombreSocio</strong></td>
-                            <td style="text-align: right;">@FormatearMonto(c.SaldoPendienteCentavos)</td>
+                            <td class="col-numero">@FormatearMonto(c.SaldoPendienteCentavos)</td>
                             <td class="muted-cell">@FormatearFecha(c.FechaVencimiento)</td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 <span class="status-badge @ClaseEstado(c.Estado)">@EtiquetaEstado(c.Estado)</span>
                             </td>
-                            <td style="text-align: center;">
+                            <td class="col-accion">
                                 <MudMenu AnchorOrigin="Origin.BottomRight"
                                          TransformOrigin="Origin.TopRight"
                                          Class="row-menu">
