@@ -9,6 +9,20 @@
 
         <!-- Ícono win32 embebido en el ejecutable (barra de tareas/explorador). -->
         <ApplicationIcon>Resources\AppIcon\logos.ico</ApplicationIcon>
+
+        <!-- Metadatos del ejecutable (Propiedades de Windows → Detalles).
+             Nota: la "Descripción del archivo" que muestra Explorer sale de
+             AssemblyTitle, por eso el texto largo vive ahí. -->
+        <AssemblyName>Smart Gym</AssemblyName>
+        <AssemblyTitle>Sistema de gestión para gimnasios — membresías, control de acceso, punto de venta y finanzas</AssemblyTitle>
+        <Product>Smart Gym</Product>
+        <Company>Cuber</Company>
+        <Copyright>© 2026 Cuber</Copyright>
+        <ApplicationVersion>1</ApplicationVersion>
+        <ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
+
+        <!-- Sin sufijo "+hash" en ProductVersion (Propiedades → Detalles). -->
+        <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
         <SingleProject>true</SingleProject>
 
         <!-- Requerido por DPFP.Capture.Capture.MessageEvents (SDK DigitalPersona): su
