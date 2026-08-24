@@ -260,6 +260,10 @@
         <MudText Typo="Typo.h6">Detalle de venta</MudText>
     </TitleContent>
     <DialogContent>
+        @* Mismo formato de recibo que el POS al cobrar (folio, fecha, estado,
+           método, socio, items y total): "detalle de venta" y "vista de ticket"
+           son la misma información presentada distinto. El saldo/vencimiento de
+           créditos no viaja en el historial — no se muestra aquí. *@
         @if (_detalleCargando)
         {
             <p class="muted">Cargando...</p>
@@ -267,6 +271,10 @@
         else if (_detalleVenta is not null)
         {
             <div class="summary-row"><span class="summary-label">Folio</span><span class="muted">@_detalleVenta.IdVenta</span></div>
+            @if (_filaDetalle is not null)
+            {
+                <div class="summary-row"><span class="summary-label">Fecha</span><span>@FormatearFecha(_filaDetalle.Fecha)</span></div>
+            }
             <div class="summary-row">
                 <span class="summary-label">Estado</span>
                 <span class="status-badge @(_detalleVenta.Estado == VentaEstados.Completada ? "status-success" : "status-danger")">
@@ -274,6 +282,10 @@
                 </span>
             </div>
             <div class="summary-row"><span class="summary-label">Método</span><span>@Capitalizar(_detalleVenta.MetodoPago)</span></div>
+            @if (!string.IsNullOrWhiteSpace(_filaDetalle?.NombreSocio))
+            {
+                <div class="summary-row"><span class="summary-label">Socio</span><span>@_filaDetalle.NombreSocio</span></div>
+            }
             <div class="table-wrap" style="margin-top: 1rem;">
                 <table class="data-table">
                     <thead>
