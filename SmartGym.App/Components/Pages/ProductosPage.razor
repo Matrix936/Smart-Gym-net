@@ -141,9 +141,12 @@
 
                                         @if (activo)
                                         {
-                                            <MudMenuItem OnClick="() => AbrirAjuste(p)">
-                                                <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Small" /> Ajustar stock
-                                            </MudMenuItem>
+                                            @if (p.RequiereInventario)
+                                            {
+                                                <MudMenuItem OnClick="() => AbrirAjuste(p)">
+                                                    <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Small" /> Ajustar stock
+                                                </MudMenuItem>
+                                            }
                                             <MudMenuItem OnClick="() => PedirDesactivar(p)">
                                                 <MudIcon Icon="@Icons.Material.Filled.Pause" Size="Size.Small" /> Desactivar
                                             </MudMenuItem>
