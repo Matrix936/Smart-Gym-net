@@ -39,6 +39,20 @@ Repetir el script sobre una base con datos reales no sobrescribe, trunca ni borr
 
 En ese momento, implementar un sistema real de migraciones versionadas usando la tabla **`schema_migrations`** que ya existe en el schema desde Fase 1 (vacía y sin usar): cada migración con su versión registrada, ejecutar solo las pendientes en cada arranque. **No** intentar un `ALTER TABLE` ad-hoc dentro del script actual — fallaría en las bases que ya tienen la columna.
 
+## Incidentes del patrón (columna nueva en tabla existente)
+
+Ambos casos con el mismo mecanismo exacto: un commit agrega una columna al `.sql`, la BD real no la tiene (el script no migra columnas), y la primera query que referencia esa columna falla con "no such column".
+
+| # | Columna | Commit | Síntoma visible | Detección |
+|---|---|---|---|---|
+| 1 | `cuentas_cobrar.origen` (+ `id_membresia` nullable) | `50c7a0f` (crédito POS) | "No se pudo cargar la cobranza" en /cobranza — error tragado por el catch genérico de la página | Reproducido con query directa sobre la BD real; resuelto con ALTER puntual + backup |
+| 2 | `cuentas_cobrar.id_venta` (+ índice) | `0f19d8d` (cancelación de crédito) | **Crash silencioso de toda la app al arrancar**: `dotnet run` vuelve al prompt sin salida; en el Visor de Eventos aparece Evento 1000 / `0xc000027B` stowed exception en `Microsoft.UI.Xaml.dll` (3 intentos, 3 crashes) | `DbInitializer` ejecuta el script completo al arranque; el `CREATE INDEX idx_cuentas_cobrar_id_venta` falla contra la tabla vieja y la excepción mata el proceso. Reproducido lanzando el exe directamente (exit `-1073741189`) y probando el statement sobre una copia de la BD. Resuelto con backup + `ALTER TABLE cuentas_cobrar ADD COLUMN id_venta TEXT REFERENCES ventas(id_venta)` + crear el índice |
+
+Nota sobre el caso 2: el crash es **silencioso por diseño de WinUI** — las stowed exceptions no escriben nada en consola, así que `dotnet run` parece "terminar bien". La evidencia solo existe en el Visor de Eventos (Application, Evento 1000).
+
+### Nota de proceso
+
+Antes de commitear cualquier cambio de schema que agregue columnas a una tabla existente, correr la app localmente contra una base de datos real (no solo la suite de tests) para confirmar que el arranque no falla — la suite de tests **no detecta este tipo de error** porque usa bases de datos frescas en cada test (el `CREATE TABLE` nuevo sí incluye las columnas).
 ## Referencia cruzada
 
 Consideración análoga de rendimiento: la función SQL `sin_acentos()` (búsqueda insensible a acentos, ver commit `1cf9dd0`) aplicada dentro de un `LIKE` impide el uso de índices sobre la columna (no sargable). Aceptable para catálogos de bajo volumen; no replicarla en tablas de alto volumen (`bitacora_auditoria`, `ventas`) sin una columna normalizada persistida.
