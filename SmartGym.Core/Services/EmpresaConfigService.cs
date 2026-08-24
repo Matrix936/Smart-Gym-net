@@ -17,6 +17,7 @@ public sealed class EmpresaConfigService : IEmpresaConfigService
 {
     private const string ClaveImpresora = "impresora.nombre";
     private const string ClavePosPermiteCredito = "pos.permite_credito";
+    private const string ClaveModoRegistroAcceso = "acceso.modo_registro";
     private const string ClavePapel = "perifericos.papel";
     private const string ClaveDensidad = "perifericos.densidad";
     private const string ClaveAbrirCajon = "perifericos.abrir_cajon";
@@ -170,6 +171,27 @@ public sealed class EmpresaConfigService : IEmpresaConfigService
     {
         await _auth.ValidarSesionAsync(token, ct);
         return await LeerPerifericosAsync(ct);
+    }
+
+    public async Task<string> ObtenerModoRegistroAccesoAsync(string token, CancellationToken ct = default)
+    {
+        await _auth.ValidarSesionAsync(token, ct);
+        return AccesoModosRegistro.Normalizar(await _configuracion.GetAsync(ClaveModoRegistroAcceso, ct));
+    }
+
+    public async Task GuardarModoRegistroAccesoAsync(string token, string modo, CancellationToken ct = default)
+    {
+        var info = await GateAsync(token, ct);
+
+        if (!AccesoModosRegistro.Validos.Contains(modo?.Trim() ?? "", StringComparer.OrdinalIgnoreCase))
+        {
+            throw BusinessException.Validation("Modalidad de registro de acceso inválida", "modo_registro_invalido");
+        }
+
+        var normalizado = AccesoModosRegistro.Normalizar(modo);
+        await _configuracion.SetAsync(ClaveModoRegistroAcceso, normalizado, ct);
+        await RegistrarBitacoraAsync(info, "configuracion.modo_registro_guardado",
+            ClaveModoRegistroAcceso, tablaAfectada: "configuracion_general", nuevo: normalizado, ct: ct);
     }
 
     public async Task<PerifericosTicket> GuardarPerifericosAsync(

@@ -14,6 +14,10 @@ namespace SmartGym.Tests.Accesos;
 public sealed class HistorialAccesoTests
 {
     /// <summary>Sembrador: socio activo con membresía vigente (el Kiosco le concede).</summary>
+    private static async Task RetrocederAsync(SecurityTestContext ctx, string idAcceso)
+    {
+        await ModoRegistroAccesoTests.RetrocederTimestampAsync(ctx, idAcceso, minutos: 5);
+    }
     private static async Task<(SecurityTestContext ctx, string token, long sedeId, string idSocio)> SembrarConcedidoAsync()
     {
         var (ctx, token, sedeId, _) = await Fase6Helper.BaseAsync();
@@ -70,12 +74,14 @@ public sealed class HistorialAccesoTests
     public async Task filtro_por_estado()
     {
         var (ctx, token, sedeId, idSocio) = await SembrarConcedidoAsync();
-        await ctx.AccesoService.RegistrarAccesoKioskoAsync(idSocio, sedeId);
+        var rKiosco = await ctx.AccesoService.RegistrarAccesoKioskoAsync(idSocio, sedeId);
 
         // Denegado: socio bloqueado no existe aqui; usamos socio sin membresía via manual.
         var otroSocio = UuidHelper.NewV4();
         await Fase6Helper.InsertarSocioAsync(ctx, otroSocio, sedeId);
         await ctx.AccesoService.RegistrarAccesoManualAsync(token, otroSocio, sedeId);
+
+        await RetrocederAsync(ctx, rKiosco.IdAcceso);
 
         var concedidos = await ctx.AccesoService.BuscarAsync(
             token, new AccesoHistorialFiltros { Estado = AccesoEstados.Concedido }, idSedeFrontend: sedeId);
@@ -90,8 +96,10 @@ public sealed class HistorialAccesoTests
     public async Task filtro_por_metodo()
     {
         var (ctx, token, sedeId, idSocio) = await SembrarConcedidoAsync();
-        await ctx.AccesoService.RegistrarAccesoKioskoAsync(idSocio, sedeId); // huella
-        await ctx.AccesoService.RegistrarAccesoManualAsync(token, idSocio, sedeId); // manual
+        var rHuella = await ctx.AccesoService.RegistrarAccesoKioskoAsync(idSocio, sedeId); // huella
+        await RetrocederAsync(ctx, rHuella.IdAcceso);
+        var rManual = await ctx.AccesoService.RegistrarAccesoManualAsync(token, idSocio, sedeId); // manual
+        await RetrocederAsync(ctx, rManual.IdAcceso);
 
         var manuales = await ctx.AccesoService.BuscarAsync(
             token, new AccesoHistorialFiltros { Metodo = AccesoMetodos.Manual }, idSedeFrontend: sedeId);
@@ -142,9 +150,16 @@ public sealed class HistorialAccesoTests
     public async Task paginacion()
     {
         var (ctx, token, sedeId, idSocio) = await SembrarConcedidoAsync();
+        // La fila sembrada también sale de la ventana anti-doble-toque.
+        await using var connSeed = ConnectionFactory.Open(ctx.DbPath);
+        await connSeed.ExecuteAsync(new CommandDefinition(
+            "UPDATE accesos_bitacora SET timestamp = @ts WHERE id_socio = @idSocio",
+            new { ts = DateHelper.ToIsoUtc(DateTime.UtcNow.AddMinutes(-5)), idSocio }));
+
         for (var i = 0; i < 11; i++)
         {
-            await ctx.AccesoService.RegistrarAccesoManualAsync(token, idSocio, sedeId);
+            var r = await ctx.AccesoService.RegistrarAccesoManualAsync(token, idSocio, sedeId);
+            await RetrocederAsync(ctx, r.IdAcceso);
         }
 
         var pagina1 = await ctx.AccesoService.BuscarAsync(token, pagina: 1, tamanoPagina: TamanosPagina.Default, idSedeFrontend: sedeId);

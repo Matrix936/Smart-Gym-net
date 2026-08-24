@@ -10,11 +10,13 @@ namespace SmartGym.Core.Repositories;
 /// </summary>
 public interface IAccesosRepository
 {
-    /// <summary>Acceso Kiosco (sin sesión). Valida socio, membresía y dispositivo; registra bitácora.</summary>
+    /// <summary>Acceso Kiosco (sin sesión). Valida socio, membresía y dispositivo; registra bitácora
+    /// según la modalidad de registro (modoRegistro) y con ventana anti-doble-toque de 60 segundos.</summary>
     Task<AccesoResult> RegistrarKioskoAsync(
         string idSocio,
         long idSede,
         long? idDispositivo,
+        string? modoRegistro = null,
         CancellationToken ct = default);
 
     /// <summary>Acceso manual (sesión + permiso acceso.forzar_entrada_manual). Método registrado: manual.</summary>
@@ -22,6 +24,7 @@ public interface IAccesosRepository
         string idSocio,
         long idSede,
         long? idDispositivo,
+        string? modoRegistro = null,
         CancellationToken ct = default);
 
     /// <summary>Lee un registro de la bitácora (para aserciones y la pantalla de bitácora).</summary>

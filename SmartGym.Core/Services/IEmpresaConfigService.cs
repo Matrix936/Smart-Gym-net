@@ -37,6 +37,15 @@ public interface IEmpresaConfigService
     Task<bool> ObtenerPosPermiteCreditoAsync(string token, CancellationToken ct = default);
 
     /// <summary>
+    /// Modalidad de registro de accesos del Kiosco (solo_entrada / entrada_y_salida).
+    /// Lectura con sesión válida — la UI la necesita sin permiso de configuración.
+    /// </summary>
+    Task<string> ObtenerModoRegistroAccesoAsync(string token, CancellationToken ct = default);
+
+    /// <summary>Guarda la modalidad (gate ConfiguracionEditar + bitácora). Rechaza valores inválidos.</summary>
+    Task GuardarModoRegistroAccesoAsync(string token, string modo, CancellationToken ct = default);
+
+    /// <summary>
     /// Periféricos del POS (impresora de tickets, papel, densidad, cajón e
     /// impresión automática). Lectura con sesión válida — la UI del POS la
     /// necesita sin permiso de configuración.

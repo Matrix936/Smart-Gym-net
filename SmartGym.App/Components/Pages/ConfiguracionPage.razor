@@ -63,6 +63,15 @@
         <span class="sg-nav-item-indicator"></span>
         <span class="sg-nav-item-label">Punto de venta</span>
     </div>
+    <div class="sg-nav-item @(_seccion == SeccionConfig.ControlAcceso ? "active" : null)"
+         style="width: 100%;"
+         @onclick='() => IrA(SeccionConfig.ControlAcceso)'
+         @onkeydown='e => SeccionKeyDown(e, SeccionConfig.ControlAcceso)'
+         role="button" tabindex="0"
+         aria-current="@(_seccion == SeccionConfig.ControlAcceso ? "true" : null)">
+        <span class="sg-nav-item-indicator"></span>
+        <span class="sg-nav-item-label">Control de acceso</span>
+    </div>
     <div class="sg-nav-item @(_seccion == SeccionConfig.WhatsApp ? "active" : null)"
          style="width: 100%;"
          @onclick='() => IrA(SeccionConfig.WhatsApp)'
@@ -248,6 +257,38 @@ else if (_seccion == SeccionConfig.Pos)
         </div>
     </div>
 }
+else if (_seccion == SeccionConfig.ControlAcceso)
+{
+    <div class="glass-panel" style="flex: 1; min-width: 0; position: relative;">
+        <AyudaModulo Style="position: absolute; top: 0.6rem; right: 0.6rem;">
+            <p>Aplica al Kiosco a partir del siguiente toque del sensor.</p>
+            <p>En ambas modalidades existe una ventana anti-doble-toque de 60 segundos: un segundo toque del mismo socio dentro de esa ventana no registra otra entrada.</p>
+        </AyudaModulo>
+        <p class="form-section" style="text-align: center;">Control de acceso</p>
+        <div class="form-fields" style="max-width: 720px; margin: 0 auto;">
+            <MudSelect T="string"
+                       Label="Modalidad de registro"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Value="_modoRegistro"
+                       ValueChanged="@(v => _modoRegistro = v ?? AccesoModosRegistro.EntradaYSalida)">
+                <MudSelectItem Value="@AccesoModosRegistro.EntradaYSalida">Entrada y salida (alterna por día)</MudSelectItem>
+                <MudSelectItem Value="@AccesoModosRegistro.SoloEntrada">Solo entrada (cada acceso es una entrada)</MudSelectItem>
+            </MudSelect>
+            <p class="muted" style="margin: 0;">
+                Entrada y salida (por defecto): alterna entrada/salida en cada toque del sensor, contando
+                solo los accesos concedidos. Solo entrada: todo acceso concedido se registra como entrada,
+                sin registrar salidas.
+            </p>
+            <div style="margin-top: 0.75rem;">
+                <AsyncButton Text="Guardar control de acceso"
+                             LoadingText="Guardando..."
+                             IsLoading="_guardandoModoRegistro"
+                             OnClick="GuardarModoRegistroAsync" />
+            </div>
+        </div>
+    </div>
+}
 else
 {
     <div class="glass-panel" style="flex: 1; min-width: 0; position: relative;">
@@ -291,7 +332,7 @@ else
     [Inject] private SmartGym.App.Services.ILogoState LogoState { get; set; } = default!;
 
     // Navegación por secciones, mismo patrón que Mi Perfil.
-    private enum SeccionConfig { Empresa, Logo, Perifericos, Pos, WhatsApp }
+    private enum SeccionConfig { Empresa, Logo, Perifericos, Pos, ControlAcceso, WhatsApp }
 
     private SeccionConfig _seccion = SeccionConfig.Empresa;
 
@@ -387,6 +428,22 @@ else
             _impresoras = [];
         }
 
+        try
+        {
+            _modoRegistro = await EmpresaConfig.ObtenerModoRegistroAccesoAsync(sesion.Token);
+        }
+        catch (BusinessException)
+        {
+            // Sin sesión válida: queda la modalidad por defecto.
+        }
+        try
+        {
+            _modoRegistro = await EmpresaConfig.ObtenerModoRegistroAccesoAsync(sesion.Token);
+        }
+        catch (BusinessException)
+        {
+            // Sin sesión válida: queda la modalidad por defecto.
+        }
         try
         {
             var perifericos = await EmpresaConfig.ObtenerPerifericosAsync(sesion.Token);
@@ -619,6 +676,38 @@ else
         _selImpresora = impresora;
     }
 
+    // --- Control de acceso: modalidad de registro --------------------------------
+    private string _modoRegistro = AccesoModosRegistro.EntradaYSalida;
+    private bool _guardandoModoRegistro;
+
+    private async Task GuardarModoRegistroAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _guardandoModoRegistro)
+        {
+            return;
+        }
+
+        _guardandoModoRegistro = true;
+        try
+        {
+            await EmpresaConfig.GuardarModoRegistroAccesoAsync(sesion.Token, _modoRegistro);
+            Feedback.ShowSuccess("Modalidad de registro guardada");
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo guardar la modalidad de registro");
+        }
+        finally
+        {
+            _guardandoModoRegistro = false;
+            StateHasChanged();
+        }
+    }
     // --- Punto de venta: interruptor de venta a crédito -------------------------
     private bool _posPermiteCredito;
     private bool _guardandoPosCredito;

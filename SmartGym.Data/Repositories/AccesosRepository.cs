@@ -18,15 +18,17 @@ public sealed class AccesosRepository : RepositoryBase, IAccesosRepository
         string idSocio,
         long idSede,
         long? idDispositivo,
+        string? modoRegistro = null,
         CancellationToken ct = default) =>
-        RegistrarAsync(idSocio, idSede, idDispositivo, AccesoMetodos.Huella, ct);
+        RegistrarAsync(idSocio, idSede, idDispositivo, AccesoMetodos.Huella, modoRegistro, ct);
 
     public Task<AccesoResult> RegistrarManualAsync(
         string idSocio,
         long idSede,
         long? idDispositivo,
+        string? modoRegistro = null,
         CancellationToken ct = default) =>
-        RegistrarAsync(idSocio, idSede, idDispositivo, AccesoMetodos.Manual, ct);
+        RegistrarAsync(idSocio, idSede, idDispositivo, AccesoMetodos.Manual, modoRegistro, ct);
 
     public async Task<AccesoBitacora?> GetByIdAsync(string idAcceso, CancellationToken ct = default)
     {
@@ -40,14 +42,19 @@ public sealed class AccesosRepository : RepositoryBase, IAccesosRepository
 
     /// <summary>
     /// Port de registrar_acceso_interno_sync (access.rs): registro atómico que
-    /// evalúa socio + membresía, alterna tipo por día, actualiza fecha_ultimo_acceso
-    /// solo si concedido e inserta la bitácora — todo en una transacción.
+    /// evalúa socio + membresía, calcula tipo según modalidad (alternancia por
+    /// día basada solo en registros CONCEDIDOS, o siempre entrada en
+    /// solo_entrada), aplica ventana anti-doble-toque de 60 segundos, actualiza
+    /// fecha_ultimo_acceso solo si concedido e inserta la bitácora — todo en
+    /// una transacción. En doble-toque no se inserta nada: el resultado
+    /// recalculado sirve para refrescar el mensaje del Kiosco.
     /// </summary>
     private async Task<AccesoResult> RegistrarAsync(
         string idSocio,
         long idSede,
         long? idDispositivo,
         string metodo,
+        string modoRegistro,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(idSocio))
@@ -101,16 +108,41 @@ public sealed class AccesosRepository : RepositoryBase, IAccesosRepository
             var estadoAcceso = decision.Estado;
             var motivo = decision.MotivoDenegacion;
 
-            // Alternancia entorno/salida respecto al último registro del día para ese socio.
-            var ultimoTipo = await conn.QuerySingleOrDefaultAsync<string?>(new CommandDefinition(
-                "SELECT tipo FROM accesos_bitacora " +
-                "WHERE id_socio = @idSocio AND date(timestamp) = date('now') AND deleted_at IS NULL " +
-                "ORDER BY timestamp DESC LIMIT 1",
-                new { idSocio }, tx, cancellationToken: ct));
+            // Ventana anti-doble-toque (60 s): si el mismo socio ya tiene un
+            // registro reciente, no se inserta ni se alterna — el resultado
+            // recalculado abajo refresca el mensaje del Kiosco sin duplicar.
+            var corteVentanaIso = DateHelper.ToIsoUtc(DateTime.UtcNow.AddSeconds(-60));
+            var registroReciente = await conn.QueryFirstOrDefaultAsync<(string Tipo, string Estado)>(
+                new CommandDefinition(
+                    "SELECT tipo AS Tipo, estado AS Estado FROM accesos_bitacora " +
+                    "WHERE id_socio = @idSocio AND timestamp >= @corteVentanaIso AND deleted_at IS NULL " +
+                    "ORDER BY timestamp DESC LIMIT 1",
+                    new { idSocio, corteVentanaIso }, tx, cancellationToken: ct));
+            var dobleToque = registroReciente != default;
 
-            var tipo = ultimoTipo == AccesoTipos.Entrada ? AccesoTipos.Salida : AccesoTipos.Entrada;
+            // Tipo según modalidad. entrada_y_salida: alternancia por día basada
+            // SOLO en registros concedidos (los denegados intermedios no cuentan).
+            string? tipo = null;
+            if (!dobleToque)
+            {
+                if (AccesoModosRegistro.Normalizar(modoRegistro) == AccesoModosRegistro.SoloEntrada)
+                {
+                    tipo = AccesoTipos.Entrada;
+                }
+                else
+                {
+                    var ultimoConcedido = await conn.QuerySingleOrDefaultAsync<string?>(new CommandDefinition(
+                        "SELECT tipo FROM accesos_bitacora " +
+                        "WHERE id_socio = @idSocio AND date(timestamp) = date('now') " +
+                        "AND estado = 'concedido' AND deleted_at IS NULL " +
+                        "ORDER BY timestamp DESC LIMIT 1",
+                        new { idSocio }, tx, cancellationToken: ct));
 
-            if (estadoAcceso == AccesoEstados.Concedido)
+                    tipo = ultimoConcedido == AccesoTipos.Entrada ? AccesoTipos.Salida : AccesoTipos.Entrada;
+                }
+            }
+
+            if (estadoAcceso == AccesoEstados.Concedido && !dobleToque)
             {
                 await conn.ExecuteAsync(new CommandDefinition(
                     "UPDATE socios SET fecha_ultimo_acceso = @now, updated_at = @now " +
@@ -135,28 +167,31 @@ public sealed class AccesosRepository : RepositoryBase, IAccesosRepository
             }
 
             var idAcceso = UuidHelper.NewV4();
-            await conn.ExecuteAsync(new CommandDefinition(
-                "INSERT INTO accesos_bitacora (id_acceso, id_socio, id_sede, timestamp, tipo, metodo, " +
-                "id_dispositivo, estado, motivo_denegacion, updated_at, sincronizado) " +
-                "VALUES (@IdAcceso, @IdSocio, @IdSede, @Timestamp, @Tipo, @Metodo, " +
-                "@IdDispositivo, @Estado, @MotivoDenegacion, @UpdatedAt, 0);",
-                new AccesoBitacora
-                {
-                    IdAcceso = idAcceso,
-                    IdSocio = idSocio,
-                    IdSede = idSede,
-                    Timestamp = now,
-                    Tipo = tipo,
-                    Metodo = metodo,
-                    IdDispositivo = idDispositivo,
-                    Estado = estadoAcceso,
-                    MotivoDenegacion = motivo,
-                    UpdatedAt = now,
-                }, tx, cancellationToken: ct));
+            if (!dobleToque)
+            {
+                await conn.ExecuteAsync(new CommandDefinition(
+                    "INSERT INTO accesos_bitacora (id_acceso, id_socio, id_sede, timestamp, tipo, metodo, " +
+                    "id_dispositivo, estado, motivo_denegacion, updated_at, sincronizado) " +
+                    "VALUES (@IdAcceso, @IdSocio, @IdSede, @Timestamp, @Tipo, @Metodo, " +
+                    "@IdDispositivo, @Estado, @MotivoDenegacion, @UpdatedAt, 0);",
+                    new AccesoBitacora
+                    {
+                        IdAcceso = idAcceso,
+                        IdSocio = idSocio,
+                        IdSede = idSede,
+                        Timestamp = now,
+                        Tipo = tipo,
+                        Metodo = metodo,
+                        IdDispositivo = idDispositivo,
+                        Estado = estadoAcceso,
+                        MotivoDenegacion = motivo,
+                        UpdatedAt = now,
+                    }, tx, cancellationToken: ct));
+            }
 
             result = new AccesoResult
             {
-                IdAcceso = idAcceso,
+                IdAcceso = dobleToque ? string.Empty : idAcceso,
                 Estado = estadoAcceso,
                 MotivoDenegacion = motivo,
                 Socio = estadoAcceso == AccesoEstados.Concedido
