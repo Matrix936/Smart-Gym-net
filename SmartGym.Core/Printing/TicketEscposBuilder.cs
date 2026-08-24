@@ -34,6 +34,12 @@ public sealed record TicketPayloadInput
     /// <summary>>0 solo en ventas a crédito: imprime Pago recibido / Saldo / Vence.</summary>
     public long SaldoPendienteCentavos { get; init; }
     public string? VenceTexto { get; init; }
+
+    /// <summary>Efectivo capturado en caja (solo método efectivo): imprime recibido/cambio.</summary>
+    public long? EfectivoRecibidoCentavos { get; init; }
+
+    /// <summary>Cambio calculado (recibido - total); se imprime junto al recibido.</summary>
+    public long? CambioCentavos { get; init; }
     public string? MensajePie { get; init; }
 
     /// <summary>Raster monocromo ya preparado (GS v 0), sin comandos alrededor.</summary>
@@ -166,6 +172,14 @@ public static class TicketEscposBuilder
             }
         }
         Line(buffer, TwoColumns("TOTAL", Money(ticket.TotalCentavos), width));
+        if (ticket.EfectivoRecibidoCentavos is not null)
+        {
+            Line(buffer, TwoColumns("Efectivo recibido", Money(ticket.EfectivoRecibidoCentavos.Value), width));
+            if (ticket.CambioCentavos is not null)
+            {
+                Line(buffer, TwoColumns("Cambio", Money(ticket.CambioCentavos.Value), width));
+            }
+        }
 
         // ---- Bloque de crédito ----------------------------------------------------------
         if (EsCredito(ticket.MetodoPago))

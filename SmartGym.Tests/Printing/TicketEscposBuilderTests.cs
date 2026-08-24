@@ -174,6 +174,38 @@ public sealed class TicketEscposBuilderTests
     }
 
     [Fact]
+    public void efectivo_recibido_y_cambio_se_imprimen_cuando_presentes()
+    {
+        var bytes = TicketEscposBuilder.Build(Payload(p => p with
+        {
+            TotalCentavos = 50000,
+            EfectivoRecibidoCentavos = 100000,
+            CambioCentavos = 50000,
+        }));
+        var text = TextoAscii(bytes);
+        Assert.Contains("Efectivo recibido", text);
+        Assert.Contains("$1000.00", text); // Money sin separador de miles
+        Assert.Contains("Cambio", text);
+        // Orden: TOTAL antes que el efectivo recibido.
+        Assert.True(text.IndexOf("TOTAL") < text.IndexOf("Efectivo recibido"));
+    }
+
+    [Fact]
+    public void sin_efectivo_capturado_no_imprime_filas_de_recibido_ni_cambio()
+    {
+        var text = TextoAscii(TicketEscposBuilder.Build(Payload()));
+        Assert.DoesNotContain("Efectivo recibido", text);
+        Assert.DoesNotContain("Cambio", text);
+    }
+
+    [Fact]
+    public void cambio_sin_efectivo_no_se_imprime()
+    {
+        var text = TextoAscii(TicketEscposBuilder.Build(Payload(p => p with { CambioCentavos = 100 })));
+        Assert.DoesNotContain("Cambio", text);
+    }
+
+    [Fact]
     public void venta_a_credito_imprime_pagado_saldo_vence_firma_y_aviso()
     {
         var bytes = TicketEscposBuilder.Build(Payload(p => p with

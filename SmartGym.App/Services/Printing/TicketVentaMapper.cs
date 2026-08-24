@@ -35,7 +35,9 @@ public static class TicketVentaMapper
         byte[]? logoRaster,
         int papelAncho,
         int densidad,
-        bool abrirCajon)
+        bool abrirCajon,
+        long? efectivoRecibidoCentavos = null,
+        long? cambioCentavos = null)
     {
         return DesdeVenta(
             folio, fechaTexto, metodoPago, estado, socio,
@@ -44,7 +46,8 @@ public static class TicketVentaMapper
                 i.Cantidad,
                 i.PrecioUnitarioCentavos,
                 i.SubtotalCentavos)).ToList(),
-            totalCentavos, saldoPendienteCentavos, venceTexto, negocio, logoRaster, papelAncho, densidad, abrirCajon);
+            totalCentavos, saldoPendienteCentavos, venceTexto, negocio, logoRaster, papelAncho, densidad, abrirCajon,
+            efectivoRecibidoCentavos, cambioCentavos);
     }
 
     public static TicketPayloadInput DesdeVenta(
@@ -61,7 +64,9 @@ public static class TicketVentaMapper
         byte[]? logoRaster,
         int papelAncho,
         int densidad,
-        bool abrirCajon)
+        bool abrirCajon,
+        long? efectivoRecibidoCentavos = null,
+        long? cambioCentavos = null)
     {
         return new TicketPayloadInput
         {
@@ -84,6 +89,8 @@ public static class TicketVentaMapper
             LogoRaster = logoRaster,
             PapelAncho = papelAncho,
             Densidad = densidad,
+            EfectivoRecibidoCentavos = efectivoRecibidoCentavos,
+            CambioCentavos = cambioCentavos,
 
             // El switch de Configuración dice "cajón en ventas de efectivo".
             AbrirCajon = abrirCajon && string.Equals(metodoPago?.Trim(), "efectivo", StringComparison.OrdinalIgnoreCase),

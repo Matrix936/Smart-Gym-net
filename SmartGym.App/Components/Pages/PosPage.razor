@@ -266,7 +266,7 @@ else
                              LoadingText="Cobrando..."
                              IsLoading="_cobrando"
                              Disabled="@(CarritoVacio() || _cajaAbierta is null)"
-                             OnClick="CobrarAsync" />
+                             OnClick="AbrirConfirmacionCobro" />
             </div>
             <p class="muted pos-hint">Enter cobra · + / − ajusta la cantidad del último producto</p>
         </div>
@@ -290,10 +290,12 @@ else
                            MetodoPago="@_recibo.MetodoPago"
                            Socio="@_recibo.Socio"
                            Items="@(ReciboComoItems())"
-                           TotalCentavos="@_recibo.TotalCentavos"
-                           SaldoPendienteCentavos="@_recibo.SaldoPendienteCentavos"
-                           VenceTexto="@_recibo.VenceTexto"
-                           EmpresaNombre="@_negocioTicket?.Empresa"
+                            TotalCentavos="@_recibo.TotalCentavos"
+                            SaldoPendienteCentavos="@_recibo.SaldoPendienteCentavos"
+                            VenceTexto="@_recibo.VenceTexto"
+                            EfectivoRecibidoCentavos="@_recibo.EfectivoRecibidoCentavos"
+                            CambioCentavos="@_recibo.CambioCentavos"
+                            EmpresaNombre="@_negocioTicket?.Empresa"
                            Rfc="@_negocioTicket?.Rfc"
                            SedeNombre="@_negocioTicket?.Sede"
                            Direccion="@_negocioTicket?.Direccion"
@@ -312,7 +314,69 @@ else
     </DialogActions>
 </MudDialog>
 
+@* Paso 1 del cobro: confirmación con total destacado. En efectivo captura el
+   recibido (obligatorio, >= total) y el cambio se calcula en vivo; los demás
+   métodos solo confirman el total. Escape/Cancelar vuelve sin procesar nada. *@
+<MudDialog Visible="_confirmacionAbierta"
+           VisibleChanged="v => _confirmacionAbierta = v"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, BackdropClick = false, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Confirmar cobro</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div @onkeydown="HandleConfirmacionKeyDown">
+            <p class="pos-total-confirmacion">@FormatearMonto(_totalConfirmacion)</p>
+            @if (EsMetodoEfectivo)
+            {
+                <MudNumericField T="long?"
+                                 Label="Efectivo recibido"
+                                 Variant="Variant.Outlined"
+                                 Margin="Margin.Dense"
+                                 Min="0"
+                                 Format="C2"
+                                 @bind-Value="_efectivoRecibido"
+                                 Placeholder="Captura el monto recibido" />
+                <div class="tk-row pos-cambio">
+                    <span>Cambio</span>
+                    <strong>@FormatearMonto(CambioCalculado())</strong>
+                </div>
+                @if (!PuedeConfirmarCobro())
+                {
+                    <p class="muted" style="margin: 0.25rem 0 0;">El efectivo recibido debe cubrir al menos el total.</p>
+                }
+            }
+            else
+            {
+                <p class="muted" style="margin: 0;">Se registrará el cobro completo por @_metodoPago.</p>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <AsyncButton Text="Confirmar cobro"
+                     LoadingText="Cobrando..."
+                     IsLoading="_cobrando"
+                     Disabled="@(_cobrando || !PuedeConfirmarCobro())"
+                     OnClick="ConfirmarCobroAsync" />
+        <MudButton Variant="Variant.Text" Color="Color.Default"
+                   OnClick="@(() => _confirmacionAbierta = false)">Cancelar</MudButton>
+    </DialogActions>
+</MudDialog>
+
 <style>
+    /* Confirmación de cobro: total protagonista + cambio calculado en vivo. */
+    .pos-total-confirmacion {
+        text-align: center;
+        font-size: 2.1rem;
+        font-weight: 800;
+        color: var(--color-primary);
+        margin: 0.25rem 0 1rem;
+    }
+
+    .pos-cambio {
+        font-size: 1.05rem;
+        margin-top: 0.75rem;
+    }
+
     /* Promociones en POS: precio original tachado + final destacado; tarjeta
        de combo con badge. Vive aquí y no en app.css para no pisar el WIP
        compartido de estilos globales. */
@@ -401,7 +465,9 @@ else
         IReadOnlyList<ReciboLinea> Items,
         long TotalCentavos,
         long SaldoPendienteCentavos,
-        string? VenceTexto);
+        string? VenceTexto,
+        long? EfectivoRecibidoCentavos,
+        long? CambioCentavos);
 
     private ReciboVenta? _recibo;
     private bool _reciboAbierto;
@@ -425,6 +491,12 @@ else
 
     /// <summary>Null = paga el total completo; menor al total = queda a crédito.</summary>
     private long? _montoPagado;
+
+    // Confirmación de cobro: total congelado al abrir la ventana y efectivo
+    // recibido OBLIGATORIO en efectivo (confirmar deshabilitado hasta >= total).
+    private bool _confirmacionAbierta;
+    private long _totalConfirmacion;
+    private long? _efectivoRecibido;
 
     /// <summary>Plazo del crédito en días; default 10, editable antes de cobrar.</summary>
     private int _plazoCreditoDias = 10;
@@ -561,9 +633,19 @@ else
                     _reciboAbierto = false;
                     break;
                 }
+                if (_confirmacionAbierta)
+                {
+                    // Enter dentro de la ventana: confirma si es válido
+                    // (el guard de ConfirmarCobroAsync hace el resto).
+                    if (PuedeConfirmarCobro())
+                    {
+                        _ = ConfirmarCobroAsync();
+                    }
+                    break;
+                }
                 if (!CarritoVacio() && _cajaAbierta is not null)
                 {
-                    _ = CobrarAsync();
+                    AbrirConfirmacionCobro();
                 }
                 break;
             case "+" or "=":
@@ -833,10 +915,13 @@ else
             })
         + _combosCarrito.Values.Sum(c => c.Promo.PrecioComboCentavos * c.Cantidad);
 
-    private async Task CobrarAsync()
+    /// <summary>
+    /// Paso 1 del cobro: valida y abre la ventana de confirmación con el total
+    /// congelado. Nada se procesa hasta ConfirmarCobroAsync.
+    /// </summary>
+    private void AbrirConfirmacionCobro()
     {
-        var sesion = Sesion.Current;
-        if (sesion is null || _cobrando)
+        if (Sesion.Current is null || _cobrando)
         {
             return;
         }
@@ -855,7 +940,7 @@ else
         // Avisar antes, no esperar el error del servidor (mismo criterio que
         // Membresías/Caja): pago incompleto solo vía método Crédito con
         // pos.permite_credito encendido y monto válido.
-        var total = TotalCarrito();
+        _totalConfirmacion = TotalCarrito();
         var esCredito = _metodoPago == MetodosPago.Credito;
         if (_montoPagado is not null)
         {
@@ -864,7 +949,7 @@ else
                 Feedback.ShowWarning("La venta a crédito no está habilitada — habilita el crédito en Configuración");
                 return;
             }
-            if (_montoPagado.Value < 0 || _montoPagado.Value > total)
+            if (_montoPagado.Value < 0 || _montoPagado.Value > _totalConfirmacion)
             {
                 Feedback.ShowWarning("El monto pagado debe estar entre cero y el total de la venta");
                 return;
@@ -886,6 +971,49 @@ else
             }
         }
 
+        // Efectivo: el recibido es obligatorio y arranca vacío cada venta.
+        _efectivoRecibido = null;
+        _confirmacionAbierta = true;
+        StateHasChanged();
+    }
+
+    private bool EsMetodoEfectivo =>
+        string.Equals(_metodoPago, MetodosPago.Efectivo, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Confirmar habilitado solo con recibido >= total cuando es efectivo.</summary>
+    private bool PuedeConfirmarCobro() =>
+        !EsMetodoEfectivo || (_efectivoRecibido is not null && _efectivoRecibido.Value >= _totalConfirmacion);
+
+    private long CambioCalculado() =>
+        Math.Max(0, (_efectivoRecibido ?? 0) - _totalConfirmacion);
+
+    private void HandleConfirmacionKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && PuedeConfirmarCobro())
+        {
+            _ = ConfirmarCobroAsync();
+        }
+    }
+
+    /// <summary>Paso 2 del cobro: registra la venta y muestra el recibo.</summary>
+    private async Task ConfirmarCobroAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _cobrando)
+        {
+            return;
+        }
+
+        if (!PuedeConfirmarCobro())
+        {
+            Feedback.ShowWarning("El efectivo recibido debe cubrir al menos el total");
+            return;
+        }
+
+        var esCredito = _metodoPago == MetodosPago.Credito;
+        var esEfectivo = EsMetodoEfectivo;
+
+        _confirmacionAbierta = false;
         _cobrando = true;
         try
         {
@@ -945,7 +1073,11 @@ else
                 SaldoPendienteCentavos: venta.SaldoPendienteCentavos,
 
                 // Vencimiento REAL de la cuenta creada (plazo usado en la venta).
-                VenceTexto: TicketVentaMapper.FormatearFechaIso(venta.SaldoVenceIsoUtc));
+                VenceTexto: TicketVentaMapper.FormatearFechaIso(venta.SaldoVenceIsoUtc),
+
+                // Efectivo/cambio capturados en la confirmación (solo efectivo).
+                EfectivoRecibidoCentavos: esEfectivo ? _efectivoRecibido : null,
+                CambioCentavos: esEfectivo ? CambioCalculado() : null);
 
             // El backend ya descontó stock y generó el movimiento de caja:
             // refresca snapshot y limpia el carrito para la siguiente venta.
@@ -953,6 +1085,7 @@ else
             _combosCarrito = new Dictionary<string, CarritoComboLinea>();
             _socioSeleccionado = null;
             _montoPagado = null;
+            _efectivoRecibido = null;
             await CargarProductosAsync();
             _reciboAbierto = true;
             _enfocarReciboAlAbrir = true;
@@ -1031,22 +1164,24 @@ else
         var recibo = _recibo!;
         await CargarNegocioTicketAsync();
 
-        var payload = TicketVentaMapper.DesdeVenta(
-            folio: recibo.Folio,
-            fechaTexto: recibo.Fecha,
-            metodoPago: recibo.MetodoPago,
-            estado: "completada",
-            socio: recibo.Socio,
-            items: recibo.Items.Select(l => new TicketItemInput(
-                l.Descripcion, l.Cantidad, l.PrecioUnitarioCentavos, l.SubtotalCentavos)).ToList(),
-            totalCentavos: recibo.TotalCentavos,
-            saldoPendienteCentavos: recibo.SaldoPendienteCentavos,
-            venceTexto: recibo.VenceTexto,
-            negocio: _negocioTicket!,
-            logoRaster: _logoRasterCache,
-            papelAncho: _papelAncho,
-            densidad: _densidad,
-            abrirCajon: _abrirCajonAlImprimir);
+            var payload = TicketVentaMapper.DesdeVenta(
+                folio: recibo.Folio,
+                fechaTexto: recibo.Fecha,
+                metodoPago: recibo.MetodoPago,
+                estado: "completada",
+                socio: recibo.Socio,
+                items: recibo.Items.Select(l => new TicketItemInput(
+                    l.Descripcion, l.Cantidad, l.PrecioUnitarioCentavos, l.SubtotalCentavos)).ToList(),
+                totalCentavos: recibo.TotalCentavos,
+                saldoPendienteCentavos: recibo.SaldoPendienteCentavos,
+                venceTexto: recibo.VenceTexto,
+                negocio: _negocioTicket!,
+                logoRaster: _logoRasterCache,
+                papelAncho: _papelAncho,
+                densidad: _densidad,
+                abrirCajon: _abrirCajonAlImprimir,
+                efectivoRecibidoCentavos: recibo.EfectivoRecibidoCentavos,
+                cambioCentavos: recibo.CambioCentavos);
 
         return TicketEscposBuilder.Build(payload);
     }

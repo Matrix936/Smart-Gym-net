@@ -67,6 +67,15 @@
     }
     <div class="tk-row tk-total"><span>TOTAL</span><span>@FormatearMonto(TotalCentavos)</span></div>
 
+    @if (EfectivoRecibidoCentavos is not null)
+    {
+        <div class="tk-row"><span>Efectivo recibido</span><span>@FormatearMonto(EfectivoRecibidoCentavos.Value)</span></div>
+        @if (CambioCentavos is not null)
+        {
+            <div class="tk-row tk-negrita"><span>Cambio</span><span>@FormatearMonto(CambioCentavos.Value)</span></div>
+        }
+    }
+
     @if (SaldoPendienteCentavos > 0)
     {
         <hr class="tk-sep" />
@@ -115,6 +124,10 @@
     [Parameter] public long TotalCentavos { get; set; }
     [Parameter] public long SaldoPendienteCentavos { get; set; }
     [Parameter] public string? VenceTexto { get; set; }
+
+    /// <summary>Efectivo capturado en el cobro (solo método efectivo); null = sin filas.</summary>
+    [Parameter] public long? EfectivoRecibidoCentavos { get; set; }
+    [Parameter] public long? CambioCentavos { get; set; }
 
     [Parameter] public string? EmpresaNombre { get; set; }
     [Parameter] public string? Rfc { get; set; }
