@@ -254,8 +254,11 @@
 
             case EnrollmentStage.Duplicado:
                 _resultado = ResultadoVisual.Error; // relleno congelado + shake
-                _ultimoError = "Esta huella ya est\u00e1 registrada para otro socio. Verifica con el titular o contacta al administrador.";
-                Feedback.ShowError(_ultimoError);
+
+                // Texto corto junto a la animación; el snackbar global lleva el
+                // mensaje completo con la acción sugerida.
+                _ultimoError = "Huella ya registrada";
+                Feedback.ShowError("Esta huella ya está registrada para otro socio. Verifica con el titular o contacta al administrador.");
                 StateHasChanged();
                 break;
 
