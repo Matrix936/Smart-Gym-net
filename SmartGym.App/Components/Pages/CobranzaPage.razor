@@ -72,7 +72,7 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Socio</th>
+                    <th class="col-socio">Socio</th>
                     <th class="col-numero">Saldo pendiente</th>
                     <th>Vencimiento</th>
                     <th class="col-accion">Estado</th>
@@ -93,7 +93,7 @@
                     @foreach (var c in _cuentas)
                     {
                         <tr>
-                            <td><strong>@c.NombreSocio</strong></td>
+                            <td class="col-socio"><strong>@c.NombreSocio</strong></td>
                             <td class="col-numero">@FormatearMonto(c.SaldoPendienteCentavos)</td>
                             <td class="muted-cell">@FormatearFecha(c.FechaVencimiento)</td>
                             <td class="col-accion">

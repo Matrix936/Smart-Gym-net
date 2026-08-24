@@ -116,7 +116,7 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Socio</th>
+                            <th class="col-socio">Socio</th>
                             <th>Teléfono</th>
                             <th>Estado</th>
                             <th class="col-accion" style="width: 180px;">Contactar</th>
@@ -127,7 +127,7 @@
                         {
                             var porVencer = r.Categoria == RecordatorioCategorias.PorVencer;
                             <tr>
-                                <td><strong>@r.NombreSocio</strong></td>
+                                <td class="col-socio"><strong>@r.NombreSocio</strong></td>
                                 <td class="muted-cell">@r.Telefono</td>
                                 <td class="col-accion">
                                     <span class="status-badge @(porVencer ? "status-warning" : "status-danger")">
@@ -135,10 +135,12 @@
                                     </span>
                                 </td>
                                 <td class="col-accion">
-                                    <MudButton Variant="Variant.Outlined"
-                                               Color="Color.Success"
-                                               StartIcon="@Icons.Material.Filled.Chat"
-                                               OnClick='() => EnviarWhatsAppAsync(r)'>Enviar WhatsApp</MudButton>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Chat"
+                                                   Color="Color.Success"
+                                                   Variant="Variant.Outlined"
+                                                   aria-label="Enviar WhatsApp"
+                                                   title="Enviar WhatsApp"
+                                                   OnClick='() => EnviarWhatsAppAsync(r)' />
                                 </td>
                             </tr>
                         }

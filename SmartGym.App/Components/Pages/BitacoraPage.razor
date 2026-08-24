@@ -121,7 +121,7 @@
             <thead>
                 <tr>
                     <th>Fecha</th>
-                    <th>Usuario</th>
+                    <th class="col-socio">Usuario</th>
                     <th class="col-accion">Acción</th>
                     <th>Tabla</th>
                     <th>Sede</th>
@@ -143,7 +143,7 @@
                     {
                         <tr>
                             <td class="muted-cell">@FormatearFecha(f.Fecha)</td>
-                            <td>@(f.NombreUsuario ?? "—")</td>
+                            <td class="col-socio">@(f.NombreUsuario ?? "—")</td>
                             <td class="col-accion">
                                 <span class="status-badge @ClaseBadge(f.Accion)">@f.Accion</span>
                             </td>

@@ -169,7 +169,7 @@
                         <th>Fecha</th>
                         <th>Tipo</th>
                         <th>Concepto</th>
-                        <th>Socio</th>
+                        <th class="col-socio">Socio</th>
                         <th>Método</th>
                         <th class="col-numero">Monto</th>
                         <th class="col-accion" style="width: 56px;"></th>
@@ -182,7 +182,7 @@
                             <td class="muted-cell">@FormatearFecha(f.Fecha)</td>
                             <td><span class="status-badge @ClaseBadge(f)">@EtiquetaTipo(f)</span></td>
                             <td>@(string.IsNullOrEmpty(f.Concepto) ? "—" : f.Concepto)</td>
-                            <td class="muted-cell">@(f.NombreSocio ?? "—")</td>
+                            <td class="col-socio muted-cell">@(f.NombreSocio ?? "—")</td>
                             <td class="muted-cell">@Capitalizar(f.MetodoPago)</td>
                             <td class="col-numero" style="@(f.MontoCentavos < 0 ? "color: var(--color-error);" : "")">
                                 @(f.MontoCentavos < 0 ? "−" : "")@FormatearMonto(Math.Abs(f.MontoCentavos))

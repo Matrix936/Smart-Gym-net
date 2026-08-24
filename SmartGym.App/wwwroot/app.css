@@ -392,18 +392,19 @@ table.data-table {
     vertical-align: middle;
 }
 
-/* Convención de alineación horizontal por tipo de contenido:
-   texto → izquierda (default) · números/montos → derecha (.col-numero)
-   badges/íconos/acciones → centro (.col-accion). Las fechas se leen como
-   texto: izquierda. Vertical siempre centrado (regla de .data-table td). */
-.data-table th.col-numero,
-.data-table td.col-numero {
-    text-align: right;
+/* Convención ESTRICTA de alineación horizontal:
+   TODO centrado por defecto (montos, fechas, badges, descripciones,
+   acciones); ÚNICA excepción: columna de nombre de persona → izquierda
+   (.col-socio). Vertical siempre centrado (regla de .data-table td).
+   Las clases legacy .col-numero/.col-accion ya no alteran nada. */
+.data-table th,
+.data-table td {
+    text-align: center;
 }
 
-.data-table th.col-accion,
-.data-table td.col-accion {
-    text-align: center;
+.data-table th.col-socio,
+.data-table td.col-socio {
+    text-align: left;
 }
 
 /* ---------- Miembros ---------- */

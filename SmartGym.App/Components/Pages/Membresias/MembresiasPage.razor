@@ -99,7 +99,7 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Socio</th>
+                    <th class="col-socio">Socio</th>
                     <th>Plan</th>
                     <th>Inicio</th>
                     <th>Fin</th>
@@ -127,7 +127,7 @@
                     @foreach (var f in _filas)
                     {
                         <tr>
-                            <td><strong>@f.NombreSocio</strong></td>
+                            <td class="col-socio"><strong>@f.NombreSocio</strong></td>
                             <td>@f.PlanNombre</td>
                             <td class="muted-cell">@FormatearFecha(f.FechaInicio)</td>
                             <td class="muted-cell">@FormatearFecha(f.FechaFin)</td>

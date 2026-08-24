@@ -103,7 +103,7 @@
             <thead>
                 <tr>
                     <th>Fecha y hora</th>
-                    <th>Socio</th>
+                    <th class="col-socio">Socio</th>
                     <th class="col-accion">Tipo</th>
                     <th>Método</th>
                     <th class="col-accion">Estado</th>
@@ -126,7 +126,7 @@
                         var concedido = f.Estado == AccesoEstados.Concedido;
                         <tr>
                             <td class="muted-cell">@FormatearFecha(f.Timestamp)</td>
-                            <td>@(f.NombreSocio ?? "—")</td>
+                            <td class="col-socio">@(f.NombreSocio ?? "—")</td>
                             <td class="col-accion">
                                 <span class="status-badge @(f.Tipo == AccesoTipos.Entrada ? "status-success" : "status-info")">
                                     @(f.Tipo == AccesoTipos.Entrada ? "Entrada" : "Salida")

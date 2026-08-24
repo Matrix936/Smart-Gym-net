@@ -130,15 +130,15 @@ else
             <div class="table-wrap" style="margin-top: 1rem;">
                 <table class="data-table">
                     <thead>
-                        <tr><th>Concepto</th><th style="text-align: right;">Este periodo</th><th style="text-align: right;">Periodo anterior</th></tr>
+                        <tr><th>Concepto</th><th>Este periodo</th><th>Periodo anterior</th></tr>
                     </thead>
                     <tbody>
-                        <tr><td>Ingresos totales</td><td style="text-align: right;">@FormatearMonto(_dashboard.Actual.IngresosCentavos)</td><td style="text-align: right;" class="muted-cell">@FormatearMonto(_dashboard.IngresosPeriodoAnterior)</td></tr>
-                        <tr><td>— Productos (POS)</td><td style="text-align: right;">@FormatearMonto(_dashboard.Actual.IngresosProductos)</td><td></td></tr>
-                        <tr><td>— Membresías</td><td style="text-align: right;">@FormatearMonto(_dashboard.Actual.IngresosMembresias)</td><td></td></tr>
-                        <tr><td>— Abonos / otros</td><td style="text-align: right;">@FormatearMonto(_dashboard.Actual.IngresosAbonos + _dashboard.Actual.IngresosOtros)</td><td></td></tr>
-                        <tr><td>Egresos (cancelaciones)</td><td style="text-align: right;">−@FormatearMonto(_dashboard.Actual.EgresosCentavos)</td><td style="text-align: right;" class="muted-cell">−@FormatearMonto(_dashboard.EgresosPeriodoAnterior)</td></tr>
-                        <tr><td><strong>Neto</strong></td><td style="text-align: right;"><strong>@FormatearMonto(_dashboard.Actual.NetoCentavos)</strong></td><td style="text-align: right;" class="muted-cell">@FormatearMonto(_dashboard.NetoPeriodoAnterior)</td></tr>
+                        <tr><td>Ingresos totales</td><td>@FormatearMonto(_dashboard.Actual.IngresosCentavos)</td><td class="muted-cell">@FormatearMonto(_dashboard.IngresosPeriodoAnterior)</td></tr>
+                        <tr><td>— Productos (POS)</td><td>@FormatearMonto(_dashboard.Actual.IngresosProductos)</td><td></td></tr>
+                        <tr><td>— Membresías</td><td>@FormatearMonto(_dashboard.Actual.IngresosMembresias)</td><td></td></tr>
+                        <tr><td>— Abonos / otros</td><td>@FormatearMonto(_dashboard.Actual.IngresosAbonos + _dashboard.Actual.IngresosOtros)</td><td></td></tr>
+                        <tr><td>Egresos (cancelaciones)</td><td>−@FormatearMonto(_dashboard.Actual.EgresosCentavos)</td><td class="muted-cell">−@FormatearMonto(_dashboard.EgresosPeriodoAnterior)</td></tr>
+                        <tr><td><strong>Neto</strong></td><td><strong>@FormatearMonto(_dashboard.Actual.NetoCentavos)</strong></td><td class="muted-cell">@FormatearMonto(_dashboard.NetoPeriodoAnterior)</td></tr>
                     </tbody>
                 </table>
             </div>

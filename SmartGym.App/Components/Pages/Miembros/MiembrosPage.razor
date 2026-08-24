@@ -58,7 +58,7 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Nombre</th>
+                    <th class="col-socio">Nombre</th>
                     <th>Teléfono</th>
                     <th class="col-accion">Estado</th>
                     <th class="col-accion">Huella</th>
@@ -86,7 +86,7 @@
                     @foreach (var socio in _miembros)
                     {
                         <tr>
-                            <td><strong>@NombreCompleto(socio)</strong></td>
+                            <td class="col-socio"><strong>@NombreCompleto(socio)</strong></td>
                             <td class="muted-cell">@(socio.Telefono ?? "—")</td>
                             <td class="col-accion">
                                 <span class="status-badge @ClaseEstado(socio.Estado)">@EtiquetaEstado(socio.Estado)</span>
