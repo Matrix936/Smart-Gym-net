@@ -171,6 +171,19 @@ else
                         <MudSelectItem Value="@m">@Capitalizar(m)</MudSelectItem>
                     }
                 </MudSelect>
+                @if (_permiteCredito)
+                {
+                    @* Venta a crédito habilitada: pago parcial queda en Cobranza.
+                       Apagado, este campo no existe y la venta siempre es completa. *@
+                    <MudNumericField T="long?"
+                                     Label="Monto pagado"
+                                     Variant="Variant.Outlined"
+                                     Margin="Margin.Dense"
+                                     Min="0"
+                                     Format="C2"
+                                     @bind-Value="_montoPagado"
+                                     Placeholder="Paga completo si lo dejas vacío" />
+                }
                 <AsyncButton Text="@($"Cobrar {FormatearMonto(TotalCarrito())}")"
                              LoadingText="Cobrando..."
                              IsLoading="_cobrando"
@@ -220,6 +233,15 @@ else
                 </table>
             </div>
             <p class="form-section" style="text-align: right; margin-top: 0.75rem;">Total: @FormatearMonto(_recibo.TotalCentavos)</p>
+            @if (_recibo.SaldoPendienteCentavos > 0)
+            {
+                @* Venta a crédito: lo pagado y lo que queda en Cobranza. *@
+                <div class="summary-row"><span class="summary-label">Pagado</span><span>@FormatearMonto(_recibo.TotalCentavos - _recibo.SaldoPendienteCentavos)</span></div>
+                <div class="summary-row">
+                    <span class="summary-label">Saldo pendiente</span>
+                    <span class="status-badge status-warning">@FormatearMonto(_recibo.SaldoPendienteCentavos) — queda en Cobranza</span>
+                </div>
+            }
         }
     </DialogContent>
     <DialogActions>
@@ -237,6 +259,7 @@ else
     [Inject] private ISedesRepository Sedes { get; set; } = default!;
     [Inject] private IAuthorizationService Authz { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
+    [Inject] private IEmpresaConfigService EmpresaConfig { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private DotNetObjectReference<PosPage>? _atajosRef;
@@ -278,10 +301,17 @@ else
         string MetodoPago,
         string? Socio,
         IReadOnlyList<ReciboLinea> Items,
-        long TotalCentavos);
+        long TotalCentavos,
+        long SaldoPendienteCentavos);
 
     private ReciboVenta? _recibo;
     private bool _reciboAbierto;
+
+    // Interruptor global de venta a crédito (Configuración → Punto de venta).
+    private bool _permiteCredito;
+
+    /// <summary>Null = paga el total completo; menor al total = queda a crédito.</summary>
+    private long? _montoPagado;
 
     // Foco en "Nueva venta" al abrir el recibo: Enter la activa nativamente.
     private bool _enfocarReciboAlAbrir;
@@ -317,6 +347,15 @@ else
                 _sedes = [];
             }
             _sedeSeleccionada = _sedes.FirstOrDefault()?.IdSede ?? 0;
+        }
+
+        try
+        {
+            _permiteCredito = await EmpresaConfig.ObtenerPosPermiteCreditoAsync(sesion.Token);
+        }
+        catch (BusinessException)
+        {
+            // Sin sesión válida: el interruptor queda apagado (comportamiento por defecto).
         }
 
         await CargarAsync();
@@ -585,6 +624,23 @@ else
             return;
         }
 
+        // Avisar antes, no esperar el error del servidor (mismo criterio que
+        // Membresías/Caja): pago incompleto exige crédito encendido y monto válido.
+        var total = TotalCarrito();
+        if (_montoPagado is not null)
+        {
+            if (!_permiteCredito && _montoPagado.Value < total)
+            {
+                Feedback.ShowWarning("La venta a crédito no está habilitada — habilita el crédito en Configuración");
+                return;
+            }
+            if (_montoPagado.Value < 0 || _montoPagado.Value > total)
+            {
+                Feedback.ShowWarning("El monto pagado debe estar entre cero y el total de la venta");
+                return;
+            }
+        }
+
         _cobrando = true;
         try
         {
@@ -597,6 +653,7 @@ else
                 }).ToList(),
                 IdSocio = _socioSeleccionado?.IdSocio,
                 MetodoPago = _metodoPago,
+                MontoPagadoCentavos = _montoPagado,
             };
 
             var venta = await Pos.RegistrarVentaAsync(
@@ -616,12 +673,14 @@ else
                     l.Cantidad,
                     l.Producto.PrecioVentaCentavos,
                     l.Producto.PrecioVentaCentavos * l.Cantidad)).ToList(),
-                TotalCentavos: venta.TotalCentavos);
+                TotalCentavos: venta.TotalCentavos,
+                SaldoPendienteCentavos: venta.SaldoPendienteCentavos);
 
             // El backend ya descontó stock y generó el movimiento de caja:
             // refresca snapshot y limpia el carrito para la siguiente venta.
             _carrito = new Dictionary<long, CarritoLinea>();
             _socioSeleccionado = null;
+            _montoPagado = null;
             await CargarProductosAsync();
             _reciboAbierto = true;
             _enfocarReciboAlAbrir = true;

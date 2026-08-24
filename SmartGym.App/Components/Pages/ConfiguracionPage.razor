@@ -52,6 +52,15 @@
         <span class="sg-nav-item-indicator"></span>
         <span class="sg-nav-item-label">Impresora</span>
     </div>
+    <div class="sg-nav-item @(_seccion == SeccionConfig.Pos ? "active" : null)"
+         style="width: 100%;"
+         @onclick='() => IrA(SeccionConfig.Pos)'
+         @onkeydown='e => SeccionKeyDown(e, SeccionConfig.Pos)'
+         role="button" tabindex="0"
+         aria-current="@(_seccion == SeccionConfig.Pos ? "true" : null)">
+        <span class="sg-nav-item-indicator"></span>
+        <span class="sg-nav-item-label">Punto de venta</span>
+    </div>
     <div class="sg-nav-item @(_seccion == SeccionConfig.WhatsApp ? "active" : null)"
          style="width: 100%;"
          @onclick='() => IrA(SeccionConfig.WhatsApp)'
@@ -167,6 +176,31 @@ else if (_seccion == SeccionConfig.Impresora)
         </div>
     </div>
 }
+else if (_seccion == SeccionConfig.Pos)
+{
+    <div class="glass-panel" style="flex: 1; min-width: 0;">
+        <p class="form-section" style="text-align: center;">Punto de venta</p>
+        <div class="form-fields" style="max-width: 720px; margin: 0 auto;">
+            <MudSwitch T="bool"
+                       Label="Permitir ventas a crédito (pago incompleto)"
+                       Color="Color.Primary"
+                       Value="_posPermiteCredito"
+                       ValueChanged="@(v => _posPermiteCredito = v)" />
+            <p class="muted" style="margin: 0;">
+                Encendido: en el POS se puede registrar un monto pagado menor al total y
+                el saldo queda como cuenta por cobrar del socio en Cobranza. Un socio con
+                deuda vencida no puede volver a comprar a crédito. Apagado (por defecto):
+                toda venta debe cubrir el total.
+            </p>
+            <div style="margin-top: 0.75rem;">
+                <AsyncButton Text="Guardar punto de venta"
+                             LoadingText="Guardando..."
+                             IsLoading="_guardandoPosCredito"
+                             OnClick="GuardarPosCreditoAsync" />
+            </div>
+        </div>
+    </div>
+}
 else
 {
     <div class="glass-panel" style="flex: 1; min-width: 0;">
@@ -212,7 +246,7 @@ else
     [Inject] private SmartGym.App.Services.ILogoState LogoState { get; set; } = default!;
 
     // Navegación por secciones, mismo patrón que Mi Perfil.
-    private enum SeccionConfig { Empresa, Logo, Impresora, WhatsApp }
+    private enum SeccionConfig { Empresa, Logo, Impresora, Pos, WhatsApp }
 
     private SeccionConfig _seccion = SeccionConfig.Empresa;
 
@@ -309,6 +343,15 @@ else
         catch (BusinessException)
         {
             // Sin permiso o sin sesion: el selector queda vacio.
+        }
+
+        try
+        {
+            _posPermiteCredito = await EmpresaConfig.ObtenerPosPermiteCreditoAsync(sesion.Token);
+        }
+        catch (BusinessException)
+        {
+            // Sin permiso o sin sesion: el interruptor queda apagado (default).
         }
 
         try
@@ -485,6 +528,41 @@ else
     private void OnImpresoraChangedAsync(string? impresora)
     {
         _impresora = impresora;
+    }
+
+    // --- Punto de venta: interruptor de venta a crédito -------------------------
+    private bool _posPermiteCredito;
+    private bool _guardandoPosCredito;
+
+    private async Task GuardarPosCreditoAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _guardandoPosCredito)
+        {
+            return;
+        }
+
+        _guardandoPosCredito = true;
+        try
+        {
+            await EmpresaConfig.ActualizarPosPermiteCreditoAsync(sesion.Token, _posPermiteCredito);
+            Feedback.ShowSuccess(_posPermiteCredito
+                ? "Ventas a crédito habilitadas"
+                : "Ventas a crédito deshabilitadas");
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo guardar la configuración del punto de venta");
+        }
+        finally
+        {
+            _guardandoPosCredito = false;
+            StateHasChanged();
+        }
     }
 
     private async Task GuardarImpresoraAsync()
