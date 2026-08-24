@@ -108,36 +108,38 @@
             </div>
             break;
     }
-</div>
 
-@* Carrusel de promociones vigentes: franja delgada anclada abajo, fuera del
-   flujo (position:absolute) para no desplazar ni competir con el ícono de
-   huella ni el mensaje de bienvenida/denegación. Sin promos vigentes no se
-   renderiza nada — cero ruido en pantalla pública. *@
-@if (_promocionesVigentes.Count > 0)
-{
-    var promo = _promocionesVigentes[_indiceCarrusel];
-    <div class="kiosco-promos" aria-hidden="true">
-        <div class="kiosco-promo-card" @key="promo.IdPromocion">
-            <span class="kiosco-promo-badge @(promo.Tipo == PromocionTipos.Combo ? "kiosco-promo-badge-combo" : "")">
-                @(promo.Tipo == PromocionTipos.Combo ? "Combo" : "Descuento")
-            </span>
-            <span class="kiosco-promo-nombre">@promo.Nombre</span>
-            <span class="kiosco-promo-precio">
-                @if (promo.Tipo == PromocionTipos.Descuento)
-                {
-                    <s>@FormatearMonto(promo.PrecioOriginalCentavos)</s>
-                    <strong>@FormatearMonto(promo.PrecioFinalCentavos)</strong>
-                }
-                else
-                {
-                    <s>@FormatearMonto(promo.SubtotalComponentesCentavos)</s>
-                    <strong>@FormatearMonto(promo.PrecioComboCentavos)</strong>
-                }
-            </span>
+    @* Carrusel de promociones vigentes: franja delgada anclada abajo, fuera del
+       flujo (position:absolute) para no desplazar ni competir con el ícono de
+       huella ni el mensaje de bienvenida/denegación. Sin promos vigentes no se
+       renderiza nada — cero ruido en pantalla pública. Vive DENTRO del shell:
+       el shell es fixed + z-index:100 con fondo opaco, y un hermano externo
+       con z-index auto quedaria pintado DETRAS, invisible siempre. *@
+    @if (_promocionesVigentes.Count > 0)
+    {
+        var promo = _promocionesVigentes[_indiceCarrusel];
+        <div class="kiosco-promos" aria-hidden="true">
+            <div class="kiosco-promo-card" @key="promo.IdPromocion">
+                <span class="kiosco-promo-badge @(promo.Tipo == PromocionTipos.Combo ? "kiosco-promo-badge-combo" : "")">
+                    @(promo.Tipo == PromocionTipos.Combo ? "Combo" : "Descuento")
+                </span>
+                <span class="kiosco-promo-nombre">@promo.Nombre</span>
+                <span class="kiosco-promo-precio">
+                    @if (promo.Tipo == PromocionTipos.Descuento)
+                    {
+                        <s>@FormatearMonto(promo.PrecioOriginalCentavos)</s>
+                        <strong>@FormatearMonto(promo.PrecioFinalCentavos)</strong>
+                    }
+                    else
+                    {
+                        <s>@FormatearMonto(promo.SubtotalComponentesCentavos)</s>
+                        <strong>@FormatearMonto(promo.PrecioComboCentavos)</strong>
+                    }
+                </span>
+            </div>
         </div>
-    </div>
-}
+    }
+</div>
 
 @code {
     private enum KioscoEstado { Cargando, SeleccionarSede, Esperando, LectorOcupado, SinSociosRegistrados, ErrorInesperado, Resultado }
