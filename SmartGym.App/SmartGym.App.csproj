@@ -6,6 +6,9 @@
         <OutputType>Exe</OutputType>
         <RootNamespace>SmartGym.App</RootNamespace>
         <UseMaui>true</UseMaui>
+
+        <!-- Ícono win32 embebido en el ejecutable (barra de tareas/explorador). -->
+        <ApplicationIcon>Resources\AppIcon\logos.ico</ApplicationIcon>
         <SingleProject>true</SingleProject>
 
         <!-- Requerido por DPFP.Capture.Capture.MessageEvents (SDK DigitalPersona): su
@@ -43,6 +46,9 @@
     <ItemGroup>
         <!-- App Icon -->
         <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#00d2ff" />
+
+        <!-- .ico multi-resolución para la barra de título (AppWindow.SetIcon en MauiProgram). -->
+        <Content Include="Resources\AppIcon\logos.ico" CopyToOutputDirectory="PreserveNewest" />
 
         <!-- Splash Screen -->
         <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#00d2ff" BaseSize="128,128" />

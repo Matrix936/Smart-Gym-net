@@ -10,6 +10,7 @@ using MudBlazor;
 using MudBlazor.Services;
 using Plugin.Maui.Audio;
 using System.Globalization;
+using Microsoft.Maui.LifecycleEvents;
 
 namespace SmartGym.App;
 
@@ -32,6 +33,19 @@ public static MauiApp CreateMauiApp()
 			{
 				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
 			});
+
+#if WINDOWS
+		// Ícono de la barra de título de la ventana (el del exe/barra de tareas
+		// viene de <ApplicationIcon> en el .csproj). Ruta relativa al output.
+		builder.ConfigureLifecycleEvents(events =>
+		{
+			events.AddWindows(windows => windows.OnWindowCreated(window =>
+			{
+				window.AppWindow.SetIcon(
+					System.IO.Path.Combine(AppContext.BaseDirectory, "Resources", "AppIcon", "logos.ico"));
+			}));
+		});
+#endif
 
 		builder.Services.AddMauiBlazorWebView();
 		builder.Services.AddMudServices();
