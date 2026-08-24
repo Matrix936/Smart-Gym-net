@@ -37,5 +37,7 @@ public interface IVentasRepository
         long idSedeVenta,
         CajaMovimiento movimiento,
         BitacoraAuditoria bitacora,
+        CuentaCobrar? cuentaParaAnular = null,
+        BitacoraAuditoria? bitacoraCuentaAnulada = null,
         CancellationToken ct = default);
 }

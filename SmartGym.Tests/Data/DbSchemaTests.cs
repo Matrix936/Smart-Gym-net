@@ -4,7 +4,7 @@ namespace SmartGym.Tests.Data;
 
 /// <summary>
 /// Verificación estructural del schema (criterio de salida de Fase 1):
-/// 33 tablas, 20 triggers de updated_at, 33 índices idx_*, seed mínimo.
+/// 33 tablas, 20 triggers de updated_at, 34 índices idx_*, seed mínimo.
 /// Fuente: 01-modelo-datos.md "Hechos verificados".
 /// </summary>
 [Collection("data")]
@@ -40,10 +40,10 @@ public sealed class DbSchemaTests
     }
 
     [Fact]
-    public void Schema_tiene_33_indices_con_prefijo_idx()
+    public void Schema_tiene_34_indices_con_prefijo_idx()
     {
         var indexes = Count(_fixture.DbPath, "type = 'index' AND name LIKE 'idx_%'");
-        Assert.Equal(33, indexes);
+        Assert.Equal(34, indexes);
     }
 
     [Fact]

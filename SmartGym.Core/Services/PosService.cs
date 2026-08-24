@@ -234,15 +234,16 @@ public sealed class PosService : IPosService
             throw BusinessException.Validation("El monto pagado excede el total de la venta", "monto_excesivo");
         }
 
+        var idVenta = UuidHelper.NewV4();
+
         CuentaCobrar? cuentaPos = null;
         if (totalPagado < totalCentavos)
         {
             cuentaPos = await ValidarYCrearCuentaCreditoAsync(
-                input.IdSocio, totalCentavos - totalPagado, totalPagado,
+                input.IdSocio, idVenta, totalCentavos - totalPagado, totalPagado,
                 input.PlazoCreditoDias ?? DiasVencimientoCreditoPos, ahora, ct);
         }
 
-        var idVenta = UuidHelper.NewV4();
         var venta = new Venta
         {
             IdVenta = idVenta,
@@ -342,6 +343,17 @@ public sealed class PosService : IPosService
         var caja = await _cajas.GetAbiertaPorSedeAsync(idSede, ct)
             ?? throw BusinessException.Conflict("No hay caja abierta para procesar la devolucion", "caja_no_abierta");
 
+        // Crédito: resolver la cuenta asociada a esta venta. Con abonos no se
+        // puede cancelar (dinero ya cobrado que requeriría reversión manual);
+        // sin abonos, la cuenta se anula junto con la venta.
+        var cuentaVenta = await _cuentas.GetPorVentaAsync(venta.IdVenta, ct);
+        if (cuentaVenta is not null && await _cuentas.TieneAbonosAsync(cuentaVenta.IdCuenta, ct))
+        {
+            throw BusinessException.Conflict(
+                "No se puede cancelar: esta venta ya tiene abonos registrados. Contacta al administrador.",
+                "venta_con_abonos_no_cancelable");
+        }
+
         var ahora = DateHelper.NowIsoUtc();
         var movimiento = new CajaMovimiento
         {
@@ -358,6 +370,24 @@ public sealed class PosService : IPosService
             UpdatedAt = ahora,
         };
 
+        BitacoraAuditoria? bitacoraCuenta = null;
+        if (cuentaVenta is not null)
+        {
+            bitacoraCuenta = new BitacoraAuditoria
+            {
+                IdRegistro = UuidHelper.NewV4(),
+                IdUsuario = info.IdUsuario,
+                Accion = "cobranza.cuenta_anulada",
+                TablaAfectada = "cuentas_cobrar",
+                IdRegistroAfectado = cuentaVenta.IdCuenta,
+                ValorAnterior = cuentaVenta.Estado,
+                ValorNuevo = CuentaCobrarEstados.Anulada,
+                IdSede = idSede,
+                CreatedAt = ahora,
+                UpdatedAt = ahora,
+            };
+        }
+
         await _ventas.CancelarCompletaAsync(
             venta.IdVenta,
             venta.IdSede,
@@ -369,6 +399,8 @@ public sealed class PosService : IPosService
                 venta.IdSede,
                 VentaEstados.Completada,
                 VentaEstados.Cancelada),
+            cuentaVenta,
+            bitacoraCuenta,
             ct);
     }
 
@@ -390,7 +422,7 @@ public sealed class PosService : IPosService
     /// el vencimiento usa el plazo recibido de la UI (default 15 días).
     /// </summary>
     private async Task<CuentaCobrar> ValidarYCrearCuentaCreditoAsync(
-        string? idSocio, long saldoPendiente, long montoPagado, int plazoDias, string ahora, CancellationToken ct)
+        string? idSocio, string idVenta, long saldoPendiente, long montoPagado, int plazoDias, string ahora, CancellationToken ct)
     {
         if (!await LeerPermiteCreditoAsync(ct))
         {
@@ -423,6 +455,7 @@ public sealed class PosService : IPosService
         {
             IdCuenta = UuidHelper.NewV4(),
             IdMembresia = null,
+            IdVenta = idVenta,
             Origen = CuentaCobrarOrigenes.Pos,
             IdSocio = idSocio,
             SaldoPendienteCentavos = saldoPendiente,

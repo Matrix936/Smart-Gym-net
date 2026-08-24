@@ -476,19 +476,22 @@ CREATE TABLE IF NOT EXISTS promocion_productos (
 CREATE TABLE IF NOT EXISTS cuentas_cobrar (
     id_cuenta                  TEXT PRIMARY KEY,
     id_membresia                  TEXT,             -- NULL cuando el origen es una venta POS (no hay membresia)
+    id_venta                      TEXT,             -- venta POS que origina la cuenta (NULL en membresias); permite anularla al cancelar
     origen                          TEXT NOT NULL DEFAULT 'membresia', -- membresia | pos
     id_socio                        TEXT NOT NULL,
     saldo_pendiente_centavos          INTEGER NOT NULL,
     fecha_vencimiento                    TEXT NOT NULL,
-    estado                                  TEXT NOT NULL DEFAULT 'pendiente', -- pendiente | parcial | cobrada | incobrable
+    estado                                  TEXT NOT NULL DEFAULT 'pendiente', -- pendiente | parcial | cobrada | incobrable | anulada
     updated_at                                TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     sincronizado                                INTEGER NOT NULL DEFAULT 0,
     deleted_at                                   TEXT,
     FOREIGN KEY (id_membresia) REFERENCES membresias(id_membresia),
+    FOREIGN KEY (id_venta) REFERENCES ventas(id_venta),
     FOREIGN KEY (id_socio) REFERENCES socios(id_socio)
 );
 CREATE INDEX IF NOT EXISTS idx_cuentas_cobrar_id_socio ON cuentas_cobrar(id_socio);
 CREATE INDEX IF NOT EXISTS idx_cuentas_cobrar_estado ON cuentas_cobrar(estado);
+CREATE INDEX IF NOT EXISTS idx_cuentas_cobrar_id_venta ON cuentas_cobrar(id_venta);
 
 CREATE TABLE IF NOT EXISTS cobros_cuotas (
     id_cobro          TEXT PRIMARY KEY,

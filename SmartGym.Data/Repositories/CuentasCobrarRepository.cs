@@ -10,7 +10,7 @@ namespace SmartGym.Data.Repositories;
 
 public sealed class CuentasCobrarRepository : RepositoryBase, ICuentasCobrarRepository
 {
-    private const string Select = "SELECT id_cuenta, id_membresia, id_socio, saldo_pendiente_centavos, " +
+    private const string Select = "SELECT id_cuenta, id_membresia, id_venta, id_socio, saldo_pendiente_centavos, " +
         "fecha_vencimiento, estado, updated_at, sincronizado, deleted_at " +
         "FROM cuentas_cobrar ";
 
@@ -34,6 +34,26 @@ public sealed class CuentasCobrarRepository : RepositoryBase, ICuentasCobrarRepo
             new CommandDefinition(
                 Select + "WHERE id_cuenta = @idCuenta AND deleted_at IS NULL",
                 new { idCuenta }, cancellationToken: ct));
+    }
+
+    /// <summary>Cuenta originada por una venta POS a crédito (vínculo id_venta).</summary>
+    public async Task<CuentaCobrar?> GetPorVentaAsync(string idVenta, CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        return await conn.QuerySingleOrDefaultAsync<CuentaCobrar>(
+            new CommandDefinition(
+                Select + "WHERE id_venta = @idVenta AND deleted_at IS NULL",
+                new { idVenta }, cancellationToken: ct));
+    }
+
+    /// <summary>True si la cuenta tiene al menos un abono (cobros_cuotas) registrado.</summary>
+    public async Task<bool> TieneAbonosAsync(string idCuenta, CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        return await conn.ExecuteScalarAsync<int>(
+            new CommandDefinition(
+                "SELECT COUNT(1) FROM cobros_cuotas WHERE id_cuenta = @idCuenta AND deleted_at IS NULL",
+                new { idCuenta }, cancellationToken: ct)) > 0;
     }
 
     public async Task<bool> SocioTieneDeudaVencidaAsync(string idSocio, string hoyIsoUtc, CancellationToken ct = default)
@@ -65,6 +85,8 @@ public sealed class CuentasCobrarRepository : RepositoryBase, ICuentasCobrarRepo
         "FROM cuentas_cobrar cc " +
         "JOIN socios s ON s.id_socio = cc.id_socio " +
         "WHERE cc.deleted_at IS NULL " +
+        // Las cuentas anuladas (venta POS cancelada) no son deuda: no se listan.
+        "AND cc.estado != 'anulada' " +
         "AND s.id_sede_registro = @idSede " +
         "AND (@estado IS NULL OR cc.estado = @estado) " +
         "AND (@nombre IS NULL OR sin_acentos(s.nombre || ' ' || s.apellido_paterno || ' ' || s.apellido_materno) " +

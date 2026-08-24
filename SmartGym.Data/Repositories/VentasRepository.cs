@@ -121,14 +121,15 @@ public sealed class VentasRepository : RepositoryBase, IVentasRepository
                 // Venta a crédito: la cuenta por cobrar vive en la misma transacción.
                 await conn.ExecuteAsync(
                     new CommandDefinition(
-                        "INSERT INTO cuentas_cobrar (id_cuenta, id_membresia, origen, id_socio, " +
+                        "INSERT INTO cuentas_cobrar (id_cuenta, id_membresia, id_venta, origen, id_socio, " +
                         "saldo_pendiente_centavos, fecha_vencimiento, estado, updated_at, sincronizado) " +
-                        "VALUES (@IdCuenta, @IdMembresia, @Origen, @IdSocio, @SaldoPendienteCentavos, " +
+                        "VALUES (@IdCuenta, @IdMembresia, @IdVenta, @Origen, @IdSocio, @SaldoPendienteCentavos, " +
                         "@FechaVencimiento, @Estado, @UpdatedAt, 0);",
                         new
                         {
                             cuenta.IdCuenta,
                             cuenta.IdMembresia,
+                            cuenta.IdVenta,
                             cuenta.Origen,
                             cuenta.IdSocio,
                             cuenta.SaldoPendienteCentavos,
@@ -148,6 +149,8 @@ public sealed class VentasRepository : RepositoryBase, IVentasRepository
         long idSedeVenta,
         CajaMovimiento movimiento,
         BitacoraAuditoria bitacora,
+        CuentaCobrar? cuentaParaAnular = null,
+        BitacoraAuditoria? bitacoraCuentaAnulada = null,
         CancellationToken ct = default)
     {
         await DbTx.ExecuteAsync(DbPath, async (conn, tx) =>
@@ -184,6 +187,22 @@ public sealed class VentasRepository : RepositoryBase, IVentasRepository
                         movimiento.UpdatedAt,
                     },
                     tx, cancellationToken: ct));
+
+            // Venta a crédito sin abonos: la deuda dejó de existir con la venta.
+            if (cuentaParaAnular is not null)
+            {
+                await conn.ExecuteAsync(
+                    new CommandDefinition(
+                        "UPDATE cuentas_cobrar SET estado = 'anulada', updated_at = @ahora " +
+                        "WHERE id_cuenta = @idCuenta AND deleted_at IS NULL",
+                        new { ahora = movimiento.CreatedAt, idCuenta = cuentaParaAnular.IdCuenta },
+                        tx, cancellationToken: ct));
+
+                if (bitacoraCuentaAnulada is not null)
+                {
+                    await InsertBitacoraCoreAsync(conn, tx, bitacoraCuentaAnulada, ct);
+                }
+            }
 
             var itemsRestaurar = await conn.QueryAsync<(long idProducto, long cantidad)>(
                 new CommandDefinition(

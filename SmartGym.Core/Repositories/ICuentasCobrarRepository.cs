@@ -9,6 +9,12 @@ public interface ICuentasCobrarRepository
 
     Task<CuentaCobrar?> GetByIdAsync(string idCuenta, CancellationToken ct = default);
 
+    /// <summary>Cuenta originada por una venta POS a crédito (vínculo id_venta); null si no existe.</summary>
+    Task<CuentaCobrar?> GetPorVentaAsync(string idVenta, CancellationToken ct = default);
+
+    /// <summary>True si la cuenta tiene al menos un abono (cobros_cuotas) registrado.</summary>
+    Task<bool> TieneAbonosAsync(string idCuenta, CancellationToken ct = default);
+
     /// <summary>
     /// True si el socio tiene alguna cuenta en pendiente/parcial cuya
     /// fecha_vencimiento ya pasó (hoyIsoUtc, ISO). Gate de venta a crédito en POS.

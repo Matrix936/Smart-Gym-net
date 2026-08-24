@@ -8,6 +8,9 @@ public static class CuentaCobrarEstados
     public const string Cobrada = "cobrada";
     public const string Incobrable = "incobrable";
 
+    /// <summary>Venta POS cancelada sin abonos: la deuda dejó de existir.</summary>
+    public const string Anulada = "anulada";
+
     public static IReadOnlyList<string> Validos() => [Pendiente, Parcial, Cobrada, Incobrable];
 }
 
@@ -23,8 +26,11 @@ public sealed class CuentaCobrar
 {
     public string IdCuenta { get; set; } = string.Empty;
 
-    /// <summary>Null cuando el origen es una venta POS (no hay membresía asociada).</summary>
+    /// <summary>Null cuando el origen es una membresía (no hay venta).</summary>
     public string? IdMembresia { get; set; }
+
+    /// <summary>Venta POS que originó la cuenta (null en cuentas de membresía). Vínculo para anularla al cancelar la venta.</summary>
+    public string? IdVenta { get; set; }
     public string Origen { get; set; } = CuentaCobrarOrigenes.Membresia;
     public string IdSocio { get; set; } = string.Empty;
     public long SaldoPendienteCentavos { get; set; }
