@@ -257,7 +257,7 @@ else
                 <AsyncButton Text="@($"Cobrar {FormatearMonto(TotalCarrito())}")"
                              LoadingText="Cobrando..."
                              IsLoading="_cobrando"
-                             Disabled="@(_carrito.Count == 0 || _cajaAbierta is null)"
+                             Disabled="@(CarritoVacio() || _cajaAbierta is null)"
                              OnClick="CobrarAsync" />
             </div>
             <p class="muted pos-hint">Enter cobra · + / − ajusta la cantidad del último producto</p>
@@ -576,7 +576,7 @@ else
                     _reciboAbierto = false;
                     break;
                 }
-                if (_carrito.Count > 0 && _cajaAbierta is not null)
+                if (!CarritoVacio() && _cajaAbierta is not null)
                 {
                     _ = CobrarAsync();
                 }
@@ -706,6 +706,13 @@ else
     /// <summary>Precio final del producto con su descuento vigente (null si no tiene).</summary>
     private PosPromocionInfo? DescuentoDe(Producto p) =>
         _descuentoPorProducto.TryGetValue(p.IdProducto, out var d) ? d : null;
+
+    /// <summary>
+    /// Carrito vacío considerando AMBOS diccionarios: productos y combos.
+    /// El botón Cobrar, su guard y el atajo de Enter deben usar esto — mirar
+    /// solo _carrito bloqueaba ventas de solo-combos.
+    /// </summary>
+    private bool CarritoVacio() => _carrito.Count == 0 && _combosCarrito.Count == 0;
 
     /// <summary>Combos de la grilla, filtrados por la búsqueda activa (por nombre o componentes).</summary>
     private IEnumerable<PosPromocionInfo> CombosFiltrados()
@@ -838,7 +845,7 @@ else
             return;
         }
 
-        if (_carrito.Count == 0)
+        if (CarritoVacio())
         {
             Feedback.ShowWarning("El carrito está vacío");
             return;
