@@ -95,10 +95,12 @@ public sealed class CajaMovimientosRepository : RepositoryBase, ICajaMovimientos
         "cm.referencia_id AS ReferenciaId, " +
         "cs.id_sede AS IdSede, " +
         "COALESCE(v.id_socio, mem.id_socio, cc.id_socio) AS IdSocio, " +
+        // Nombre sin apellido materno: es el que se muestra en la tabla de
+        // /ventas y viaja al ticket (preview e impresión) como "Socio".
         "TRIM(COALESCE( " +
-        "s1.nombre || ' ' || s1.apellido_paterno || ' ' || s1.apellido_materno, " +
-        "s2.nombre || ' ' || s2.apellido_paterno || ' ' || s2.apellido_materno, " +
-        "s3.nombre || ' ' || s3.apellido_paterno || ' ' || s3.apellido_materno)) AS NombreSocio, " +
+        "s1.nombre || ' ' || s1.apellido_paterno, " +
+        "s2.nombre || ' ' || s2.apellido_paterno, " +
+        "s3.nombre || ' ' || s3.apellido_paterno)) AS NombreSocio, " +
         "COALESCE(v.id_vendedor, mp.id_vendedor, ccu.id_cobrador) AS IdVendedor, " +
         "TRIM(COALESCE( " +
         "u1.nombre || ' ' || u1.apellido_paterno, " +
