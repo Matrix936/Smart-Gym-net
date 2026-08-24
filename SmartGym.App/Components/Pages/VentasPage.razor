@@ -863,7 +863,10 @@
                 sede.Nombre,
                 sede.Direccion,
                 sede.Telefono,
-                Cajero: sesion.Nombre ?? "POS",
+
+                // Nombre corto (sin apellido materno): sesion.Nombre trae las
+                // tres partes y no es lo que el ticket debe mostrar.
+                Cajero: await ResolverNombreCortoAsync(sesion),
                 MensajePie: null);
             _logoDataUrl = logoDataUrl;
             _logoRasterCache = await Print.RasterizarLogoAsync(
@@ -1015,6 +1018,31 @@
     /// <summary>Mismo criterio que el ticket impreso: prefijo corto del folio.</summary>
     private static string FolioCorto(string folio) =>
         folio.Length <= 8 ? folio : folio[..8];
+
+    /// <summary>Nombre corto (sin apellido materno) para el Cajero del ticket; cacheado por sesión.</summary>
+    private string? _nombreCortoCache;
+
+    private async Task<string> ResolverNombreCortoAsync(SessionInfo sesion)
+    {
+        if (_nombreCortoCache is not null)
+        {
+            return _nombreCortoCache;
+        }
+
+        try
+        {
+            var usuario = await UsuariosRepo.GetByIdAsync(sesion.IdUsuario);
+            _nombreCortoCache = usuario is null
+                ? "POS"
+                : string.Join(" ", new[] { usuario.Nombre, usuario.ApellidoPaterno }
+                    .Where(p => !string.IsNullOrWhiteSpace(p)));
+        }
+        catch
+        {
+            _nombreCortoCache = "POS";
+        }
+        return string.IsNullOrWhiteSpace(_nombreCortoCache) ? "POS" : _nombreCortoCache;
+    }
 
     public void Dispose() => _folioDebounce?.Cancel();
 }

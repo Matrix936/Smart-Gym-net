@@ -421,6 +421,7 @@ else
     [Inject] private ICajaService Caja { get; set; } = default!;
     [Inject] private IInventarioSucursalRepository Inventario { get; set; } = default!;
     [Inject] private ISociosRepository SociosRepo { get; set; } = default!;
+    [Inject] private IUsuariosRepository UsuariosRepo { get; set; } = default!;
     [Inject] private ISedesRepository Sedes { get; set; } = default!;
     [Inject] private IAuthorizationService Authz { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
@@ -502,6 +503,13 @@ else
     // Datos del negocio para el encabezado del ticket: lazy (primera impresión).
     private TicketDatosNegocio? _negocioTicket;
     private byte[]? _logoRasterCache;
+
+    /// <summary>
+    /// "Atendió" del recibo: Nombre + ApellidoPaterno (sin materno), resuelto
+    /// UNA vez por sesión — sesion.Nombre trae el nombre completo con las tres
+    /// partes y no sirve para el ticket.
+    /// </summary>
+    private string? _atendioCorto;
     private string? _logoDataUrl;
 
     /// <summary>Null = paga el total completo; menor al total = queda a crédito.</summary>
@@ -1084,7 +1092,7 @@ else
                 Socio: _socioSeleccionado is null
                     ? null
                     : $"{_socioSeleccionado.Nombre} {_socioSeleccionado.ApellidoPaterno}".Trim(),
-                Atendio: string.IsNullOrWhiteSpace(sesion.Nombre) ? "POS" : sesion.Nombre,
+                Atendio: await ResolverAtendioCortoAsync(sesion),
                 Items: _carrito.Values.Select(l =>
                     {
                         var d = DescuentoDe(l.Producto);
@@ -1164,6 +1172,29 @@ else
     /// <summary>Mismo criterio que el ticket impreso: prefijo corto del folio.</summary>
     private static string FolioCorto(string folio) =>
         folio.Length <= 8 ? folio : folio[..8];
+
+    /// <summary>Nombre corto (sin apellido materno) para el recibo; cacheado por sesión.</summary>
+    private async Task<string> ResolverAtendioCortoAsync(SessionInfo sesion)
+    {
+        if (_atendioCorto is not null)
+        {
+            return _atendioCorto;
+        }
+
+        try
+        {
+            var usuario = await UsuariosRepo.GetByIdAsync(sesion.IdUsuario);
+            _atendioCorto = usuario is null
+                ? "POS"
+                : string.Join(" ", new[] { usuario.Nombre, usuario.ApellidoPaterno }
+                    .Where(p => !string.IsNullOrWhiteSpace(p)));
+        }
+        catch
+        {
+            _atendioCorto = "POS";
+        }
+        return string.IsNullOrWhiteSpace(_atendioCorto) ? "POS" : _atendioCorto;
+    }
 
     private static string FormatearMonto(long centavos) =>
         (centavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("es-MX"));
