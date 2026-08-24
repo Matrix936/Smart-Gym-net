@@ -61,6 +61,12 @@ public sealed class VentaInfo
     public string? IdSocio { get; set; }
     public long IdSede { get; set; }
     public long TotalCentavos { get; set; }
+
+    /// <summary>Efectivamente pagado en caja (pago completo cuando no hay crédito).</summary>
+    public long MontoPagadoCentavos { get; set; }
+
+    /// <summary>Total - monto pagado; 0 salvo ventas a crédito.</summary>
+    public long SaldoPendienteCentavos { get; set; }
     public string MetodoPago { get; set; } = string.Empty;
     public string Estado { get; set; } = VentaEstados.Completada;
     public long? IdVendedor { get; set; }
@@ -72,6 +78,12 @@ public sealed class RegistrarVentaInput
     public IReadOnlyList<VentaItem> Items { get; set; } = Array.Empty<VentaItem>();
     public string? IdSocio { get; set; }
     public string MetodoPago { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Monto pagado en caja. Null = pago completo (comportamiento histórico).
+    /// Menor al total solo procede con pos.permite_credito encendido y socio válido.
+    /// </summary>
+    public long? MontoPagadoCentavos { get; set; }
 }
 
 public sealed class CancelarVentaInput

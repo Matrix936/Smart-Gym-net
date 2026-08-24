@@ -436,7 +436,8 @@ CREATE INDEX IF NOT EXISTS idx_detalle_ventas_id_venta ON detalle_ventas(id_vent
 
 CREATE TABLE IF NOT EXISTS cuentas_cobrar (
     id_cuenta                  TEXT PRIMARY KEY,
-    id_membresia                  TEXT NOT NULL,
+    id_membresia                  TEXT,             -- NULL cuando el origen es una venta POS (no hay membresia)
+    origen                          TEXT NOT NULL DEFAULT 'membresia', -- membresia | pos
     id_socio                        TEXT NOT NULL,
     saldo_pendiente_centavos          INTEGER NOT NULL,
     fecha_vencimiento                    TEXT NOT NULL,

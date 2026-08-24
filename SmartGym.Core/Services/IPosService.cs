@@ -15,6 +15,9 @@ public interface IPosService
         long? idSedeFrontend = null,
         CancellationToken ct = default);
 
+    /// <summary>Interruptor global pos.permite_credito (lectura para la UI del POS; exige sesión válida).</summary>
+    Task<bool> ObtenerPermiteCreditoAsync(string token, CancellationToken ct = default);
+
     Task CancelarVentaAsync(
         string token,
         CancelarVentaInput input,

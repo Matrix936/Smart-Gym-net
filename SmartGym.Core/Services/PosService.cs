@@ -8,6 +8,12 @@ namespace SmartGym.Core.Services;
 
 public sealed class PosService : IPosService
 {
+    /// <summary>Interruptor maestro de venta a crédito (configuracion_general).</summary>
+    private const string ClavePermiteCredito = "pos.permite_credito";
+
+    /// <summary>Vencimiento por defecto de una cuenta por cobrar de venta POS.</summary>
+    private const int DiasVencimientoCreditoPos = 15;
+
     private readonly IAuthService _auth;
     private readonly IAuthorizationService _authz;
     private readonly ISociosRepository _socios;
@@ -15,6 +21,8 @@ public sealed class PosService : IPosService
     private readonly IProductosRepository _productos;
     private readonly IInventarioSucursalRepository _inventario;
     private readonly IVentasRepository _ventas;
+    private readonly ICuentasCobrarRepository _cuentas;
+    private readonly IConfiguracionRepository _configuracion;
     private readonly IBitacoraAuditoriaRepository _bitacora;
     private readonly ISedeResolutionService _sedeResolution;
 
@@ -26,6 +34,8 @@ public sealed class PosService : IPosService
         IProductosRepository productos,
         IInventarioSucursalRepository inventario,
         IVentasRepository ventas,
+        ICuentasCobrarRepository cuentas,
+        IConfiguracionRepository configuracion,
         IBitacoraAuditoriaRepository bitacora,
         ISedeResolutionService sedeResolution)
     {
@@ -36,6 +46,8 @@ public sealed class PosService : IPosService
         _productos = productos;
         _inventario = inventario;
         _ventas = ventas;
+        _cuentas = cuentas;
+        _configuracion = configuracion;
         _bitacora = bitacora;
         _sedeResolution = sedeResolution;
     }
@@ -117,6 +129,26 @@ public sealed class PosService : IPosService
         }
 
         var ahora = DateHelper.NowIsoUtc();
+
+        // Pago parcial = venta a crédito. El total siempre es server-side;
+        // monto null se interpreta como pago completo (comportamiento histórico).
+        var totalPagado = input.MontoPagadoCentavos ?? totalCentavos;
+        if (totalPagado < 0)
+        {
+            throw BusinessException.Validation("El monto pagado no puede ser negativo", "monto_invalido");
+        }
+        if (totalPagado > totalCentavos)
+        {
+            throw BusinessException.Validation("El monto pagado excede el total de la venta", "monto_excesivo");
+        }
+
+        CuentaCobrar? cuentaPos = null;
+        if (totalPagado < totalCentavos)
+        {
+            cuentaPos = await ValidarYCrearCuentaCreditoAsync(
+                input.IdSocio, totalCentavos - totalPagado, totalPagado, ahora, ct);
+        }
+
         var idVenta = UuidHelper.NewV4();
         var venta = new Venta
         {
@@ -137,7 +169,9 @@ public sealed class PosService : IPosService
             IdSesion = caja.IdSesion,
             Tipo = MovimientoTipos.Ingreso,
             Concepto = "venta",
-            MontoCentavos = totalCentavos,
+
+            // A caja solo entra lo efectivamente pagado; el resto queda en cuentas_cobrar.
+            MontoCentavos = totalPagado,
             MetodoPago = metodoPago,
             AfectaEfectivo = metodoPago == "efectivo",
             ReferenciaTipo = CajaReferenciaTipos.Venta,
@@ -166,6 +200,7 @@ public sealed class PosService : IPosService
             detalles,
             validated.Where(v => v.requiereInventario).Select(v => (v.idProducto, v.cantidad)).ToList(),
             RegistrarBitacora(info, "venta.creada", idVenta, idSede, null, null),
+            cuentaPos,
             ct);
 
         return new VentaInfo
@@ -174,6 +209,8 @@ public sealed class PosService : IPosService
             IdSocio = idSocio,
             IdSede = idSede,
             TotalCentavos = totalCentavos,
+            MontoPagadoCentavos = totalPagado,
+            SaldoPendienteCentavos = totalCentavos - totalPagado,
             MetodoPago = metodoPago,
             Estado = VentaEstados.Completada,
             IdVendedor = info.IdUsuario,
@@ -238,6 +275,60 @@ public sealed class PosService : IPosService
                 VentaEstados.Completada,
                 VentaEstados.Cancelada),
             ct);
+    }
+
+    /// <summary>Interruptor pos.permite_credito para la UI (exige sesión válida; lectura no sensible).</summary>
+    public async Task<bool> ObtenerPermiteCreditoAsync(string token, CancellationToken ct = default)
+    {
+        await _auth.ValidarSesionAsync(token, ct);
+        return await LeerPermiteCreditoAsync(ct);
+    }
+
+    private async Task<bool> LeerPermiteCreditoAsync(CancellationToken ct) =>
+        string.Equals(
+            await _configuracion.GetAsync(ClavePermiteCredito, ct), "true", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Gate de venta a crédito: interruptor global encendido, socio obligatorio
+    /// y sin deudas vencidas (pendiente/parcial con fecha_vencimiento pasada).
+    /// Crea la cuenta por cobrar igual que MembresiasService.VenderAsync —
+    /// vencimiento por defecto a 15 días por no haber fecha fin de membresía.
+    /// </summary>
+    private async Task<CuentaCobrar> ValidarYCrearCuentaCreditoAsync(
+        string? idSocio, long saldoPendiente, long montoPagado, string ahora, CancellationToken ct)
+    {
+        if (!await LeerPermiteCreditoAsync(ct))
+        {
+            throw BusinessException.Conflict(
+                "La venta con pago incompleto no está permitida — habilita el crédito en Configuración",
+                "pago_incompleto_no_permitido");
+        }
+
+        if (string.IsNullOrWhiteSpace(idSocio))
+        {
+            throw BusinessException.Validation(
+                "Una venta a crédito requiere un socio asociado", "socio_requerido_credito");
+        }
+
+        var hoy = DateHelper.ParseIsoUtc(ahora);
+        if (await _cuentas.SocioTieneDeudaVencidaAsync(idSocio, ahora, ct))
+        {
+            throw BusinessException.Conflict(
+                "El socio tiene una deuda vencida — registra un abono en Cobranza antes de vender a crédito",
+                "socio_tiene_deuda_vencida");
+        }
+
+        return new CuentaCobrar
+        {
+            IdCuenta = UuidHelper.NewV4(),
+            IdMembresia = null,
+            Origen = CuentaCobrarOrigenes.Pos,
+            IdSocio = idSocio,
+            SaldoPendienteCentavos = saldoPendiente,
+            FechaVencimiento = DateHelper.ToIsoUtc(hoy.AddDays(DiasVencimientoCreditoPos)),
+            Estado = montoPagado == 0 ? CuentaCobrarEstados.Pendiente : CuentaCobrarEstados.Parcial,
+            UpdatedAt = ahora,
+        };
     }
 
     private static BitacoraAuditoria RegistrarBitacora(

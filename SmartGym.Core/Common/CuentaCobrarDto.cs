@@ -7,6 +7,7 @@ public sealed class CuentaCobrarDto
     public string IdSocio { get; set; } = string.Empty;
     public string NombreSocio { get; set; } = string.Empty;
     public string IdMembresia { get; set; } = string.Empty;
+    public string Origen { get; set; } = string.Empty;
     public long SaldoPendienteCentavos { get; set; }
     public string FechaVencimiento { get; set; } = string.Empty;
     public string Estado { get; set; } = string.Empty;

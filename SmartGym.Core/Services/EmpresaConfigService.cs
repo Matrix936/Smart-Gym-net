@@ -15,6 +15,7 @@ namespace SmartGym.Core.Services;
 public sealed class EmpresaConfigService : IEmpresaConfigService
 {
     private const string ClaveImpresora = "impresora.nombre";
+    private const string ClavePosPermiteCredito = "pos.permite_credito";
 
     private readonly IAuthService _auth;
     private readonly IAuthorizationService _authz;
@@ -141,6 +142,24 @@ public sealed class EmpresaConfigService : IEmpresaConfigService
 
     public Task<string?> ObtenerImpresoraAsync(string token, CancellationToken ct = default) =>
         GateYConfigAsync(token, ct);
+
+    public async Task ActualizarPosPermiteCreditoAsync(string token, bool permite, CancellationToken ct = default)
+    {
+        var info = await GateAsync(token, ct);
+        await _configuracion.SetAsync(ClavePosPermiteCredito, permite ? "true" : "false", ct);
+        await RegistrarBitacoraAsync(info, "configuracion.pos_credito_actualizada",
+            ClavePosPermiteCredito,
+            anterior: permite ? "false" : "true",
+            nuevo: permite ? "true" : "false", ct: ct);
+    }
+
+    /// <summary>Lectura para la UI del POS: exige sesión válida, sin permiso especial (regla de negocio no sensible).</summary>
+    public async Task<bool> ObtenerPosPermiteCreditoAsync(string token, CancellationToken ct = default)
+    {
+        await _auth.ValidarSesionAsync(token, ct);
+        return string.Equals(
+            await _configuracion.GetAsync(ClavePosPermiteCredito, ct), "true", StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>Renombra la sede principal (passthrough a ISedesRepository con gate de sesión/permiso).</summary>
     public async Task<string> RenombrarSedeAsync(string token, string nombre, CancellationToken ct = default)

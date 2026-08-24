@@ -46,6 +46,7 @@ public sealed class VentasRepository : RepositoryBase, IVentasRepository
         IReadOnlyList<DetalleVenta> detalles,
         IReadOnlyList<(long idProducto, long cantidad)> restarStock,
         BitacoraAuditoria bitacora,
+        CuentaCobrar? cuenta = null,
         CancellationToken ct = default)
     {
         await DbTx.ExecuteAsync(DbPath, async (conn, tx) =>
@@ -112,6 +113,29 @@ public sealed class VentasRepository : RepositoryBase, IVentasRepository
                         "SET stock = stock - @cantidad, updated_at = @ahora " +
                         "WHERE id_producto = @idProducto AND id_sede = @idSede AND deleted_at IS NULL",
                         new { cantidad, ahora = venta.UpdatedAt, idProducto, idSede = venta.IdSede },
+                        tx, cancellationToken: ct));
+            }
+
+            if (cuenta is not null)
+            {
+                // Venta a crédito: la cuenta por cobrar vive en la misma transacción.
+                await conn.ExecuteAsync(
+                    new CommandDefinition(
+                        "INSERT INTO cuentas_cobrar (id_cuenta, id_membresia, origen, id_socio, " +
+                        "saldo_pendiente_centavos, fecha_vencimiento, estado, updated_at, sincronizado) " +
+                        "VALUES (@IdCuenta, @IdMembresia, @Origen, @IdSocio, @SaldoPendienteCentavos, " +
+                        "@FechaVencimiento, @Estado, @UpdatedAt, 0);",
+                        new
+                        {
+                            cuenta.IdCuenta,
+                            cuenta.IdMembresia,
+                            cuenta.Origen,
+                            cuenta.IdSocio,
+                            cuenta.SaldoPendienteCentavos,
+                            cuenta.FechaVencimiento,
+                            cuenta.Estado,
+                            cuenta.UpdatedAt,
+                        },
                         tx, cancellationToken: ct));
             }
 

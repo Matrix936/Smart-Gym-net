@@ -28,6 +28,14 @@ public interface IEmpresaConfigService
 
     Task<string?> ObtenerImpresoraAsync(string token, CancellationToken ct = default);
 
+    /// <summary>
+    /// Interruptor maestro pos.permite_credito: habilita ventas POS con pago
+    /// incompleto (quedan en Cobranza). Apagado por defecto — opt-in del dueño.
+    /// </summary>
+    Task ActualizarPosPermiteCreditoAsync(string token, bool permite, CancellationToken ct = default);
+
+    Task<bool> ObtenerPosPermiteCreditoAsync(string token, CancellationToken ct = default);
+
     /// <summary>Renombra la sede principal (passthrough con gate de sesión/permiso).</summary>
     Task<string> RenombrarSedeAsync(string token, string nombre, CancellationToken ct = default);
 }

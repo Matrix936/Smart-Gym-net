@@ -13,13 +13,18 @@ public interface IVentasRepository
 
     Task<IReadOnlyList<DetalleVenta>> GetDetallesAsync(string idVenta, CancellationToken ct = default);
 
-    /// <summary>Inserta venta (estado completada), todos los detalles y el movimiento de caja, y descuenta stock.</summary>
+    /// <summary>
+    /// Inserta venta (estado completada), todos los detalles y el movimiento de caja, y descuenta stock.
+    /// cuenta (opcional): cuenta por cobrar de una venta a crédito — se inserta
+    /// en la misma transacción (mismo patrón que MembresiasRepository.VenderAsync).
+    /// </summary>
     Task InsertarCompletaAsync(
         Venta venta,
         CajaMovimiento movimiento,
         IReadOnlyList<DetalleVenta> detalles,
         IReadOnlyList<(long idProducto, long cantidad)> restarStock,
         BitacoraAuditoria bitacora,
+        CuentaCobrar? cuenta = null,
         CancellationToken ct = default);
 
     /// <summary>

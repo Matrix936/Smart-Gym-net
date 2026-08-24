@@ -36,6 +36,18 @@ public sealed class CuentasCobrarRepository : RepositoryBase, ICuentasCobrarRepo
                 new { idCuenta }, cancellationToken: ct));
     }
 
+    public async Task<bool> SocioTieneDeudaVencidaAsync(string idSocio, string hoyIsoUtc, CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        return await conn.ExecuteScalarAsync<int>(
+            new CommandDefinition(
+                "SELECT COUNT(1) FROM cuentas_cobrar " +
+                "WHERE id_socio = @idSocio AND deleted_at IS NULL " +
+                "AND estado IN ('pendiente', 'parcial') " +
+                "AND fecha_vencimiento < @hoyIsoUtc",
+                new { idSocio, hoyIsoUtc }, cancellationToken: ct)) > 0;
+    }
+
     private const string BuscarFrom =
         "FROM cuentas_cobrar cc " +
         "JOIN socios s ON s.id_socio = cc.id_socio " +
@@ -50,6 +62,7 @@ public sealed class CuentasCobrarRepository : RepositoryBase, ICuentasCobrarRepo
         "cc.id_socio AS IdSocio, " +
         "TRIM(s.nombre || ' ' || s.apellido_paterno || ' ' || s.apellido_materno) AS NombreSocio, " +
         "cc.id_membresia AS IdMembresia, " +
+        "cc.origen AS Origen, " +
         "cc.saldo_pendiente_centavos AS SaldoPendienteCentavos, " +
         "cc.fecha_vencimiento AS FechaVencimiento, " +
         "cc.estado AS Estado ";
