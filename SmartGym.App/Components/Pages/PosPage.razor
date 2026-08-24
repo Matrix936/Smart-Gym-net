@@ -15,6 +15,7 @@
 @using SmartGym.Core.Authorization
 @using SmartGym.Core.Common
 @using SmartGym.Core.Entities
+@using SmartGym.Core.Printing
 @using SmartGym.Core.Repositories
 @using SmartGym.Core.Services
 @using SmartGym.App.Services
@@ -310,10 +311,19 @@ else
                     <span class="summary-label">Saldo pendiente</span>
                     <span class="status-badge status-warning">@FormatearMonto(_recibo.SaldoPendienteCentavos) — queda en Cobranza</span>
                 </div>
+                @if (_recibo.VenceTexto is not null)
+                {
+                    <div class="summary-row"><span class="summary-label">Vence</span><span>@_recibo.VenceTexto</span></div>
+                }
             }
         }
     </DialogContent>
     <DialogActions>
+        <AsyncButton Text="Imprimir"
+                     LoadingText="Imprimiendo..."
+                     IsLoading="_imprimiendoRecibo"
+                     Disabled="@(_imprimiendoRecibo)"
+                     OnClick="ImprimirReciboAsync" />
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => _reciboAbierto = false" id="pos-btn-nueva-venta">Nueva venta</MudButton>
     </DialogActions>
 </MudDialog>
@@ -406,13 +416,27 @@ else
         string? Socio,
         IReadOnlyList<ReciboLinea> Items,
         long TotalCentavos,
-        long SaldoPendienteCentavos);
+        long SaldoPendienteCentavos,
+        string? VenceTexto);
 
     private ReciboVenta? _recibo;
     private bool _reciboAbierto;
 
     // Interruptor global de venta a crédito (Configuración → Punto de venta).
     private bool _permiteCredito;
+
+    // Periféricos (Configuración → Periféricos): impresión del recibo.
+    [Inject] private ITicketPrintService Print { get; set; } = default!;
+    private string? _impresoraTickets;
+    private int _papelAncho = 42;
+    private int _densidad = 2;
+    private bool _abrirCajonAlImprimir;
+    private bool _imprimirAutoAlCobrar;
+    private bool _imprimiendoRecibo;
+
+    // Datos del negocio para el encabezado del ticket: lazy (primera impresión).
+    private TicketDatosNegocio? _negocioTicket;
+    private byte[]? _logoRasterCache;
 
     /// <summary>Null = paga el total completo; menor al total = queda a crédito.</summary>
     private long? _montoPagado;
@@ -463,6 +487,20 @@ else
         catch (BusinessException)
         {
             // Sin sesión válida: el interruptor queda apagado (comportamiento por defecto).
+        }
+
+        try
+        {
+            var perifericos = await EmpresaConfig.ObtenerPerifericosAsync(sesion.Token);
+            _impresoraTickets = perifericos.ImpresoraTickets;
+            _papelAncho = perifericos.PapelAncho;
+            _densidad = perifericos.Densidad;
+            _abrirCajonAlImprimir = perifericos.AbrirCajon;
+            _imprimirAutoAlCobrar = perifericos.ImprimirAutoAlCobrar;
+        }
+        catch (BusinessException)
+        {
+            // Sin configuración: impresión manual y sin impresora (defaults).
         }
 
         await CargarAsync();
@@ -882,7 +920,10 @@ else
                         c.Promo.PrecioComboCentavos * c.Cantidad)))
                     .ToList(),
                 TotalCentavos: venta.TotalCentavos,
-                SaldoPendienteCentavos: venta.SaldoPendienteCentavos);
+                SaldoPendienteCentavos: venta.SaldoPendienteCentavos,
+
+                // Vencimiento REAL de la cuenta creada (plazo usado en la venta).
+                VenceTexto: TicketVentaMapper.FormatearFechaIso(venta.SaldoVenceIsoUtc));
 
             // El backend ya descontó stock y generó el movimiento de caja:
             // refresca snapshot y limpia el carrito para la siguiente venta.
@@ -894,6 +935,13 @@ else
             _reciboAbierto = true;
             _enfocarReciboAlAbrir = true;
             StateHasChanged();
+
+            if (_imprimirAutoAlCobrar)
+            {
+                // Complemento del recibo visual: si la impresión falla,
+                // ImprimirReciboAsync lo reporta — la venta ya está registrada.
+                _ = ImprimirReciboAsync();
+            }
         }
         catch (BusinessException ex)
         {
@@ -915,4 +963,104 @@ else
 
     private static string FormatearMonto(long centavos) =>
         (centavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("es-MX"));
+
+    /// <summary>
+    /// Imprime el ticket del recibo (botón o impresión automática). Un fallo de
+    /// impresora NO afecta la venta: ya está registrada; solo se reporta.
+    /// </summary>
+    private async Task ImprimirReciboAsync()
+    {
+        if (_recibo is null || _imprimiendoRecibo)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_impresoraTickets))
+        {
+            Feedback.ShowWarning("Sin impresora de tickets — configúrala en Configuración → Periféricos");
+            return;
+        }
+
+        _imprimiendoRecibo = true;
+        StateHasChanged();
+        try
+        {
+            var bytes = await ConstruirEscposDeRecibo();
+            await Print.ImprimirRawAsync(_impresoraTickets.Trim(), bytes);
+            Feedback.ShowSuccess($"Ticket enviado a {_impresoraTickets}");
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo imprimir el ticket");
+        }
+        finally
+        {
+            _imprimiendoRecibo = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task<byte[]> ConstruirEscposDeRecibo()
+    {
+        var recibo = _recibo!;
+        await CargarNegocioTicketAsync();
+
+        var payload = TicketVentaMapper.DesdeVenta(
+            folio: recibo.Folio,
+            fechaTexto: recibo.Fecha,
+            metodoPago: recibo.MetodoPago,
+            estado: "completada",
+            socio: recibo.Socio,
+            items: recibo.Items.Select(l => new TicketItemInput(
+                l.Descripcion, l.Cantidad, l.PrecioUnitarioCentavos, l.SubtotalCentavos)).ToList(),
+            totalCentavos: recibo.TotalCentavos,
+            saldoPendienteCentavos: recibo.SaldoPendienteCentavos,
+            venceTexto: recibo.VenceTexto,
+            negocio: _negocioTicket!,
+            logoRaster: _logoRasterCache,
+            papelAncho: _papelAncho,
+            densidad: _densidad,
+            abrirCajon: _abrirCajonAlImprimir);
+
+        return TicketEscposBuilder.Build(payload);
+    }
+
+    /// <summary>Datos de empresa/sede y logo para el ticket: una sola carga por sesión del POS.</summary>
+    private async Task CargarNegocioTicketAsync()
+    {
+        if (_negocioTicket is not null)
+        {
+            return;
+        }
+
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            throw BusinessException.Validation("Sesión no válida", "sesion_invalida");
+        }
+
+        try
+        {
+            var (empresa, sede, logoDataUrl) = await EmpresaConfig.ObtenerAsync(sesion.Token);
+            _negocioTicket = new TicketDatosNegocio(
+                empresa.NombreComercial,
+                empresa.Rfc,
+                sede.Nombre,
+                sede.Direccion,
+                sede.Telefono,
+                Cajero: "POS",
+                MensajePie: "¡Gracias por su compra!");
+            _logoRasterCache = await Print.RasterizarLogoAsync(
+                TicketVentaMapper.DecodificarDataUrl(logoDataUrl) ?? [], _papelAncho, 384);
+        }
+        catch (BusinessException)
+        {
+            // Sin configuración de empresa: ticket con defaults del builder.
+            _negocioTicket = new TicketDatosNegocio(null, null, "Smart Gym", null, null, "POS", null);
+        }
+    }
 }

@@ -16,6 +16,7 @@
 @using SmartGym.Core.Authorization
 @using SmartGym.Core.Common
 @using SmartGym.Core.Entities
+@using SmartGym.Core.Printing
 @using SmartGym.Core.Repositories
 @using SmartGym.Core.Services
 @using SmartGym.App.Services
@@ -295,6 +296,11 @@
         }
     </DialogContent>
     <DialogActions>
+        <AsyncButton Text="Reimprimir"
+                     LoadingText="Imprimiendo..."
+                     IsLoading="_imprimiendoReimpresion"
+                     Disabled="@(_detalleCargando || _imprimiendoReimpresion)"
+                     OnClick="ReimprimirVentaAsync" />
         <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="() => _detalleAbierto = false">Cerrar</MudButton>
     </DialogActions>
 </MudDialog>
@@ -345,6 +351,7 @@
     [Inject] private IUsuariosRepository UsuariosRepo { get; set; } = default!;
     [Inject] private ISedesRepository Sedes { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
+    [Inject] private IEmpresaConfigService EmpresaConfig { get; set; } = default!;
     [Inject] private SmartGym.Core.Services.ITerminalConfigStore Terminal { get; set; } = default!;
 
     private bool _cargando = true;
@@ -404,6 +411,16 @@
     private bool _detalleAbierto;
     private bool _detalleCargando;
     private VentaInfo? _detalleVenta;
+    private MovimientoHistorialDto? _filaDetalle;
+
+    // Reimpresión de tickets (Configuración → Periféricos).
+    [Inject] private ITicketPrintService Print { get; set; } = default!;
+    private string? _impresoraTickets;
+    private int _papelAncho = 42;
+    private int _densidad = 2;
+    private bool _imprimiendoReimpresion;
+    private TicketDatosNegocio? _negocioTicket;
+    private byte[]? _logoRasterCache;
 
     private MovimientoHistorialDto? _filaCancelando;
     private bool _cancelacionAbierta;
@@ -641,6 +658,7 @@
             return;
         }
 
+        _filaDetalle = fila;
         _detalleAbierto = true;
         _detalleCargando = true;
         _detalleVenta = null;
@@ -667,6 +685,110 @@
         {
             _detalleCargando = false;
             StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Reimpresión del ticket desde el detalle. Nota: si la venta fue a crédito,
+    /// el saldo/vencimiento no viaja en el historial — el ticket reimpresso sale
+    /// sin ese bloque; el original lo imprimió completo al momento de la venta.
+    /// </summary>
+    private async Task ReimprimirVentaAsync()
+    {
+        if (_detalleVenta is null || _imprimiendoReimpresion)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_impresoraTickets))
+        {
+            Feedback.ShowWarning("Sin impresora de tickets — configúrala en Configuración → Periféricos");
+            return;
+        }
+
+        _imprimiendoReimpresion = true;
+        StateHasChanged();
+        try
+        {
+            await CargarContextoTicketAsync();
+
+            var payload = TicketVentaMapper.DesdeVenta(
+                folio: _detalleVenta.IdVenta,
+                fechaTexto: TicketVentaMapper.FormatearFechaIso(_filaDetalle?.Fecha) ?? "—",
+                metodoPago: _detalleVenta.MetodoPago,
+                estado: _detalleVenta.Estado,
+                socio: _filaDetalle?.NombreSocio,
+                items: _detalleVenta.Items,
+                totalCentavos: _detalleVenta.TotalCentavos,
+                saldoPendienteCentavos: 0,
+                venceTexto: null,
+                negocio: _negocioTicket!,
+                logoRaster: _logoRasterCache,
+                papelAncho: _papelAncho,
+                densidad: _densidad,
+                abrirCajon: false);
+
+            await Print.ImprimirRawAsync(_impresoraTickets.Trim(), TicketEscposBuilder.Build(payload));
+            Feedback.ShowSuccess($"Ticket enviado a {_impresoraTickets}");
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo imprimir el ticket");
+        }
+        finally
+        {
+            _imprimiendoReimpresion = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Periféricos + datos de empresa/sede/logo: una sola carga por sesión.</summary>
+    private async Task CargarContextoTicketAsync()
+    {
+        if (_negocioTicket is not null)
+        {
+            return;
+        }
+
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            throw BusinessException.Validation("Sesión no válida", "sesion_invalida");
+        }
+
+        try
+        {
+            var perifericos = await EmpresaConfig.ObtenerPerifericosAsync(sesion.Token);
+            _impresoraTickets = perifericos.ImpresoraTickets;
+            _papelAncho = perifericos.PapelAncho;
+            _densidad = perifericos.Densidad;
+        }
+        catch (BusinessException)
+        {
+            // Defaults: impresión manual sin impresora.
+        }
+
+        try
+        {
+            var (empresa, sede, logoDataUrl) = await EmpresaConfig.ObtenerAsync(sesion.Token);
+            _negocioTicket = new TicketDatosNegocio(
+                empresa.NombreComercial,
+                empresa.Rfc,
+                sede.Nombre,
+                sede.Direccion,
+                sede.Telefono,
+                Cajero: sesion.Nombre ?? "POS",
+                MensajePie: "REIMPRESIÓN");
+            _logoRasterCache = await Print.RasterizarLogoAsync(
+                TicketVentaMapper.DecodificarDataUrl(logoDataUrl) ?? [], _papelAncho, 384);
+        }
+        catch (BusinessException)
+        {
+            _negocioTicket = new TicketDatosNegocio(null, null, "Smart Gym", null, null, "POS", "REIMPRESIÓN");
         }
     }
 

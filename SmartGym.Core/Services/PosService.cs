@@ -305,6 +305,7 @@ public sealed class PosService : IPosService
             TotalCentavos = totalCentavos,
             MontoPagadoCentavos = totalPagado,
             SaldoPendienteCentavos = totalCentavos - totalPagado,
+            SaldoVenceIsoUtc = cuentaPos?.FechaVencimiento,
             MetodoPago = metodoPago,
             Estado = VentaEstados.Completada,
             IdVendedor = info.IdUsuario,
