@@ -39,6 +39,7 @@ internal sealed class SecurityTestContext : IDisposable
     public SociosBiometricosRepository SociosBiometricos { get; }
 
     public ProductosRepository Productos { get; }
+    public PromocionesRepository Promociones { get; }
     public InventarioSucursalRepository Inventario { get; }
     public VentasRepository Ventas { get; }
     public MaquinariaRepository Maquinaria { get; }
@@ -64,6 +65,7 @@ internal sealed class SecurityTestContext : IDisposable
     public FinanzasService FinanzasService { get; }
     public EmpresaConfigService EmpresaConfigService { get; }
     public DashboardService DashboardService { get; }
+    public PromocionesService PromocionesService { get; }
 
     public SecurityTestContext()
     {
@@ -97,6 +99,7 @@ internal sealed class SecurityTestContext : IDisposable
         SociosBiometricos = new SociosBiometricosRepository(DbPath);
 
         Productos = new ProductosRepository(DbPath);
+        Promociones = new PromocionesRepository(DbPath);
         Inventario = new InventarioSucursalRepository(DbPath);
         Ventas = new VentasRepository(DbPath);
         Maquinaria = new MaquinariaRepository(DbPath);
@@ -115,10 +118,11 @@ internal sealed class SecurityTestContext : IDisposable
         PlanesService = new PlanesMembresiaService(Auth, Authz, Planes, Bitacora);
         AccesoService = new AccesoService(Auth, Authz, Accesos, SedeResolution);
         PosService = new PosService(Auth, Authz, Socios, Cajas, Productos, Inventario, Ventas,
-            CuentasCobrar, Configuracion, Bitacora, SedeResolution);
+            CuentasCobrar, Configuracion, Bitacora, SedeResolution, Promociones);
         CobranzaService = new CobranzaService(Auth, Authz, Socios, Cajas, CuentasCobrar, Recordatorios, Bitacora, SedeResolution);
         VentasService = new VentasService(Auth, Authz, Movimientos, Ventas, Productos, SedeResolution);
         ProductosService = new ProductosService(Auth, Authz, Productos, Inventario, SedeResolution, Bitacora);
+        PromocionesService = new PromocionesService(Auth, Authz, Promociones, Productos, Bitacora);
         BitacoraService = new BitacoraService(Auth, Authz, Bitacora, SedeResolution);
         MaquinariaService = new MaquinariaService(Auth, Authz, Maquinaria, SedeResolution, Bitacora);
         FinanzasService = new FinanzasService(Auth, Authz, FinanzasRepo, SedeResolution);

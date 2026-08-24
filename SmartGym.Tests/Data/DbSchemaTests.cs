@@ -4,7 +4,7 @@ namespace SmartGym.Tests.Data;
 
 /// <summary>
 /// Verificación estructural del schema (criterio de salida de Fase 1):
-/// 31 tablas, 20 triggers de updated_at, 32 índices idx_*, seed mínimo.
+/// 33 tablas, 20 triggers de updated_at, 33 índices idx_*, seed mínimo.
 /// Fuente: 01-modelo-datos.md "Hechos verificados".
 /// </summary>
 [Collection("data")]
@@ -26,10 +26,10 @@ public sealed class DbSchemaTests
     }
 
     [Fact]
-    public void Schema_tiene_exactamente_31_tablas()
+    public void Schema_tiene_exactamente_33_tablas()
     {
         var tables = Count(_fixture.DbPath, "type = 'table' AND name NOT LIKE 'sqlite_%'");
-        Assert.Equal(31, tables);
+        Assert.Equal(33, tables);
     }
 
     [Fact]
@@ -40,10 +40,10 @@ public sealed class DbSchemaTests
     }
 
     [Fact]
-    public void Schema_tiene_32_indices_con_prefijo_idx()
+    public void Schema_tiene_33_indices_con_prefijo_idx()
     {
         var indexes = Count(_fixture.DbPath, "type = 'index' AND name LIKE 'idx_%'");
-        Assert.Equal(32, indexes);
+        Assert.Equal(33, indexes);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public sealed class DbSchemaTests
         DbInitializer.Initialize(_fixture.DbPath);
 
         var roles = Count(_fixture.DbPath, "type = 'table' AND name NOT LIKE 'sqlite_%'");
-        Assert.Equal(31, roles);
+        Assert.Equal(33, roles);
     }
 
     [Fact]
