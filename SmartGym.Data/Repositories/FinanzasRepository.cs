@@ -17,7 +17,7 @@ public sealed class FinanzasRepository : RepositoryBase, IFinanzasRepository
     private const string ResumenFrom =
         "FROM caja_movimientos cm " +
         "JOIN cajas_sesiones cs ON cs.id_sesion = cm.id_sesion " +
-        "WHERE cm.deleted_at IS NULL AND cs.deleted_at IS NULL AND cs.id_sede = @idSede " +
+        "WHERE cm.deleted_at IS NULL AND cs.deleted_at IS NULL AND (@idSede IS NULL OR cs.id_sede = @idSede) " +
         "AND cm.created_at >= @desde AND cm.created_at <= @hasta ";
 
     private const string ResumenSelect =
@@ -29,7 +29,7 @@ public sealed class FinanzasRepository : RepositoryBase, IFinanzasRepository
         "COALESCE(SUM(CASE WHEN cm.tipo = 'ingreso' AND cm.referencia_tipo = 'abono' THEN cm.monto_centavos END), 0) AS IngresosAbonos ";
 
     public async Task<FinanzasResumenDto> ObtenerResumenAsync(
-        long idSede,
+        long? idSede,
         string desdeIso,
         string hastaIso,
         CancellationToken ct = default)
@@ -58,26 +58,26 @@ public sealed class FinanzasRepository : RepositoryBase, IFinanzasRepository
         return resumen;
     }
 
-    public async Task<IReadOnlyList<Membresia>> GetMembresiasPorSedeAsync(long idSede, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Membresia>> GetMembresiasPorSedeAsync(long? idSede, CancellationToken ct = default)
     {
         await using var conn = ConnectionFactory.Open(DbPath);
         var rows = await conn.QueryAsync<Membresia>(
             new CommandDefinition(
                 "SELECT id_membresia, id_socio, id_plan, id_sede, fecha_inicio, fecha_fin, " +
                 "fecha_cancelacion, estado, id_vendedor, updated_at, sincronizado, deleted_at, created_at " +
-                "FROM membresias WHERE deleted_at IS NULL AND id_sede = @idSede ORDER BY created_at",
+                "FROM membresias WHERE deleted_at IS NULL AND (@idSede IS NULL OR id_sede = @idSede) ORDER BY created_at",
                 new { idSede }, cancellationToken: ct));
         return rows.ToList();
     }
 
-    public async Task<int> ContarNuevasAsync(long idSede, string desdeIso, string hastaIso, CancellationToken ct = default)
+    public async Task<int> ContarNuevasAsync(long? idSede, string desdeIso, string hastaIso, CancellationToken ct = default)
     {
         await using var conn = ConnectionFactory.Open(DbPath);
         return await conn.ExecuteScalarAsync<int>(
             new CommandDefinition(
-                "SELECT COUNT(*) FROM membresias " +
-                "WHERE deleted_at IS NULL AND id_sede = @idSede " +
-                "AND created_at >= @desde AND created_at <= @hasta",
+            "SELECT COUNT(*) FROM membresias " +
+            "WHERE deleted_at IS NULL AND (@idSede IS NULL OR id_sede = @idSede) " +
+            "AND created_at >= @desde AND created_at <= @hasta",
                 new { idSede, desde = desdeIso, hasta = hastaIso }, cancellationToken: ct));
     }
 }

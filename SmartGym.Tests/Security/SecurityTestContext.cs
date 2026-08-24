@@ -63,6 +63,7 @@ internal sealed class SecurityTestContext : IDisposable
     public MaquinariaService MaquinariaService { get; }
     public FinanzasService FinanzasService { get; }
     public EmpresaConfigService EmpresaConfigService { get; }
+    public DashboardService DashboardService { get; }
 
     public SecurityTestContext()
     {
@@ -122,6 +123,10 @@ internal sealed class SecurityTestContext : IDisposable
         FinanzasService = new FinanzasService(Auth, Authz, FinanzasRepo, SedeResolution);
         EmpresaConfigService = new EmpresaConfigService(
             Auth, Authz, Empresa, Sedes, LogoStorage, Configuracion, Bitacora, SedeResolution);
+        DashboardService = new DashboardService(
+            Auth, Authz, FinanzasRepo,
+            new SmartGym.Data.Repositories.DashboardRepository(DbPath),
+            Configuracion, SedeResolution);
     }
 
     public void Dispose()
