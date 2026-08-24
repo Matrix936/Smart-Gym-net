@@ -163,7 +163,9 @@ public sealed class SetupTests
 
         var empresa = await ctx.Setup.ObtenerDatosEmpresaAsync();
         Assert.Equal("Smart Gym", empresa.NombreComercial);
-        Assert.Equal("5555555555", empresa.Telefono);
+        // El teléfono vive en la SEDE desde el refactor empresa/sede.
+        var sede = await ctx.Sedes.GetPrincipalAsync();
+        Assert.Equal("5555555555", sede?.Telefono);
     }
 
     [Fact]

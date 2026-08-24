@@ -306,7 +306,6 @@ else
         }
     }
 
-    private bool _tienePermiso;
     private bool _cargandoEmpresa = true;
     private string _nombreComercial = "";
     private string _telefono = "";
@@ -348,7 +347,6 @@ else
         try
         {
             await Authz.RequierePermisoAsync(sesion.Token, PermisoCatalogo.ConfiguracionEditar);
-            _tienePermiso = true;
         }
         catch (BusinessException)
         {

@@ -116,11 +116,11 @@ internal sealed class SecurityTestContext : IDisposable
         CajaService = new CajaService(Auth, Authz, Cajas, Movimientos, SedeResolution, Bitacora);
         MembresiasService = new MembresiasService(Auth, Authz, Socios, Planes, Cajas, Membresias, Bitacora, SedeResolution);
         PlanesService = new PlanesMembresiaService(Auth, Authz, Planes, Bitacora);
-        AccesoService = new AccesoService(Auth, Authz, Accesos, SedeResolution);
+        AccesoService = new AccesoService(Auth, Authz, Accesos, SedeResolution, CuentasCobrar);
         PosService = new PosService(Auth, Authz, Socios, Cajas, Productos, Inventario, Ventas,
             CuentasCobrar, Configuracion, Bitacora, SedeResolution, Promociones);
         CobranzaService = new CobranzaService(Auth, Authz, Socios, Cajas, CuentasCobrar, Recordatorios, Bitacora, SedeResolution);
-        VentasService = new VentasService(Auth, Authz, Movimientos, Ventas, Productos, SedeResolution);
+        VentasService = new VentasService(Auth, Authz, Movimientos, Ventas, Productos, SedeResolution, Bitacora);
         ProductosService = new ProductosService(Auth, Authz, Productos, Inventario, SedeResolution, Bitacora);
         PromocionesService = new PromocionesService(Auth, Authz, Promociones, Productos, Bitacora);
         BitacoraService = new BitacoraService(Auth, Authz, Bitacora, SedeResolution);

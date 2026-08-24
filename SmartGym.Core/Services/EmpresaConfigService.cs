@@ -256,7 +256,7 @@ public sealed class EmpresaConfigService : IEmpresaConfigService
 
     private async Task RegistrarBitacoraAsync(SessionInfo info, string accion, string idRegistro,
         string? anterior = null, string? nuevo = null, long? idSede = null,
-        string? tablaAfectada = "empresa_config_fiscal", CancellationToken ct = default)
+        string tablaAfectada = "empresa_config_fiscal", CancellationToken ct = default)
     {
         await _bitacora.InsertAsync(new BitacoraAuditoria
         {

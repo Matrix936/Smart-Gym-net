@@ -1,6 +1,5 @@
 using Dapper;
 using SmartGym.Core.Common;
-using SmartGym.Core.Common;
 using SmartGym.Core.Entities;
 using SmartGym.Core.Errors;
 using SmartGym.Core.Repositories;

@@ -117,7 +117,7 @@
     [Parameter] public string? EstadoDetalle { get; set; }
 
     private string CapitalizarEstado =>
-        string.IsNullOrEmpty(Estado) ? Estado : char.ToUpperInvariant(Estado[0]) + Estado[1..];
+        string.IsNullOrEmpty(Estado) ? string.Empty : char.ToUpperInvariant(Estado[0]) + Estado[1..];
 
     [Parameter] public string? Socio { get; set; }
     [Parameter] public string? Cajero { get; set; }
