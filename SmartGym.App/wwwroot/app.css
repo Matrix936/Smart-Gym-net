@@ -1343,6 +1343,41 @@ table.data-table {
     background: var(--color-surface-2);
 }
 
+/* Morfeo hamburguesa/X del botón del sidebar — mismo mecanismo del morfeo
+   de las tablas (clase .abierto sobre el ESTADO REAL, no atributos ARIA):
+   líneas cuando el sidebar está colapsado; X cuando está expandido.
+   Sincronizado también con el auto-colapso por navegación (_collapsed). */
+.sidebar-morph {
+    position: relative;
+    display: inline-flex;
+    width: 24px;
+    height: 24px;
+}
+
+.sidebar-morph svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.sidebar-morph .morph-lines { opacity: 1; }
+.sidebar-morph .morph-x {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.5);
+}
+
+.sidebar-morph.abierto .morph-lines {
+    opacity: 0;
+    transform: rotate(90deg) scale(0.5);
+}
+
+.sidebar-morph.abierto .morph-x {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+}
+
 .topbar-datetime {
     display: flex;
     flex-direction: column;

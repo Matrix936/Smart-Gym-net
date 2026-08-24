@@ -20,7 +20,14 @@
     <div class="sg-main">
         <header class="sg-topbar">
             <button class="sg-topbar-menu" @onclick="ToggleSidebar" aria-label="Alternar menú" title="Alternar menú">
-                <MudIcon Icon="@Icons.Material.Filled.Menu" />
+                @* Morfeo hamburguesa/X — mismo mecanismo del morfeo de tablas
+                   (09319ec): dos SVG superpuestos + clase condicional sobre el
+                   ESTADO REAL (_collapsed), que ya cubre toggle manual y
+                   auto-colapso por navegación. Sin atributos ARIA de por medio. *@
+                <span class="sidebar-morph @(!_collapsed ? "abierto" : "")">
+                    <svg class="morph-lines" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                    <svg class="morph-x" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.41 13.41 12z"/></svg>
+                </span>
             </button>
             <span class="topbar-spacer"></span>
             <div class="topbar-datetime">
