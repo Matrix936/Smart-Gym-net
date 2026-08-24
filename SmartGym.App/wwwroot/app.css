@@ -1679,7 +1679,7 @@ table.data-table {
 }
 
 .kiosco-promo-badge {
-    font-size: clamp(0.65rem, 1.3vw, 0.95rem);
+    font-size: clamp(0.65rem, 1.5vw, 1.1rem);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -1697,7 +1697,7 @@ table.data-table {
 }
 
 .kiosco-promo-nombre {
-    font-size: clamp(0.95rem, 2vw, 1.6rem);
+    font-size: clamp(0.95rem, 2.4vw, 1.85rem);
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
@@ -1713,12 +1713,12 @@ table.data-table {
 }
 
 .kiosco-promo-precio s {
-    font-size: clamp(0.8rem, 1.6vw, 1.2rem);
+    font-size: clamp(0.8rem, 1.9vw, 1.5rem);
     color: var(--color-text-muted);
 }
 
 .kiosco-promo-precio strong {
-    font-size: clamp(1.1rem, 2.2vw, 1.7rem);
+    font-size: clamp(1.1rem, 2.7vw, 2.1rem);
     font-weight: 700;
     color: var(--color-success);
 }
