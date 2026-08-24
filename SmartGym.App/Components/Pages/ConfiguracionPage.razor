@@ -226,6 +226,7 @@ else if (_seccion == SeccionConfig.Perifericos)
                              IsLoading="_guardandoPerifericos"
                              OnClick="GuardarPerifericosAsync" />
                 <AsyncButton Text="Imprimir ticket de prueba"
+                             Variant="Variant.Outlined"
                              LoadingText="Imprimiendo..."
                              IsLoading="_imprimiendoPrueba"
                              Disabled="@(_imprimiendoPrueba || string.IsNullOrWhiteSpace(_selImpresora))"
