@@ -486,6 +486,20 @@
             _vendedores = [];
         }
 
+        // Periféricos al montar (mismo patrón que PosPage): sin esto el guard de
+        // "Reimprimir" corta antes del lazy-load y siempre reportaría sin impresora.
+        try
+        {
+            var perifericos = await EmpresaConfig.ObtenerPerifericosAsync(sesion.Token);
+            _impresoraTickets = perifericos.ImpresoraTickets;
+            _papelAncho = perifericos.PapelAncho;
+            _densidad = perifericos.Densidad;
+        }
+        catch (BusinessException)
+        {
+            // Sin sesión válida o sin configuración: defaults (impresión manual).
+        }
+
         await CargarAsync();
     }
 
