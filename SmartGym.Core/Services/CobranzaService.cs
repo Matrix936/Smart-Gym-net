@@ -97,7 +97,7 @@ public sealed class CobranzaService : ICobranzaService
             IdMovimiento = UuidHelper.NewV4(),
             IdSesion = caja.IdSesion,
             Tipo = MovimientoTipos.Ingreso,
-            Concepto = "abono a cuenta",
+            Concepto = "Abono a cuenta",
             MontoCentavos = montoCentavos,
             MetodoPago = metodoPagoTrim,
             AfectaEfectivo = metodoPagoTrim == "efectivo",
@@ -165,6 +165,39 @@ public sealed class CobranzaService : ICobranzaService
             ct);
 
         return recordatorio;
+    }
+
+    /// <summary>Marca una cuenta como incobrable (solo pendiente/parcial). Bitácora cobranza.marcada_incobrable.</summary>
+    public async Task MarcarIncobrableAsync(string token, string idCuenta, CancellationToken ct = default)
+    {
+        var info = await _auth.ValidarSesionAsync(token, ct);
+        await _authz.RequierePermisoAsync(token, PermisoCatalogo.CobranzaRegistrarAbono, ct);
+
+        var cuenta = await _cuentas.GetByIdAsync(idCuenta, ct)
+            ?? throw BusinessException.NotFound("Cuenta no encontrada", "cuenta_no_encontrada");
+
+        if (cuenta.Estado == CuentaCobrarEstados.Cobrada || cuenta.Estado == CuentaCobrarEstados.Incobrable)
+        {
+            throw BusinessException.Conflict($"La cuenta ya está {cuenta.Estado}", "cuenta_no_activa");
+        }
+
+        var ahora = DateHelper.NowIsoUtc();
+        var anterior = cuenta.Estado;
+        await _cuentas.CambiarEstadoAsync(idCuenta, CuentaCobrarEstados.Incobrable, ahora, ct);
+
+        await _bitacora.InsertAsync(new BitacoraAuditoria
+        {
+            IdRegistro = UuidHelper.NewV4(),
+            IdUsuario = info.IdUsuario,
+            Accion = "cobranza.marcada_incobrable",
+            TablaAfectada = "cuentas_cobrar",
+            IdRegistroAfectado = idCuenta,
+            ValorAnterior = anterior,
+            ValorNuevo = CuentaCobrarEstados.Incobrable,
+            IdSede = info.IdSede,
+            CreatedAt = ahora,
+            UpdatedAt = ahora,
+        }, ct);
     }
 
     public async Task<PagedResult<CuentaCobrarDto>> BuscarAsync(

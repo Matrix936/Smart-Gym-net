@@ -95,6 +95,16 @@ public sealed class CuentasCobrarRepository : RepositoryBase, ICuentasCobrarRepo
         };
     }
 
+    public async Task<int> CambiarEstadoAsync(string idCuenta, string nuevoEstado, string updatedAt, CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        return await conn.ExecuteAsync(
+            new CommandDefinition(
+                "UPDATE cuentas_cobrar SET estado = @nuevoEstado, updated_at = @updatedAt " +
+                "WHERE id_cuenta = @idCuenta AND deleted_at IS NULL",
+                new { idCuenta, nuevoEstado, updatedAt }, cancellationToken: ct));
+    }
+
     public async Task RegistrarAbonoAsync(
         string idCuenta,
         long nuevoSaldoCentavos,
