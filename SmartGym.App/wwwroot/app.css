@@ -974,6 +974,9 @@ table.data-table {
 
 .feedback-text {
     flex: 1;
+    /* Texto centrado dentro del area del mensaje, para todos los tipos
+       (success/info/warning/error comparten este contenedor base). */
+    text-align: center;
 }
 
 .feedback-close {
