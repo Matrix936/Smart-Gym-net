@@ -267,10 +267,10 @@
         <MudText Typo="Typo.h6">Detalle de venta</MudText>
     </TitleContent>
     <DialogContent>
-        @* Mismo formato de recibo que el POS al cobrar (folio, fecha, estado,
-           método, socio, items y total): "detalle de venta" y "vista de ticket"
-           son la misma información presentada distinto. El saldo/vencimiento de
-           créditos no viaja en el historial — no se muestra aquí. *@
+        @* Dos zonas separadas: "Detalles" (fuera del papel: folio completo para
+           soporte/búsqueda y la línea de cancelación) y la previsualización del
+           ticket, idéntica a lo que sale impreso (folio corto de 8 chars, sin
+           datos de cancelación). *@
         @if (_detalleCargando)
         {
             <p class="muted">Cargando...</p>
@@ -284,12 +284,29 @@
                 estadoDetalle = $"{FormatearFecha(_detalleVenta.CanceladaElIsoUtc)}{por}";
             }
 
-            <TicketPreview Folio="@_detalleVenta.IdVenta"
+            @* ---- Zona 1: Detalles (no se imprime) ---- *@
+            <div class="venta-detalles">
+                <p class="venta-detalles-titulo">Detalles</p>
+                <div class="tk-row">
+                    <span>Folio</span>
+                    <span style="overflow-wrap: anywhere;">@_detalleVenta.IdVenta</span>
+                </div>
+                @if (estadoDetalle is not null)
+                {
+                    <div class="tk-row">
+                        <span>Cancelada</span>
+                        <span>@estadoDetalle</span>
+                    </div>
+                }
+            </div>
+
+            @* ---- Zona 2: Previsualización del ticket (lo que sale impreso) ---- *@
+            <p class="venta-detalles-titulo" style="text-align: center;">Previsualización del ticket</p>
+            <TicketPreview Folio="@FolioCorto(_detalleVenta.IdVenta)"
                            Fecha="@(_filaDetalle is null ? "—" : FormatearFecha(_filaDetalle.Fecha))"
                            Atendio="@_atendioDetalle"
                            MetodoPago="@Capitalizar(_detalleVenta.MetodoPago)"
                            Estado="@_detalleVenta.Estado"
-                           EstadoDetalle="@estadoDetalle"
                            Socio="@_filaDetalle?.NombreSocio"
                            Items="@ItemsDeDetalle()"
                            TotalCentavos="@_detalleVenta.TotalCentavos"
@@ -995,5 +1012,33 @@
         return utc.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
     }
 
+    /// <summary>Mismo criterio que el ticket impreso: prefijo corto del folio.</summary>
+    private static string FolioCorto(string folio) =>
+        folio.Length <= 8 ? folio : folio[..8];
+
     public void Dispose() => _folioDebounce?.Cancel();
 }
+
+<style>
+    /* Zona "Detalles" del diálogo de venta: bloque fuera del papel con el
+       folio completo y la línea de cancelación. Vive aquí y no en app.css
+       para no pisar WIP compartido de estilos globales. */
+    .venta-detalles {
+        max-width: 330px;
+        margin: 0 auto 0.9rem;
+        padding: 0.7rem 1rem;
+        border: 1px dashed rgba(128, 128, 128, 0.45);
+        border-radius: var(--radius-md);
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 0.82rem;
+        line-height: 1.45;
+    }
+    .venta-detalles-titulo {
+        margin: 0 0 0.4rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        opacity: 0.65;
+    }
+</style>
