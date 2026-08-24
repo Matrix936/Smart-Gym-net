@@ -94,6 +94,15 @@
                         <MudIcon Icon="@Icons.Material.Filled.Cancel" Class="kiosco-icon kiosco-icon-error" />
                     }
                     <h1 class="kiosco-title">@_mensajeResultado</h1>
+                    @if (_avisoDeuda)
+                    {
+                        @* Aviso genérico sin montos ni motivos: pantalla pública
+                           (mismo criterio de privacidad del resto del Kiosco).
+                           No condiciona el acceso — solo informa. *@
+                        <p class="kiosco-message kiosco-error" style="margin-top: 0.5rem;">
+                            Tienes un saldo pendiente. Pasa a recepción.
+                        </p>
+                    }
                 </div>
             </div>
             break;
@@ -123,6 +132,8 @@
 
     private bool _resultadoEsConcedido;
     private bool _resultadoEsNoIdentificado;
+    /// <summary>Aviso informativo de saldo pendiente (no afecta la decisión de acceso).</summary>
+    private bool _avisoDeuda;
     private KioscoResultadoSonido _resultadoCategoria;
     private string? _mensajeResultado;
     private CancellationTokenSource? _resultadoCts;
@@ -372,6 +383,23 @@
             {
                 MostrarResultado(KioscoResultadoSonido.Denegado, MotivoMensaje(resultado.MotivoDenegacion));
             }
+
+            // Aviso de deuda: informativo, independiente del veredicto y sin
+            // cifras (pantalla pública). Falla silenciosa — es un extra.
+            var ctsResultado = _resultadoCts;
+            try
+            {
+                _avisoDeuda = await Acceso.SocioTieneDeudaActivaAsync(e.IdSocio);
+            }
+            catch
+            {
+                _avisoDeuda = false;
+            }
+
+            if (!_disposed && _resultadoCts == ctsResultado)
+            {
+                StateHasChanged();
+            }
         }
         catch (BusinessException ex)
         {
@@ -406,6 +434,7 @@
         _resultadoCategoria = categoria;
         _resultadoEsConcedido = categoria == KioscoResultadoSonido.Concedido;
         _resultadoEsNoIdentificado = categoria == KioscoResultadoSonido.NoIdentificado;
+        _avisoDeuda = false;
         _mensajeResultado = mensaje;
         _estado = KioscoEstado.Resultado;
 

@@ -76,6 +76,12 @@ public sealed class VentaInfo
 
     /// <summary>Total - monto pagado; 0 salvo ventas a crédito.</summary>
     public long SaldoPendienteCentavos { get; set; }
+
+    /// <summary>
+    /// Vencimiento REAL de la cuenta por cobrar creada (ISO), con el plazo que
+    /// se usó en esa venta — no un default recalculado en el frontend.
+    /// </summary>
+    public string? SaldoVenceIsoUtc { get; set; }
     public string MetodoPago { get; set; } = string.Empty;
     public string Estado { get; set; } = VentaEstados.Completada;
     public long? IdVendedor { get; set; }

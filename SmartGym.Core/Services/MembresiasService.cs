@@ -61,10 +61,20 @@ public sealed class MembresiasService : IMembresiasService
         string metodoPago,
         long montoRecibidoCentavos,
         long? idSedeFrontend = null,
+        int? plazoCreditoDias = null,
         CancellationToken ct = default)
     {
         var info = await _auth.ValidarSesionAsync(token, ct);
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.MembresiasCrear, ct);
+
+        // Plazo de crédito configurable: solo aplica cuando la venta queda a
+        // deber; null conserva el comportamiento histórico (vence con la
+        // membresía — fecha_fin).
+        if (plazoCreditoDias is < 1 or > 180)
+        {
+            throw BusinessException.Validation(
+                "El plazo de crédito debe estar entre 1 y 180 días", "plazo_invalido");
+        }
 
         if (!await _socios.ExistsAsync(idSocio, ct))
         {
@@ -154,7 +164,11 @@ public sealed class MembresiasService : IMembresiasService
                 IdMembresia = membresia.IdMembresia,
                 IdSocio = idSocio,
                 SaldoPendienteCentavos = plan.PrecioCentavos - montoRecibidoCentavos,
-                FechaVencimiento = membresia.FechaFin,
+                // Con plazo configurado vence hoy + plazo; sin él, histórico:
+                // junto con la membresía (fecha_fin).
+                FechaVencimiento = plazoCreditoDias is not null
+                    ? DateHelper.ToIsoUtc(DateHelper.ParseIsoUtc(ahora).AddDays(plazoCreditoDias.Value))
+                    : membresia.FechaFin,
                 Estado = montoRecibidoCentavos == 0 ? CuentaCobrarEstados.Pendiente : CuentaCobrarEstados.Parcial,
                 UpdatedAt = ahora,
             };

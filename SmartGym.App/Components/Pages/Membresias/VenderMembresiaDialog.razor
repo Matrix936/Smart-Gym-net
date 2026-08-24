@@ -109,6 +109,12 @@
                             <p class="muted" style="margin-top: 0.25rem;">
                                 Pago parcial: se generará una cuenta por cobrar por @FormatearMonto(_planSeleccionado.PrecioCentavos - MontoPagadoCentavos).
                             </p>
+                            <div class="form-row" style="margin-top: 0.5rem;">
+                                <MudNumericField T="int" Label="Plazo (días) *" Margin="Margin.Dense" Variant="Variant.Outlined"
+                                                  Min="1" Max="180" HideSpinButtons="true" Immediate="true"
+                                                  @bind-Value="_plazoCreditoDias" />
+                                <span class="muted" style="align-self: center;">La cuenta por cobrar vence a ese plazo.</span>
+                            </div>
                         }
                     }
                 }
@@ -155,6 +161,9 @@
     private long? _idPlan;
     private PlanMembresia? _planSeleccionado;
     private decimal _montoPagado;
+
+    /// <summary>Plazo del crédito en días; default 10, editable antes de confirmar.</summary>
+    private int _plazoCreditoDias = 10;
     private string _metodoPago = MetodosPago.Efectivo;
     private bool _guardando;
     private Socio? _socioSeleccionado;
@@ -322,7 +331,8 @@
                 _planSeleccionado.IdPlan,
                 _metodoPago,
                 MontoPagadoCentavos,
-                _showSede ? _sedeSeleccionada : null);
+                _showSede ? _sedeSeleccionada : null,
+                _plazoCreditoDias);
 
             Feedback.ShowSuccess($"Membresía vendida a {NombreCompleto(socio)}");
             await OnSaved.InvokeAsync();

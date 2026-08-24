@@ -11,17 +11,20 @@ public sealed class AccesoService : IAccesoService
     private readonly IAuthorizationService _authz;
     private readonly IAccesosRepository _accesos;
     private readonly ISedeResolutionService _sedeResolution;
+    private readonly ICuentasCobrarRepository _cuentas;
 
     public AccesoService(
         IAuthService auth,
         IAuthorizationService authz,
         IAccesosRepository accesos,
-        ISedeResolutionService sedeResolution)
+        ISedeResolutionService sedeResolution,
+        ICuentasCobrarRepository cuentas)
     {
         _auth = auth;
         _authz = authz;
         _accesos = accesos;
         _sedeResolution = sedeResolution;
+        _cuentas = cuentas;
     }
 
     public Task<AccesoResult> RegistrarAccesoKioskoAsync(
@@ -60,4 +63,8 @@ public sealed class AccesoService : IAccesoService
 
         return await _accesos.BuscarAsync(idSede, filtros, pagina, tamanoPagina, ct);
     }
+
+    /// <summary>Aviso de deuda para el Kiosco: sin sesión (mismo criterio que RegistrarKioskoAsync).</summary>
+    public Task<bool> SocioTieneDeudaActivaAsync(string idSocio, CancellationToken ct = default) =>
+        _cuentas.SocioTieneDeudaActivaAsync(idSocio, ct);
 }

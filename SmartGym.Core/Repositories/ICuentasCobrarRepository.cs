@@ -15,6 +15,12 @@ public interface ICuentasCobrarRepository
     /// </summary>
     Task<bool> SocioTieneDeudaVencidaAsync(string idSocio, string hoyIsoUtc, CancellationToken ct = default);
 
+/// <summary>
+/// True si el socio tiene alguna cuenta pendiente/parcial con saldo &gt; 0
+/// (sin importar vencimiento). Aviso de deuda en el Kiosco.
+/// </summary>
+Task<bool> SocioTieneDeudaActivaAsync(string idSocio, CancellationToken ct = default);
+
     /// <summary>Listado paginado de cuentas por cobrar de una sede con socio resuelto.</summary>
     Task<PagedResult<CuentaCobrarDto>> BuscarAsync(
         long idSede,

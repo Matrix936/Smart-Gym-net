@@ -48,6 +48,19 @@ public sealed class CuentasCobrarRepository : RepositoryBase, ICuentasCobrarRepo
                 new { idSocio, hoyIsoUtc }, cancellationToken: ct)) > 0;
     }
 
+    /// <summary>Aviso de deuda en Kiosco: pendiente/parcial con saldo > 0, sin importar vencimiento.</summary>
+    public async Task<bool> SocioTieneDeudaActivaAsync(string idSocio, CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        return await conn.ExecuteScalarAsync<int>(
+            new CommandDefinition(
+                "SELECT COUNT(1) FROM cuentas_cobrar " +
+                "WHERE id_socio = @idSocio AND deleted_at IS NULL " +
+                "AND estado IN ('pendiente', 'parcial') " +
+                "AND saldo_pendiente_centavos > 0",
+                new { idSocio }, cancellationToken: ct)) > 0;
+    }
+
     private const string BuscarFrom =
         "FROM cuentas_cobrar cc " +
         "JOIN socios s ON s.id_socio = cc.id_socio " +

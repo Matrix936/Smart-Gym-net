@@ -28,10 +28,17 @@ public interface IAccesoService
 
     /// <summary>Historial de accesos de la sede (solo lectura, permiso acceso.ver_bitacora).</summary>
     Task<PagedResult<AccesoHistorialDto>> BuscarAsync(
-        string token,
-        AccesoHistorialFiltros? filtros = null,
-        int pagina = 1,
-        int tamanoPagina = TamanosPagina.Default,
-        long? idSedeFrontend = null,
-        CancellationToken ct = default);
+    string token,
+    AccesoHistorialFiltros? filtros = null,
+    int pagina = 1,
+    int tamanoPagina = TamanosPagina.Default,
+    long? idSedeFrontend = null,
+    CancellationToken ct = default);
+
+    /// <summary>
+    /// Aviso de deuda para el Kiosco (contexto sin sesión, igual que el
+    /// registro de acceso): true si el socio tiene alguna cuenta
+    /// pendiente/parcial con saldo &gt; 0. Nunca condiciona el acceso.
+    /// </summary>
+    Task<bool> SocioTieneDeudaActivaAsync(string idSocio, CancellationToken ct = default);
 }

@@ -246,6 +246,18 @@ else
                                      Format="C2"
                                      @bind-Value="_montoPagado"
                                      Placeholder="Paga completo si lo dejas vacío" />
+                    <MudNumericField T="int"
+                                     Label="Plazo (días)"
+                                     Variant="Variant.Outlined"
+                                     Margin="Margin.Dense"
+                                     Min="1" Max="180"
+                                     @bind-Value="_plazoCreditoDias" />
+                    <MudNumericField T="int"
+                                     Label="Plazo (días)"
+                                     Variant="Variant.Outlined"
+                                     Margin="Margin.Dense"
+                                     Min="1" Max="180"
+                                     @bind-Value="_plazoCreditoDias" />
                 }
                 <AsyncButton Text="@($"Cobrar {FormatearMonto(TotalCarrito())}")"
                              LoadingText="Cobrando..."
@@ -410,6 +422,12 @@ else
 
     /// <summary>Null = paga el total completo; menor al total = queda a crédito.</summary>
     private long? _montoPagado;
+
+    /// <summary>Plazo del crédito en días; default 10, editable antes de cobrar.</summary>
+    private int _plazoCreditoDias = 10;
+
+    /// <summary>Plazo del crédito en días; default 10 (POS histórico: 15), editable.</summary>
+    private int _plazoCreditoDias = 10;
 
     // Foco en "Nueva venta" al abrir el recibo: Enter la activa nativamente.
     private bool _enfocarReciboAlAbrir;
@@ -841,6 +859,7 @@ else
                 IdSocio = _socioSeleccionado?.IdSocio,
                 MetodoPago = _metodoPago,
                 MontoPagadoCentavos = _montoPagado,
+                PlazoCreditoDias = _plazoCreditoDias,
             };
 
             var venta = await Pos.RegistrarVentaAsync(

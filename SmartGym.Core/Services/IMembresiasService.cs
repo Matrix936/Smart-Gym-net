@@ -31,6 +31,7 @@ public interface IMembresiasService
         string metodoPago,
         long montoRecibidoCentavos,
         long? idSedeFrontend = null,
+        int? plazoCreditoDias = null,
         CancellationToken ct = default);
 
     Task<Membresia> CongelarAsync(
