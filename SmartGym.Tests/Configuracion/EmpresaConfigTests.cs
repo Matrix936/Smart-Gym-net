@@ -98,6 +98,60 @@ public sealed class EmpresaConfigTests
         Assert.Equal("sin_permiso", ex.Code);
     }
 
+    // ------------------------------------------------- kiosco estilo promos
+
+    [Fact]
+    public async Task estilo_promociones_kiosco_default_tarjetas_y_roundtrip_cinta()
+    {
+        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
+
+        // Sin clave previa → default tarjetas (comportamiento actual).
+        Assert.Equal(KioscoEstilosPromociones.Tarjetas,
+            await ctx.EmpresaConfigService.ObtenerEstiloPromocionesKioscoAsync(token));
+
+        await ctx.EmpresaConfigService.GuardarEstiloPromocionesKioscoAsync(token, KioscoEstilosPromociones.Cinta);
+        Assert.Equal(KioscoEstilosPromociones.Cinta,
+            await ctx.EmpresaConfigService.ObtenerEstiloPromocionesKioscoAsync(token));
+
+        // Vuelve a tarjetas.
+        await ctx.EmpresaConfigService.GuardarEstiloPromocionesKioscoAsync(token, KioscoEstilosPromociones.Tarjetas);
+        Assert.Equal(KioscoEstilosPromociones.Tarjetas,
+            await ctx.EmpresaConfigService.ObtenerEstiloPromocionesKioscoAsync(token));
+
+        await using var conn = ConnectionFactory.Open(ctx.DbPath);
+        var fila = await conn.QuerySingleAsync<(string Clave, string ValorNuevo)>(new CommandDefinition(
+            "SELECT id_registro_afectado, valor_nuevo FROM bitacora_auditoria " +
+            "WHERE accion = 'configuracion.estilo_promociones_kiosco_guardado' ORDER BY created_at DESC LIMIT 1"));
+        Assert.Equal(KioscoEstilosPromociones.ClaveConfig, fila.Clave);
+        Assert.Equal(KioscoEstilosPromociones.Tarjetas, fila.ValorNuevo);
+    }
+
+    [Fact]
+    public async Task estilo_promociones_invalido_es_rechazado_y_desconocido_normaliza_a_tarjetas()
+    {
+        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
+
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.EmpresaConfigService.GuardarEstiloPromocionesKioscoAsync(token, "marquesina"));
+        Assert.Equal("estilo_promociones_invalido", ex.Code);
+
+        // Valor crudo desconocido en BD → la lectura normaliza al default.
+        await ctx.Configuracion.SetAsync(KioscoEstilosPromociones.ClaveConfig, "algo_raro");
+        Assert.Equal(KioscoEstilosPromociones.Tarjetas,
+            await ctx.EmpresaConfigService.ObtenerEstiloPromocionesKioscoAsync(token));
+    }
+
+    [Fact]
+    public async Task guardar_estilo_promociones_sin_permiso_falla()
+    {
+        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
+        await Fase5Helper.ClearPermisosRolAsync(ctx);
+
+        var ex = await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.EmpresaConfigService.GuardarEstiloPromocionesKioscoAsync(token, KioscoEstilosPromociones.Cinta));
+        Assert.Equal(BusinessError.Unauthorized, ex.Error);
+    }
+
     [Fact]
     public async Task marcar_incobrable_cambia_estado_y_registra_bitacora()
     {

@@ -8,6 +8,7 @@
 @using System.Globalization
 @using MudBlazor
 @using SmartGym.Core.Biometrics
+@using SmartGym.Core.Common
 @using SmartGym.Core.Entities
 @using SmartGym.Core.Errors
 @using SmartGym.Core.Repositories
@@ -109,36 +110,70 @@
             break;
     }
 
-    @* Carrusel de promociones vigentes: franja delgada anclada abajo, fuera del
-       flujo (position:absolute) para no desplazar ni competir con el ícono de
-       huella ni el mensaje de bienvenida/denegación. Sin promos vigentes no se
-       renderiza nada — cero ruido en pantalla pública. Vive DENTRO del shell:
-       el shell es fixed + z-index:100 con fondo opaco, y un hermano externo
-       con z-index auto quedaria pintado DETRAS, invisible siempre. *@
-    @if (_promocionesVigentes.Count > 0)
-    {
-        var promo = _promocionesVigentes[_indiceCarrusel];
-        <div class="kiosco-promos" aria-hidden="true">
-            <div class="kiosco-promo-card" @key="promo.IdPromocion">
-                <span class="kiosco-promo-badge @(promo.Tipo == PromocionTipos.Combo ? "kiosco-promo-badge-combo" : "")">
-                    @(promo.Tipo == PromocionTipos.Combo ? "Combo" : "Descuento")
-                </span>
-                <span class="kiosco-promo-nombre">@promo.Nombre</span>
-                <span class="kiosco-promo-precio">
-                    @if (promo.Tipo == PromocionTipos.Descuento)
+@* Franja de promociones vigentes: anclada abajo, fuera del flujo
+   (position:absolute) para no desplazar ni competir con el ícono de huella ni
+   el mensaje de bienvenida/denegación. Sin promos vigentes no se renderiza
+   nada — cero ruido en pantalla pública. Vive DENTRO del shell: el shell es
+   fixed + z-index:100 con fondo opaco, y un hermano externo con z-index auto
+   quedaria pintado DETRAS, invisible siempre. Estilo seleccionable en
+   Configuración (kiosco.estilo_promociones): tarjetas (carrusel) o cinta. *@
+@if (_promocionesVigentes.Count > 0 && _estiloPromos == KioscoEstilosPromociones.Cinta)
+{
+    <div class="kiosco-promos kiosco-cinta" aria-hidden="true">
+        @* El contenido va DUPLICADO (dos grupos idénticos): el track anima
+           translateX(0 → -50%) y al recorrer justo una copia el loop es
+           invisible. Pausa por clase durante el resultado de acceso —
+           animation-play-state congela en la posición actual y retoma solo. *@
+        <div class="kiosco-cinta-track @(_estado == KioscoEstado.Resultado ? "kiosco-cinta-pausada" : "")"
+             style="animation-duration:@(DuracionCinta.ToString(CultureInfo.InvariantCulture))s">
+            @for (var copia = 0; copia < 2; copia++)
+            {
+                <span class="kiosco-cinta-grupo">
+                    @foreach (var p in _promocionesVigentes)
                     {
-                        <s>@FormatearMonto(promo.PrecioOriginalCentavos)</s>
-                        <strong>@FormatearMonto(promo.PrecioFinalCentavos)</strong>
-                    }
-                    else
-                    {
-                        <s>@FormatearMonto(promo.SubtotalComponentesCentavos)</s>
-                        <strong>@FormatearMonto(promo.PrecioComboCentavos)</strong>
+                        <span class="kiosco-cinta-entrada">
+                            <span class="kiosco-cinta-tipo kiosco-cinta-tipo-@(p.Tipo)">@TipoTexto(p)</span>
+                            <span class="kiosco-cinta-nombre">@p.Nombre</span>
+                            <span class="kiosco-cinta-precio">
+                                @(p.Tipo == PromocionTipos.Descuento
+                                    ? FormatearMonto(p.PrecioFinalCentavos)
+                                    : FormatearMonto(p.PrecioComboCentavos))
+                            </span>
+                        </span>
+                        @* Separador tras CADA entrada (también la última del
+                           grupo): el espaciado queda uniforme incluso en la
+                           costura entre una copia y la siguiente. *@
+                        <span class="kiosco-cinta-sep">•</span>
                     }
                 </span>
-            </div>
+            }
         </div>
-    }
+    </div>
+}
+else if (_promocionesVigentes.Count > 0)
+{
+    var promo = _promocionesVigentes[_indiceCarrusel];
+    <div class="kiosco-promos" aria-hidden="true">
+        <div class="kiosco-promo-card" @key="promo.IdPromocion">
+            <span class="kiosco-promo-badge @(promo.Tipo == PromocionTipos.Combo ? "kiosco-promo-badge-combo" : "")">
+                @(promo.Tipo == PromocionTipos.Combo ? "Combo" : "Descuento")
+            </span>
+            <span class="kiosco-promo-nombre">@promo.Nombre</span>
+            <span class="kiosco-promo-precio">
+                @if (promo.Tipo == PromocionTipos.Descuento)
+                {
+                    <s>@FormatearMonto(promo.PrecioOriginalCentavos)</s>
+                    <strong>@FormatearMonto(promo.PrecioFinalCentavos)</strong>
+                }
+                else
+                {
+                    <s>@FormatearMonto(promo.SubtotalComponentesCentavos)</s>
+                    <strong>@FormatearMonto(promo.PrecioComboCentavos)</strong>
+                }
+            </span>
+        </div>
+    </div>
+}
 </div>
 
 @code {
@@ -151,6 +186,7 @@
     [Inject] private IBiometricCaptureService CaptureService { get; set; } = default!;
     [Inject] private IKioscoSoundService Sonido { get; set; } = default!;
     [Inject] private IPromocionesService Promos { get; set; } = default!;
+    [Inject] private IConfiguracionRepository Configuracion { get; set; } = default!;
 
     private KioscoEstado _estado = KioscoEstado.Cargando;
     // volatile: se lee desde el hilo del ThreadPool del Timer y se escribe
@@ -182,14 +218,17 @@
     private Timer? _pollTimer;
     private Timer? _reintentoTemplatesTimer;
 
-    // ---- Carrusel de promociones vigentes ---------------------------------
-    // 4.5s por tarjeta: cómodo para leer nombre + precio sin sentirse lento
-    // ni apresurado. La recarga de vigencia ocurre al completar cada vuelta.
+    // ---- Franja de promociones vigentes (tarjetas / cinta) ----------------
+    // Tick cada 4.5s: en tarjetas avanza el carrusel; en ambos estilos
+    // refresca periódicamente vigencia + estilo (una promo desactivada o un
+    // cambio en Configuración se refleja solos, sin reabrir el Kiosco).
     private const int IntervaloCarruselMs = 4500;
+    private const int TicksEntreRecargas = 4;
     private List<PosPromocionInfo> _promocionesVigentes = [];
+    private string _estiloPromos = KioscoEstilosPromociones.Tarjetas;
     private int _indiceCarrusel;
+    private int _ticksCarrusel;
     private Timer? _carruselTimer;
-    private volatile bool _recargandoCarrusel;
 
     protected override async Task OnInitializedAsync()
     {
@@ -249,7 +288,7 @@
             {
                 return;
             }
-            _ = InvokeAsync(AvanzarCarruselAsync);
+            _ = InvokeAsync(TickFranjaPromosAsync);
         }, null, IntervaloCarruselMs, IntervaloCarruselMs);
 
         // El callback del Timer corre en un hilo del ThreadPool, no en el
@@ -369,6 +408,22 @@
             return;
         }
 
+        // Estilo: lectura directa sin token (mismo patrón que AccesoService con
+        // acceso.modo_registro — el cambio en Configuración aplica sin reabrir).
+        try
+        {
+            var estilo = KioscoEstilosPromociones.Normalizar(
+                await Configuracion.GetAsync(KioscoEstilosPromociones.ClaveConfig));
+            if (!_disposed && estilo != _estiloPromos)
+            {
+                _estiloPromos = estilo;
+            }
+        }
+        catch
+        {
+            // Estilo ilegible: se queda el actual (default tarjetas al montar).
+        }
+
         List<PosPromocionInfo> vigentes;
         try
         {
@@ -394,11 +449,27 @@
         StateHasChanged();
     }
 
-    private async Task AvanzarCarruselAsync()
+    private async Task TickFranjaPromosAsync()
     {
         // Congelado durante el resultado de acceso: la franja sigue visible pero
-        // deja de rotar hasta que la pantalla vuelve al estado de espera.
-        if (_disposed || _estado == KioscoEstado.Resultado || _promocionesVigentes.Count == 0)
+        // deja de rotar/refrescar hasta que la pantalla vuelve al estado de espera
+        // (en cinta la pausa es visual, vía animation-play-state).
+        if (_disposed || _estado == KioscoEstado.Resultado)
+        {
+            return;
+        }
+
+        _ticksCarrusel++;
+
+        // Refresco periódico de vigencia + estilo; inmediato si la franja aún
+        // está vacía (así una promo creada tarde aparece sin reabrir el Kiosco).
+        if (_promocionesVigentes.Count == 0 || _ticksCarrusel % TicksEntreRecargas == 0)
+        {
+            await RecargarPromocionesAsync();
+        }
+
+        // La cinta no rota por índice — se desliza sola vía CSS.
+        if (_estiloPromos != KioscoEstilosPromociones.Tarjetas || _promocionesVigentes.Count == 0)
         {
             return;
         }
@@ -407,29 +478,23 @@
         if (siguiente >= _promocionesVigentes.Count)
         {
             _indiceCarrusel = 0;
-            StateHasChanged();
-
-            // Vuelta completa: momento natural para refrescar la vigencia, así
-            // una promo desactivada/vencida desaparece sola (y con ella toda la
-            // franja si era la única) sin dejar espacio vacío.
-            if (!_recargandoCarrusel)
-            {
-                _recargandoCarrusel = true;
-                try
-                {
-                    await RecargarPromocionesAsync();
-                }
-                finally
-                {
-                    _recargandoCarrusel = false;
-                }
-            }
-            return;
         }
-
-        _indiceCarrusel = siguiente;
+        else
+        {
+            _indiceCarrusel = siguiente;
+        }
         StateHasChanged();
     }
+
+    private static string TipoTexto(PosPromocionInfo p) =>
+        p.Tipo == PromocionTipos.Combo ? "COMBO" : "DESCUENTO";
+
+    /// <summary>Largo estimado de una copia de la cinta, para duración del loop.</summary>
+    private int CaracteresCinta => _promocionesVigentes.Sum(p =>
+        (p.Tipo == PromocionTipos.Combo ? "COMBO: " : "DESCUENTO: ").Length + p.Nombre.Length + 14);
+
+    /// <summary>Duración del loop proporcional al texto: velocidad de lectura constante (~6 chars/s).</summary>
+    private double DuracionCinta => Math.Max(18, Math.Round(CaracteresCinta / 6.0));
 
     private static string FormatearMonto(long centavos) =>
         (centavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("es-MX"));

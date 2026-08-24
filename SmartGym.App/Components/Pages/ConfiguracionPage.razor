@@ -72,6 +72,15 @@
         <span class="sg-nav-item-indicator"></span>
         <span class="sg-nav-item-label">Control de acceso</span>
     </div>
+    <div class="sg-nav-item @(_seccion == SeccionConfig.Kiosco ? "active" : null)"
+         style="width: 100%;"
+         @onclick='() => IrA(SeccionConfig.Kiosco)'
+         @onkeydown='e => SeccionKeyDown(e, SeccionConfig.Kiosco)'
+         role="button" tabindex="0"
+         aria-current="@(_seccion == SeccionConfig.Kiosco ? "true" : null)">
+        <span class="sg-nav-item-indicator"></span>
+        <span class="sg-nav-item-label">Kiosco</span>
+    </div>
     <div class="sg-nav-item @(_seccion == SeccionConfig.WhatsApp ? "active" : null)"
          style="width: 100%;"
          @onclick='() => IrA(SeccionConfig.WhatsApp)'
@@ -83,6 +92,7 @@
     </div>
 </div>
 
+<ErrorBoundary @ref="_boundaryDiag" Context="diagEx">
 @if (_seccion == SeccionConfig.Empresa)
 {
     <div class="glass-panel" style="flex: 1; min-width: 0;">
@@ -290,6 +300,37 @@ else if (_seccion == SeccionConfig.ControlAcceso)
         </div>
     </div>
 }
+else if (_seccion == SeccionConfig.Kiosco)
+{
+    <div class="glass-panel" style="flex: 1; min-width: 0; position: relative;">
+        <AyudaModulo Style="position: absolute; top: 0.6rem; right: 0.6rem;">
+            <p>Aplica a la pantalla del Kiosco en segundos — no requiere reabrirla.</p>
+            <p>En ambos estilos solo se muestran promociones vigentes (activas y dentro de su rango de fechas); si no hay ninguna, la franja no aparece.</p>
+        </AyudaModulo>
+        <p class="form-section" style="text-align: center;">Kiosco</p>
+        <div class="form-fields" style="max-width: 720px; margin: 0 auto;">
+            <MudSelect T="string"
+                       Label="Estilo de promociones"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Value="_estiloPromosKiosco"
+                       ValueChanged="@(v => _estiloPromosKiosco = v ?? KioscoEstilosPromociones.Tarjetas)">
+                <MudSelectItem Value="@KioscoEstilosPromociones.Tarjetas">Tarjetas (carrusel rotativo)</MudSelectItem>
+                <MudSelectItem Value="@KioscoEstilosPromociones.Cinta">Cinta de texto en movimiento</MudSelectItem>
+            </MudSelect>
+            <p class="muted" style="margin: 0;">
+                Tarjetas (por defecto): una promoción a la vez, rotando cada pocos segundos.
+                Cinta: todas las promociones concatenadas deslizándose continuamente de derecha a izquierda.
+            </p>
+            <div style="margin-top: 0.75rem;">
+                <AsyncButton Text="Guardar Kiosco"
+                             LoadingText="Guardando..."
+                             IsLoading="_guardandoEstiloPromos"
+                             OnClick="GuardarEstiloPromosAsync" />
+            </div>
+        </div>
+    </div>
+}
 else
 {
     <div class="glass-panel" style="flex: 1; min-width: 0; position: relative;">
@@ -321,6 +362,7 @@ else
         </div>
     </div>
 }
+</ErrorBoundary>
 </div>
 
 @code {
@@ -333,8 +375,18 @@ else
     [Inject] private SmartGym.App.Services.ILogoState LogoState { get; set; } = default!;
 
     // Navegación por secciones, mismo patrón que Mi Perfil.
-    private enum SeccionConfig { Empresa, Logo, Perifericos, Pos, ControlAcceso, WhatsApp }
+    private enum SeccionConfig { Empresa, Logo, Perifericos, Pos, ControlAcceso, Kiosco, WhatsApp }
 
+    // TEMP-DIAG: recuperacion del ErrorBoundary de diagnostico.
+    private void diagExRecover()
+    {
+        if (_boundaryDiag is not null)
+        {
+            _boundaryDiag.Recover();
+        }
+    }
+
+    private Microsoft.AspNetCore.Components.Web.ErrorBoundary? _boundaryDiag;
     private SeccionConfig _seccion = SeccionConfig.Empresa;
 
     private void IrA(SeccionConfig seccion) => _seccion = seccion;
@@ -439,11 +491,11 @@ else
         }
         try
         {
-            _modoRegistro = await EmpresaConfig.ObtenerModoRegistroAccesoAsync(sesion.Token);
+            _estiloPromosKiosco = await EmpresaConfig.ObtenerEstiloPromocionesKioscoAsync(sesion.Token);
         }
         catch (BusinessException)
         {
-            // Sin sesión válida: queda la modalidad por defecto.
+            // Sin sesión válida: queda el estilo por defecto.
         }
         try
         {
@@ -706,6 +758,39 @@ else
         finally
         {
             _guardandoModoRegistro = false;
+            StateHasChanged();
+        }
+    }
+
+    // --- Kiosco: estilo de la franja de promociones -----------------------------
+    private string _estiloPromosKiosco = KioscoEstilosPromociones.Tarjetas;
+    private bool _guardandoEstiloPromos;
+
+    private async Task GuardarEstiloPromosAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _guardandoEstiloPromos)
+        {
+            return;
+        }
+
+        _guardandoEstiloPromos = true;
+        try
+        {
+            await EmpresaConfig.GuardarEstiloPromocionesKioscoAsync(sesion.Token, _estiloPromosKiosco);
+            Feedback.ShowSuccess("Estilo de promociones del Kiosco guardado");
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo guardar el estilo de promociones");
+        }
+        finally
+        {
+            _guardandoEstiloPromos = false;
             StateHasChanged();
         }
     }

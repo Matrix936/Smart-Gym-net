@@ -194,6 +194,27 @@ public sealed class EmpresaConfigService : IEmpresaConfigService
             ClaveModoRegistroAcceso, tablaAfectada: "configuracion_general", nuevo: normalizado, ct: ct);
     }
 
+    public async Task<string> ObtenerEstiloPromocionesKioscoAsync(string token, CancellationToken ct = default)
+    {
+        await _auth.ValidarSesionAsync(token, ct);
+        return KioscoEstilosPromociones.Normalizar(await _configuracion.GetAsync(KioscoEstilosPromociones.ClaveConfig, ct));
+    }
+
+    public async Task GuardarEstiloPromocionesKioscoAsync(string token, string estilo, CancellationToken ct = default)
+    {
+        var info = await GateAsync(token, ct);
+
+        if (!KioscoEstilosPromociones.Validos.Contains(estilo?.Trim() ?? "", StringComparer.OrdinalIgnoreCase))
+        {
+            throw BusinessException.Validation("Estilo de promociones del Kiosco inválido", "estilo_promociones_invalido");
+        }
+
+        var normalizado = KioscoEstilosPromociones.Normalizar(estilo);
+        await _configuracion.SetAsync(KioscoEstilosPromociones.ClaveConfig, normalizado, ct);
+        await RegistrarBitacoraAsync(info, "configuracion.estilo_promociones_kiosco_guardado",
+            KioscoEstilosPromociones.ClaveConfig, tablaAfectada: "configuracion_general", nuevo: normalizado, ct: ct);
+    }
+
     public async Task<PerifericosTicket> GuardarPerifericosAsync(
         string token, PerifericosTicket perifericos, CancellationToken ct = default)
     {

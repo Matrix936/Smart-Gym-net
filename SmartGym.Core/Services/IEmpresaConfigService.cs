@@ -46,6 +46,15 @@ public interface IEmpresaConfigService
     Task GuardarModoRegistroAccesoAsync(string token, string modo, CancellationToken ct = default);
 
     /// <summary>
+    /// Estilo de la franja de promociones del Kiosco (tarjetas / cinta).
+    /// Lectura con sesión válida — la UI la necesita sin permiso de configuración.
+    /// </summary>
+    Task<string> ObtenerEstiloPromocionesKioscoAsync(string token, CancellationToken ct = default);
+
+    /// <summary>Guarda el estilo (gate ConfiguracionEditar + bitácora). Rechaza valores inválidos.</summary>
+    Task GuardarEstiloPromocionesKioscoAsync(string token, string estilo, CancellationToken ct = default);
+
+    /// <summary>
     /// Periféricos del POS (impresora de tickets, papel, densidad, cajón e
     /// impresión automática). Lectura con sesión válida — la UI del POS la
     /// necesita sin permiso de configuración.
