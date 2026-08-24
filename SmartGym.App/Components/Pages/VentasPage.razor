@@ -396,8 +396,10 @@
         new("estado", "Estado venta"),
         new("sede", "Sede"),
     };
-    private static readonly string[] _visiblesIniciales = ["socio"];
-    private HashSet<string> _filtrosVisibles = ["socio"];
+    // Ningún filtro secundario activo por defecto: Tipo es primario siempre
+    // visible; los del menú se encienden bajo demanda.
+    private static readonly string[] _visiblesIniciales = [];
+    private HashSet<string> _filtrosVisibles = [];
 
     private int ConteoAplicados =>
         (_socioSeleccionado is not null ? 1 : 0) +
