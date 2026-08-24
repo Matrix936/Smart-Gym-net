@@ -1731,6 +1731,48 @@ table.data-table {
     to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+/* Variante cinta (marquesina): todas las promos concatenadas deslizándose
+   de derecha a izquierda en loop infinito. Técnica sin JS: el track contiene
+   el texto DUPLICADO (dos spans idénticos desde KioscoPage) y se anima
+   translateX(0 → -50%) — al recorrer justo una copia, el reinicio del loop es
+   invisible. Duración seteada por inline style proporcional al largo del
+   texto (velocidad de lectura constante). Congelado durante el resultado de
+   acceso vía animation-play-state: paused (clase kiosco-cinta-pausada). */
+.kiosco-cinta {
+    display: block;
+    overflow: hidden;
+    padding-left: 0;
+    padding-right: 0;
+    background: var(--color-surface-2);
+    border-top: var(--glass-border);
+    border-bottom: var(--glass-border);
+}
+
+.kiosco-cinta-track {
+    display: inline-flex;
+    align-items: baseline;
+    width: max-content;
+    will-change: transform;
+    animation: kiosco-cinta-deslizar 30s linear infinite;
+}
+
+.kiosco-cinta-pausada {
+    animation-play-state: paused;
+}
+
+.kiosco-cinta-texto {
+    font-size: clamp(0.95rem, 2.4vw, 1.85rem);
+    font-weight: 600;
+    white-space: nowrap;
+    /* Separación entre entradas y entre la copia y su repetición. */
+    padding-right: 6rem;
+}
+
+@keyframes kiosco-cinta-deslizar {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+}
+
 /* Accesibilidad: si el sistema pide menos movimiento, todo apagado — la
    retroalimentación esencial (mensaje + sonido) no depende de la animación. */
 @media (prefers-reduced-motion: reduce) {
@@ -1740,7 +1782,8 @@ table.data-table {
     .kiosco-icon-ok,
     .kiosco-icon-error,
     .kiosco-icon-warn,
-    .kiosco-promo-card {
+    .kiosco-promo-card,
+    .kiosco-cinta-track {
         animation: none;
     }
 }
@@ -2076,12 +2119,13 @@ table.data-table {
 }
 
 /* Menu abierto (aria-expanded="true" en el wrapper del activador).
-   ⚠️ NO ELIMINAR NI RELAJAR ESTE SELECTOR: el morfeo tres-puntos↔X de TODAS
-   las tablas depende de él. El combinador hijo directo (>) exige que
-   .morph-toggle sea hijo del elemento con aria-expanded — si MudBlazor
-   cambia su DOM o alguien mueve el span de lugar, el efecto muere
-   silenciosamente. Ya ocurrió una vez por depender de :hover (ver
-   08-problemas-resueltos-blazor.md). */
+   ⚠️ NOTA (diagnóstico con DOM real): MudBlazor 9.8.0 renderiza
+   aria-expanded="" (VACÍO) siempre — Blazor no emite "True"/"true", así que
+   estas reglas NUNCA hacen match y el morfeo murió silenciosamente.
+   El mecanismo vigente es la clase .abierto (abajo), alimentada por
+   @bind-Open del propio MudMenu: dueños del estado, sin depender de cómo
+   renderice atributos internos la librería. Se conservan como referencia
+   histórica del enfoque abandonado.
 [aria-expanded="true" i] > .morph-toggle .morph-more,
 .morph-toggle:focus-visible .morph-more {
     opacity: 0;
@@ -2090,6 +2134,18 @@ table.data-table {
 
 [aria-expanded="true" i] > .morph-toggle .morph-close,
 .morph-toggle:focus-visible .morph-close {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+}
+*/
+
+/* Morfeo VIGENTE: la clase .abierto la pone cada página via @bind-Open. */
+.morph-toggle.abierto .morph-more {
+    opacity: 0;
+    transform: rotate(90deg) scale(0.5);
+}
+
+.morph-toggle.abierto .morph-close {
     opacity: 1;
     transform: rotate(0deg) scale(1);
 }

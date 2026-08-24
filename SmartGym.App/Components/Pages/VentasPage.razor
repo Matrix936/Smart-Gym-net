@@ -193,14 +193,14 @@
                                     @* Mismo menú de tres puntos que el resto de las tablas
                                        (Miembros/Membresías/Bitácora): MorphToggle + ToggleAsync
                                        explícito por el breaking change de MudBlazor v9. *@
-                                    <MudMenu AnchorOrigin="Origin.BottomRight"
+                                    <MudMenu @bind-Open="_menuMorphAbierta" AnchorOrigin="Origin.BottomRight"
                                              TransformOrigin="Origin.TopRight"
                                              Class="row-menu">
                                         <ActivatorContent>
                                             @* MudBlazor v9: ActivatorContent recibe MenuContext; el clic ya no
                                                abre el menu implicitamente (breaking change v9), hay que llamar
                                                context.ToggleAsync explicito. Ver
-                                               https://github.com/MudBlazor/MudBlazor/issues/12666 *@<span class="morph-toggle"
+                                               https://github.com/MudBlazor/MudBlazor/issues/12666 *@<span class="morph-toggle @(_menuMorphAbierta ? "abierto" : "")"
 
                                             @onclick="@context.ToggleAsync"
 
@@ -368,6 +368,8 @@
 
 @implements IDisposable
 @code {
+    // Estado del menu de fila con morfeo (bind-Open): duenos del estado, sin depender de aria-expanded.
+    private bool _menuMorphAbierta;
     [Inject] private ISessionState Sesion { get; set; } = default!;
     [Inject] private IVentasService Ventas { get; set; } = default!;
     [Inject] private IPosService Pos { get; set; } = default!;

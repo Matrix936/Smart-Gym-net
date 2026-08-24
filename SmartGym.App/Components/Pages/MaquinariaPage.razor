@@ -114,11 +114,11 @@
                             </td>
                             <td class="muted-cell">@(m.Notas ?? "—")</td>
                             <td class="col-accion">
-                                <MudMenu AnchorOrigin="Origin.BottomRight"
+                                <MudMenu @bind-Open="_menuMorphAbierta" AnchorOrigin="Origin.BottomRight"
                                          TransformOrigin="Origin.TopRight"
                                          Class="row-menu">
                                     <ActivatorContent>
-                                        @* MudBlazor v9: ToggleAsync explícito (breaking change v9). *@<span class="morph-toggle"
+                                        @* MudBlazor v9: ToggleAsync explícito (breaking change v9). *@<span class="morph-toggle @(_menuMorphAbierta ? "abierto" : "")"
 
                                         @onclick="@context.ToggleAsync"
 
@@ -246,6 +246,8 @@
                OnCancel="CancelarConfirmar" />
 
 @code {
+    // Estado del menu de fila con morfeo (bind-Open): duenos del estado, sin depender de aria-expanded.
+    private bool _menuMorphAbierta;
     [Inject] private ISessionState Sesion { get; set; } = default!;
     [Inject] private IMaquinariaService Maquinaria { get; set; } = default!;
     [Inject] private IAuthorizationService Authz { get; set; } = default!;
