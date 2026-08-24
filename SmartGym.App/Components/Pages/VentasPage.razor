@@ -864,14 +864,14 @@
                 sede.Direccion,
                 sede.Telefono,
                 Cajero: sesion.Nombre ?? "POS",
-                MensajePie: "REIMPRESIÓN");
+                MensajePie: null);
             _logoDataUrl = logoDataUrl;
             _logoRasterCache = await Print.RasterizarLogoAsync(
                 TicketVentaMapper.DecodificarDataUrl(logoDataUrl) ?? [], _papelAncho, 384);
         }
         catch (BusinessException)
         {
-            _negocioTicket = new TicketDatosNegocio(null, null, "Smart Gym", null, null, "POS", "REIMPRESIÓN");
+            _negocioTicket = new TicketDatosNegocio(null, null, "Smart Gym", null, null, "POS", null);
         }
     }
 
