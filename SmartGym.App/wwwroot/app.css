@@ -1688,6 +1688,12 @@ table.data-table {
    Desviacion documentada del patron de tabla: grilla de tarjetas para uso
    repetitivo en mostrador (posible pantalla tactil). El carrito es un panel
    fijo a la derecha. Usa tokens glass del proyecto. */
+
+/* Separación de los spinners de MudNumericField respecto al borde derecho:
+   el usuario pidió "mételas un poquito más", no ocultarlas. */
+.num-spinner-gap {
+    padding-right: 8px;
+}
 .pos-alert {
     margin-bottom: 1rem;
 }
@@ -1882,9 +1888,12 @@ table.data-table {
 
 /* ---------- Morfeo de iconos en menus (tres puntos <-> X) ----------
    Dos SVG superpuestos con transicion CSS pura (opacity + rotate 200ms).
-   El morfeo se activa con :hover sobre el toggle; al hacer clic el menu
-   se abre normalmente pero el icono ya esta en estado X como indicador
-   visual de que hay acciones disponibles. */
+   El morfeo refleja el ESTADO REAL de apertura del menu: MudBlazor pone
+   aria-expanded="true" en el wrapper del activador mientras el popover
+   esta abierto (y "false" al cerrar, incluido cierre por backdrop), asi
+   que el selector depende de ese atributo y NO del hover — pasar el cursor
+   sin abrir el menu deja los tres puntos intactos. :focus-visible se
+   conserva como indicador de teclado. */
 .morph-toggle {
     position: relative;
     display: inline-flex;
@@ -1915,13 +1924,14 @@ table.data-table {
     transform: rotate(-90deg) scale(0.5);
 }
 
-.morph-toggle:hover .morph-more,
+/* Menu abierto (aria-expanded="true" en el wrapper del activador). */
+[aria-expanded="true" i] > .morph-toggle .morph-more,
 .morph-toggle:focus-visible .morph-more {
     opacity: 0;
     transform: rotate(90deg) scale(0.5);
 }
 
-.morph-toggle:hover .morph-close,
+[aria-expanded="true" i] > .morph-toggle .morph-close,
 .morph-toggle:focus-visible .morph-close {
     opacity: 1;
     transform: rotate(0deg) scale(1);
