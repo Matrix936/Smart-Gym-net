@@ -116,6 +116,9 @@
                                             <MudMenuItem OnClick='() => AbrirAbono(c)'>
                                                 <MudIcon Icon="@Icons.Material.Filled.Payment" Size="Size.Small" /> Registrar abono
                                             </MudMenuItem>
+                                            <MudMenuItem OnClick='() => PedirMarcarIncobrable(c)'>
+                                                <MudIcon Icon="@Icons.Material.Filled.Block" Size="Size.Small" /> Marcar incobrable
+                                            </MudMenuItem>
                                         }
                                     </ChildContent>
                                 </MudMenu>
@@ -195,6 +198,14 @@
     </DialogActions>
 </MudDialog>
 
+<ConfirmDialog IsOpen="_confirmar is not null"
+               Titulo="@_confirmar?.Titulo"
+               Mensaje="@(_confirmar?.Mensaje ?? "")"
+               TextoConfirmar="@(_confirmar?.TextoConfirmar ?? "Confirmar")"
+               IsLoading="_confirmarCargando"
+               OnConfirm="EjecutarConfirmar"
+               OnCancel="CancelarConfirmar" />
+
 @code {
     [Inject] private ISessionState Sesion { get; set; } = default!;
     [Inject] private ICobranzaService Cobranza { get; set; } = default!;
@@ -230,6 +241,11 @@
     private decimal _montoAbono;
     private string _metodoAbono = MetodosPago.Efectivo;
     private bool _registrandoAbono;
+
+    // Confirmación de marcar incobrable (ConfirmDialog compartido, patrón Miembros).
+    private sealed record ConfirmarTarea(string Titulo, string Mensaje, string TextoConfirmar, Func<Task> Accion);
+    private ConfirmarTarea? _confirmar;
+    private bool _confirmarCargando;
 
     protected override async Task OnInitializedAsync()
     {
@@ -356,6 +372,58 @@
         _montoAbono = 0;
         _metodoAbono = MetodosPago.Efectivo;
         _abonoAbierto = true;
+    }
+
+    private void PedirMarcarIncobrable(CuentaCobrarDto cuenta)
+    {
+        _confirmar = new ConfirmarTarea("Marcar incobrable",
+            $"¿Marcar como incobrable el cargo de «{cuenta.NombreSocio}» por {FormatearMonto(cuenta.SaldoPendienteCentavos)}? " +
+            "Dejará de aparecer en la cobranza pendiente y no se podrá registrar abono.",
+            "Marcar incobrable",
+            () => MarcarIncobrableAsync(cuenta));
+        StateHasChanged();
+    }
+
+    private async Task MarcarIncobrableAsync(CuentaCobrarDto cuenta)
+    {
+        var sesion = Sesion.Current!;
+        await Cobranza.MarcarIncobrableAsync(sesion.Token, cuenta.IdCuenta);
+        Feedback.ShowSuccess($"Cargo de «{cuenta.NombreSocio}» marcado como incobrable");
+        await CargarAsync();
+    }
+
+    private async Task EjecutarConfirmar()
+    {
+        if (_confirmar is null)
+        {
+            return;
+        }
+
+        _confirmarCargando = true;
+        try
+        {
+            await _confirmar.Accion();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo completar la acción");
+        }
+        finally
+        {
+            _confirmarCargando = false;
+            _confirmar = null;
+            StateHasChanged();
+        }
+    }
+
+    private void CancelarConfirmar()
+    {
+        _confirmar = null;
+        StateHasChanged();
     }
 
     private void CerrarAbono()
