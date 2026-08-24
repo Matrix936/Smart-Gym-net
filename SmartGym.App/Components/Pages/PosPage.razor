@@ -286,9 +286,11 @@ else
     <DialogContent>
         @if (_recibo is not null)
         {
-            <TicketPreview Folio="@_recibo.Folio"
+            <TicketPreview Folio="@FolioCorto(_recibo.Folio)"
                            Fecha="@_recibo.Fecha"
+                           Atendio="@_recibo.Atendio"
                            MetodoPago="@_recibo.MetodoPago"
+                           Estado="@VentaEstados.Completada"
                            Socio="@_recibo.Socio"
                            Items="@(ReciboComoItems())"
                             TotalCentavos="@_recibo.TotalCentavos"
@@ -469,6 +471,9 @@ else
         string Fecha,
         string MetodoPago,
         string? Socio,
+
+        /// <summary>Quién atendió (usuario logueado en el POS al cobrar).</summary>
+        string Atendio,
         IReadOnlyList<ReciboLinea> Items,
         long TotalCentavos,
         long SaldoPendienteCentavos,
@@ -1076,6 +1081,7 @@ else
                 Socio: _socioSeleccionado is null
                     ? null
                     : $"{_socioSeleccionado.Nombre} {_socioSeleccionado.ApellidoPaterno}".Trim(),
+                Atendio: string.IsNullOrWhiteSpace(sesion.Nombre) ? "POS" : sesion.Nombre,
                 Items: _carrito.Values.Select(l =>
                     {
                         var d = DescuentoDe(l.Producto);
@@ -1110,6 +1116,19 @@ else
             _montoPagado = null;
             _efectivoRecibido = null;
             await CargarProductosAsync();
+
+            // Contexto empresa/sede/logo del preview (lazy: solo la primera
+            // venta de la sesión paga la lectura; después viene de caché).
+            try
+            {
+                await CargarNegocioTicketAsync();
+                StateHasChanged();
+            }
+            catch
+            {
+                // Preview con defaults; Reimprimir reportará su propio error si aplica.
+            }
+
             _reciboAbierto = true;
             _enfocarReciboAlAbrir = true;
             StateHasChanged();
@@ -1138,6 +1157,10 @@ else
 
     private static string Capitalizar(string texto) =>
         string.IsNullOrEmpty(texto) ? texto : char.ToUpperInvariant(texto[0]) + texto[1..];
+
+    /// <summary>Mismo criterio que el ticket impreso: prefijo corto del folio.</summary>
+    private static string FolioCorto(string folio) =>
+        folio.Length <= 8 ? folio : folio[..8];
 
     private static string FormatearMonto(long centavos) =>
         (centavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("es-MX"));
