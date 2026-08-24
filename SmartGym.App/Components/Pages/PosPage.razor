@@ -4,7 +4,11 @@
    frecuente pantalla táctil); el resto del sistema sigue siendo tablas porque
    son pantallas de administración. La cancelación de ventas vive en /ventas —
    aquí solo se cobra. El stock que ve el cajero es un snapshot: el backend
-   revalida contra DB al cobrar (stock_insuficiente) ante desincronización. *@
+   revalida contra DB al cobrar (stock_insuficiente) ante desincronización.
+   Atajos de teclado (sgUi.posAtajos en index.html): Enter cobra y +/- ajusta
+   la cantidad del último producto agregado; se ignoran si el foco está en un
+   control interactivo. Al confirmar la venta se muestra un recibo visual en
+   pantalla (MudDialog) — sin impresión física, eso sigue fuera de alcance. *@
 @implements IDisposable
 @using System.Globalization
 @using MudBlazor
@@ -92,7 +96,8 @@ else
                                 class="pos-card @(agotado ? "pos-card-agotado" : "")"
                                 disabled="@agotado"
                                 title="@(agotado ? "Sin stock" : "Agregar al carrito")"
-                                @onclick='() => AgregarAlCarrito(p)'>
+                                data-sg-pos-captura
+                                @onclick='e => AgregarAlCarritoAsync(p, e)'>
                             <span class="pos-card-desc">@p.Descripcion</span>
                             <span class="pos-card-precio">@FormatearMonto(p.PrecioVentaCentavos)</span>
                             <span class="muted pos-card-stock">
@@ -172,9 +177,55 @@ else
                              Disabled="@(_carrito.Count == 0 || _cajaAbierta is null)"
                              OnClick="CobrarAsync" />
             </div>
+            <p class="muted pos-hint">Enter cobra · + / − ajusta la cantidad del último producto</p>
         </div>
     </div>
 }
+
+@* Recibo visual de la venta recién confirmada: resumen en pantalla (folio,
+   fecha, método, socio, líneas y total). Cerrar deja el POS listo para la
+   siguiente venta — el carrito ya se limpió al cobrar. *@
+<MudDialog Visible="_reciboAbierto"
+           VisibleChanged="v => _reciboAbierto = v"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Venta registrada</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_recibo is not null)
+        {
+            <div class="summary-row"><span class="summary-label">Folio</span><span class="muted">@_recibo.Folio</span></div>
+            <div class="summary-row"><span class="summary-label">Fecha</span><span>@_recibo.Fecha</span></div>
+            <div class="summary-row"><span class="summary-label">Método de pago</span><span>@_recibo.MetodoPago</span></div>
+            @if (_recibo.Socio is not null)
+            {
+                <div class="summary-row"><span class="summary-label">Socio</span><span>@_recibo.Socio</span></div>
+            }
+            <div class="table-wrap" style="margin-top: 1rem;">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Producto</th><th>Cant.</th><th style="text-align: right;">P. unitario</th><th style="text-align: right;">Subtotal</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _recibo.Items)
+                        {
+                            <tr>
+                                <td>@item.Descripcion</td>
+                                <td>@item.Cantidad</td>
+                                <td style="text-align: right;">@FormatearMonto(item.PrecioUnitarioCentavos)</td>
+                                <td style="text-align: right;">@FormatearMonto(item.SubtotalCentavos)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="form-section" style="text-align: right; margin-top: 0.75rem;">Total: @FormatearMonto(_recibo.TotalCentavos)</p>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => _reciboAbierto = false">Nueva venta</MudButton>
+    </DialogActions>
+</MudDialog>
 
 @code {
     [Inject] private ISessionState Sesion { get; set; } = default!;
@@ -186,6 +237,9 @@ else
     [Inject] private ISedesRepository Sedes { get; set; } = default!;
     [Inject] private IAuthorizationService Authz { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    private DotNetObjectReference<PosPage>? _atajosRef;
 
     private bool _tienePermiso;
     private bool _cargando = true;
@@ -209,6 +263,25 @@ else
     private Socio? _socioSeleccionado;
     private string _metodoPago = MetodosPago.Efectivo;
     private bool _cobrando;
+
+    // Snapshot del recibo en pantalla: se congela al confirmar la venta porque
+    // el carrito se limpia inmediatamente para la siguiente.
+    private sealed record ReciboLinea(
+        string Descripcion,
+        long Cantidad,
+        long PrecioUnitarioCentavos,
+        long SubtotalCentavos);
+
+    private sealed record ReciboVenta(
+        string Folio,
+        string Fecha,
+        string MetodoPago,
+        string? Socio,
+        IReadOnlyList<ReciboLinea> Items,
+        long TotalCentavos);
+
+    private ReciboVenta? _recibo;
+    private bool _reciboAbierto;
 
     protected override async Task OnInitializedAsync()
     {
@@ -246,7 +319,79 @@ else
         await CargarAsync();
     }
 
-    public void Dispose() => _debounce?.Cancel();
+    public void Dispose()
+    {
+        _debounce?.Cancel();
+        _atajosRef?.Dispose();
+        // Libera el listener global de atajos (try/catch: el JSRuntime puede no
+        // estar disponible al desmontar, misma regla que localStorage).
+        try
+        {
+            _ = JS.InvokeVoidAsync("sgUi.posAtajos", null);
+        }
+        catch
+        {
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Registro del listener global de atajos (una sola vez, con permiso).
+        if (!firstRender || !_tienePermiso || _atajosRef is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            _atajosRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("sgUi.posAtajos", _atajosRef);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    /// <summary>Atajos de mostrador desde el listener global: Enter cobra,
+    /// +/- ajustan la cantidad del último producto agregado.</summary>
+    [JSInvokable]
+    public void OnAtajoPos(string key)
+    {
+        if (!_tienePermiso || _cobrando)
+        {
+            return;
+        }
+
+        switch (key)
+        {
+            case "Enter":
+                if (_carrito.Count > 0 && _cajaAbierta is not null)
+                {
+                    _ = CobrarAsync();
+                }
+                break;
+            case "+" or "=":
+                AjustarUltimaLinea(+1);
+                break;
+            case "-" or "_":
+                AjustarUltimaLinea(-1);
+                break;
+        }
+
+        StateHasChanged();
+    }
+
+    private void AjustarUltimaLinea(long delta)
+    {
+        var ultima = _carrito.Values.LastOrDefault();
+        if (ultima is not null)
+        {
+            CambiarCantidad(ultima, delta);
+        }
+    }
 
     private long IdSedeEfectivo(SessionInfo sesion) =>
         _showSede ? _sedeSeleccionada : sesion.IdSede!.Value;
@@ -346,7 +491,10 @@ else
 
     private void OnSocioChangedAsync(Socio? socio) => _socioSeleccionado = socio;
 
-    private void AgregarAlCarrito(Producto p)
+    /// <summary>Agrega al carrito y, si el toque fue con puntero (Detail > 0;
+    /// la activación por teclado reporta Detail = 0), suelta el foco de la
+    /// tarjeta para que Enter después signifique "cobrar", no re-agregar.</summary>
+    private async Task AgregarAlCarritoAsync(Producto p, MouseEventArgs e)
     {
         if (_cajaAbierta is null)
         {
@@ -360,6 +508,18 @@ else
         }
 
         _carrito[p.IdProducto] = new CarritoLinea(p, cantidadActual + 1);
+
+        if (e.Detail > 0)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("sgUi.blurActivo");
+            }
+            catch
+            {
+                // Sin blur el atajo de Enter simplemente re-agrega: degradación aceptable.
+            }
+        }
     }
 
     private void CambiarCantidad(CarritoLinea linea, long delta)
@@ -418,13 +578,29 @@ else
             var venta = await Pos.RegistrarVentaAsync(
                 sesion.Token, input, _showSede ? _sedeSeleccionada : null);
 
-            Feedback.ShowSuccess($"Venta registrada — total {FormatearMonto(venta.TotalCentavos)}");
+            // Recibo en pantalla (reemplaza al snackbar de "Venta registrada"):
+            // snapshot ANTES de limpiar, porque el carrito ya no estará.
+            _recibo = new ReciboVenta(
+                Folio: venta.IdVenta,
+                Fecha: DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.GetCultureInfo("es-MX")),
+                MetodoPago: Capitalizar(_metodoPago),
+                Socio: _socioSeleccionado is null
+                    ? null
+                    : $"{_socioSeleccionado.Nombre} {_socioSeleccionado.ApellidoPaterno}".Trim(),
+                Items: _carrito.Values.Select(l => new ReciboLinea(
+                    l.Producto.Descripcion,
+                    l.Cantidad,
+                    l.Producto.PrecioVentaCentavos,
+                    l.Producto.PrecioVentaCentavos * l.Cantidad)).ToList(),
+                TotalCentavos: venta.TotalCentavos);
 
             // El backend ya descontó stock y generó el movimiento de caja:
             // refresca snapshot y limpia el carrito para la siguiente venta.
             _carrito = new Dictionary<long, CarritoLinea>();
             _socioSeleccionado = null;
             await CargarProductosAsync();
+            _reciboAbierto = true;
+            StateHasChanged();
         }
         catch (BusinessException ex)
         {

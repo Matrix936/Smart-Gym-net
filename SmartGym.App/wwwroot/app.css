@@ -1773,6 +1773,12 @@ table.data-table {
     font-weight: 700;
 }
 
+/* Atajos de teclado del POS: recordatorio discreto al pie del carrito. */
+.pos-hint {
+    font-size: 0.8rem;
+    margin-top: 0.75rem;
+}
+
 @media (max-width: 900px) {
     .pos-layout {
         flex-direction: column;

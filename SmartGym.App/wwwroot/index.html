@@ -36,6 +36,35 @@
             focus: function (selector) {
                 var el = document.querySelector(selector);
                 if (el) el.focus();
+            },
+            // POS: tras un toque con puntero en una tarjeta, soltar el foco para
+            // que Enter signifique "cobrar" y no volver a agregar el producto.
+            // (La activación por teclado de la tarjeta llama a esto con Detail=0,
+            // o sea que nunca llega acá — ver PosPage.AgregarAlCarritoAsync.)
+            blurActivo: function () {
+                var el = document.activeElement;
+                if (el && el !== document.body && el.blur) el.blur();
+            },
+            // POS: listener global de atajos (se registra al montar PosPage y se
+            // libera al navegar). Ignora la tecla cuando el foco está en controles
+            // interactivos: campos de texto (búsqueda/socio), selects (sede/método),
+            // botones (Cobrar/cantidad) y las propias tarjetas (data-sg-pos-captura,
+            // donde Enter/Espacio ya agregan vía el click nativo del botón).
+            posAtajos: function (dotnetRef) {
+                if (window.__sgPosDispose) window.__sgPosDispose();
+                if (!dotnetRef) return;
+                var handler = function (e) {
+                    var activo = document.activeElement;
+                    if (activo && activo.closest &&
+                        activo.closest('input, textarea, select, button, a, [contenteditable], [data-sg-pos-captura]')) return;
+                    if (e.key !== 'Enter' && e.key !== '+' && e.key !== '=' && e.key !== '-' && e.key !== '_') return;
+                    dotnetRef.invokeMethodAsync('OnAtajoPos', e.key);
+                };
+                window.addEventListener('keydown', handler);
+                window.__sgPosDispose = function () {
+                    window.removeEventListener('keydown', handler);
+                    window.__sgPosDispose = null;
+                };
             }
         };
 
