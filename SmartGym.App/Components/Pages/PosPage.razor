@@ -27,7 +27,7 @@
     </div>
     <AyudaModulo>
         <p>Atajos de teclado: Enter abre la confirmación de cobro y, dentro de ella, la confirma; + / − ajusta la cantidad del último producto agregado.</p>
-        <p>El stock mostrado es un snapshot: el backend lo revalida al cobrar.</p>
+        <p>El stock mostrado es un snapshot: el sistema lo revalida al cobrar.</p>
     </AyudaModulo>
 </div>
 
@@ -240,6 +240,7 @@ else
                         </div>
                     }
                 </div>
+            }
             <div class="form-fields">
                 <MudAutocomplete T="Socio"
                                  Label="Socio (opcional)"
@@ -1255,7 +1256,6 @@ else
 
         if (lineas > 1)
         {
-            _vaciarMensaje = $"Se eliminarán {lineas} línea(s) del carrito.";
             _vaciarConfirmacion = true;
             StateHasChanged();
             return;
