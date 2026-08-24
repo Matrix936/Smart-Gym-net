@@ -10,6 +10,7 @@
 @using MudBlazor
 @using SmartGym.Core.Authorization
 @using SmartGym.Core.Entities
+@using SmartGym.Core.Repositories
 @using SmartGym.Core.Services
 @using SmartGym.App.Services
 
@@ -65,10 +66,10 @@
 @if (_seccion == SeccionConfig.Empresa)
 {
     <div class="glass-panel" style="flex: 1; min-width: 0;">
-        <p class="form-section">Datos de la empresa</p>
+        <p class="form-section" style="text-align: center;">Datos de la empresa</p>
         @if (!_cargandoEmpresa)
         {
-            <div class="form-fields" style="max-width: 560px;" @onkeydown="HandleDatosKeyDown">
+            <div class="form-fields" style="max-width: 720px; margin: 0 auto;" @onkeydown="HandleDatosKeyDown">
                 <div class="form-row">
                     <MudTextField T="string" Label="Nombre comercial *" Variant="Variant.Outlined"
                                   Margin="Margin.Dense" Immediate="true" @bind-Value="_nombreComercial" />
@@ -90,11 +91,24 @@
                 <MudTextField T="string" Label="Régimen fiscal" Variant="Variant.Outlined"
                               Margin="Margin.Dense" Immediate="true" @bind-Value="_regimenFiscal" />
             </div>
-            <div style="margin-top: 0.75rem;">
+            <div style="max-width: 720px; margin: 0.75rem auto 0;">
                 <AsyncButton Text="Guardar datos de empresa"
                              LoadingText="Guardando..."
                              IsLoading="_guardandoDatos"
                              OnClick="GuardarDatosAsync" />
+            </div>
+
+            @* Nombre de la sede: acción independiente con su propio submit
+               (mismo criterio de submits separados que Mi Perfil). *@
+            <div class="form-fields" style="max-width: 720px; margin: 1.5rem auto 0;" @onkeydown="HandleSedeKeyDown">
+                <MudTextField T="string" Label="Nombre de la sede *" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" Immediate="true" @bind-Value="_nombreSede" />
+                <div style="margin-top: 0.75rem;">
+                    <AsyncButton Text="Guardar nombre de la sede"
+                                 LoadingText="Guardando..."
+                                 IsLoading="_guardandoSede"
+                                 OnClick="GuardarSedeAsync" />
+                </div>
             </div>
         }
     </div>
@@ -102,12 +116,12 @@
 else if (_seccion == SeccionConfig.Logo)
 {
     <div class="glass-panel" style="flex: 1; min-width: 0;">
-        <p class="form-section">Logo</p>
+        <p class="form-section" style="text-align: center;">Logo</p>
         @* Preview grande (mismo criterio del SetupWizard) con X en la esquina,
            siempre visible — sin botón de texto aparte. Quitar es directo, como
            antes (nunca tuvo ConfirmDialog). El input nativo va oculto dentro
            del label para que "Escoger foto" se vea como botón del sistema. *@
-        <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; max-width: 720px; margin: 0 auto;">
             @if (_logoDataUrl is not null)
             {
                 <div class="logo-preview">
@@ -127,14 +141,14 @@ else if (_seccion == SeccionConfig.Logo)
         </div>
     </div>
 }
-else
+else if (_seccion == SeccionConfig.Impresora)
 {
     <div class="glass-panel" style="flex: 1; min-width: 0;">
-        <p class="form-section">Impresora</p>
-        <p class="muted" style="margin-bottom: 0.75rem;">
+        <p class="form-section" style="text-align: center;">Impresora</p>
+        <p class="muted" style="margin-bottom: 0.75rem; text-align: center;">
             Se guarda tu selección para cuando exista la impresión de tickets. Sin flujo de impresión todavía.
         </p>
-        <div class="form-fields" style="max-width: 480px;">
+        <div class="form-fields" style="max-width: 720px; margin: 0 auto;">
             <MudSelect T="string"
                        Label="Impresora"
                        Variant="Variant.Outlined"
@@ -153,7 +167,7 @@ else
         </div>
     </div>
 }
-else if (_seccion == SeccionConfig.WhatsApp)
+else
 {
     <div class="glass-panel" style="flex: 1; min-width: 0;">
         <p class="form-section" style="text-align: center;">Plantillas de WhatsApp</p>
@@ -163,7 +177,7 @@ else if (_seccion == SeccionConfig.WhatsApp)
             Se usan en el Dashboard para armar el mensaje de cada socio.
             Placeholders disponibles: <strong>{nombre}</strong> y <strong>{dias}</strong>.
         </p>
-        <div class="form-fields" style="max-width: 560px; margin: 0 auto;">
+        <div class="form-fields" style="max-width: 720px; margin: 0 auto;">
             <MudTextField T="string"
                           Label="Plantilla: próxima a vencer"
                           Variant="Variant.Outlined"
@@ -190,10 +204,11 @@ else if (_seccion == SeccionConfig.WhatsApp)
 
 @code {
     [Inject] private ISessionState Sesion { get; set; } = default!;
+    [Inject] private IDashboardService Dashboard { get; set; } = default!;
     [Inject] private IEmpresaConfigService EmpresaConfig { get; set; } = default!;
     [Inject] private IAuthorizationService Authz { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
-    [Inject] private IDashboardService Dashboard { get; set; } = default!;
+    [Inject] private ISedesRepository Sedes { get; set; } = default!;
     [Inject] private SmartGym.App.Services.ILogoState LogoState { get; set; } = default!;
 
     // Navegación por secciones, mismo patrón que Mi Perfil.
@@ -228,6 +243,9 @@ else if (_seccion == SeccionConfig.WhatsApp)
     private string? _impresora;
     private bool _guardandoImpresora;
 
+    private string _nombreSede = "";
+    private bool _guardandoSede;
+
     private string _plantillaPorVencer = "";
     private string _plantillaVencida = "";
     private bool _guardandoPlantillas;
@@ -253,28 +271,20 @@ else if (_seccion == SeccionConfig.WhatsApp)
 
         try
         {
-            var (empresa, logoDataUrl) = await EmpresaConfig.ObtenerAsync(sesion.Token);
+            var (empresa, sede, logoDataUrl) = await EmpresaConfig.ObtenerAsync(sesion.Token);
             _nombreComercial = empresa.NombreComercial;
-            _telefono = empresa.Telefono;
-            _direccion = empresa.Direccion;
-            _codigoPostal = empresa.CodigoPostal;
             _razonSocial = empresa.RazonSocial ?? "";
             _rfc = empresa.Rfc ?? "";
             _regimenFiscal = empresa.RegimenFiscal ?? "";
+            // Teléfono/dirección/CP son de la SEDE, no de la empresa.
+            _telefono = sede.Telefono ?? "";
+            _direccion = sede.Direccion ?? "";
+            _codigoPostal = sede.CodigoPostal ?? "";
             _logoDataUrl = logoDataUrl;
         }
         catch (BusinessException ex)
         {
             Feedback.ShowError(ex.Message);
-        }
-
-        try
-        {
-            (_plantillaPorVencer, _plantillaVencida) = await Dashboard.ObtenerPlantillasWhatsAppAsync();
-        }
-        catch (BusinessException)
-        {
-            // Sin plantillas guardadas: los defaults del servicio aplican al guardar.
         }
 
         // Enumeración local de impresoras instaladas (API de Windows via WinForms,
@@ -301,8 +311,57 @@ else if (_seccion == SeccionConfig.WhatsApp)
             // Sin permiso o sin sesion: el selector queda vacio.
         }
 
+        try
+        {
+            var sede = await Sedes.GetPrincipalAsync();
+            _nombreSede = sede?.Nombre ?? "";
+        }
+        catch (BusinessException)
+        {
+            // Sin sede sembrada: el campo queda vacío.
+        }
+
+        try
+        {
+            (_plantillaPorVencer, _plantillaVencida) = await Dashboard.ObtenerPlantillasWhatsAppAsync();
+        }
+        catch (BusinessException)
+        {
+            // Sin plantillas guardadas: los defaults del servicio aplican al guardar.
+        }
+
         _cargandoEmpresa = false;
         StateHasChanged();
+    }
+
+    private async Task GuardarPlantillasAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _guardandoPlantillas)
+        {
+            return;
+        }
+
+        _guardandoPlantillas = true;
+        try
+        {
+            await Dashboard.GuardarPlantillasWhatsAppAsync(
+                sesion.Token, _plantillaPorVencer, _plantillaVencida);
+            Feedback.ShowSuccess("Plantillas de WhatsApp actualizadas");
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudieron guardar las plantillas");
+        }
+        finally
+        {
+            _guardandoPlantillas = false;
+            StateHasChanged();
+        }
     }
 
     private async Task OnLogoSeleccionadoAsync(InputFileChangeEventArgs e)
@@ -330,7 +389,7 @@ else if (_seccion == SeccionConfig.WhatsApp)
             Feedback.ShowSuccess("Logo actualizado");
 
             // Refresca preview releyendo del storage y avisa al sidebar (patrón ThemeState).
-            var (_, logoDataUrl) = await EmpresaConfig.ObtenerAsync(sesion.Token);
+            var (_, _, logoDataUrl) = await EmpresaConfig.ObtenerAsync(sesion.Token);
             _logoDataUrl = logoDataUrl;
             LogoState.NotificarCambio();
             StateHasChanged();
@@ -392,15 +451,20 @@ else if (_seccion == SeccionConfig.WhatsApp)
         _guardandoDatos = true;
         try
         {
+            // Empresa (fiscal) y sede (contacto) van a tablas distintas: el
+            // servicio reparte internamente cada campo a su tabla correcta.
             await EmpresaConfig.ActualizarDatosAsync(
                 sesion.Token,
                 _nombreComercial.Trim(),
-                _telefono.Trim(),
-                _direccion.Trim(),
-                _codigoPostal.Trim(),
                 NullSiVacio(_razonSocial),
                 NullSiVacio(_rfc),
                 NullSiVacio(_regimenFiscal));
+
+            await EmpresaConfig.GuardarContactoSedeAsync(
+                sesion.Token,
+                _direccion.Trim(),
+                _telefono.Trim(),
+                _codigoPostal.Trim());
             Feedback.ShowSuccess("Datos de empresa actualizados");
         }
         catch (BusinessException ex)
@@ -459,20 +523,45 @@ else if (_seccion == SeccionConfig.WhatsApp)
         }
     }
 
-    private async Task GuardarPlantillasAsync()
+    private void HandleSedeKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_guardandoSede)
+        {
+            _ = GuardarSedeAsync();
+        }
+        else if (e.Key == "Escape")
+        {
+            // Descarta la edición: vuelve a leer el nombre vigente.
+            RecargarNombreSedeAsync();
+        }
+    }
+
+    private async void RecargarNombreSedeAsync()
+    {
+        var sede = await Sedes.GetPrincipalAsync();
+        _nombreSede = sede?.Nombre ?? "";
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task GuardarSedeAsync()
     {
         var sesion = Sesion.Current;
-        if (sesion is null || _guardandoPlantillas)
+        if (sesion is null || _guardandoSede)
         {
             return;
         }
 
-        _guardandoPlantillas = true;
+        if (string.IsNullOrWhiteSpace(_nombreSede))
+        {
+            Feedback.ShowWarning("Ingresa el nombre de la sede");
+            return;
+        }
+
+        _guardandoSede = true;
         try
         {
-            await Dashboard.GuardarPlantillasWhatsAppAsync(
-                sesion.Token, _plantillaPorVencer, _plantillaVencida);
-            Feedback.ShowSuccess("Plantillas de WhatsApp actualizadas");
+            await EmpresaConfig.RenombrarSedeAsync(sesion.Token, _nombreSede.Trim());
+            Feedback.ShowSuccess("Nombre de la sede actualizado");
         }
         catch (BusinessException ex)
         {
@@ -480,11 +569,11 @@ else if (_seccion == SeccionConfig.WhatsApp)
         }
         catch
         {
-            Feedback.ShowError("No se pudieron guardar las plantillas");
+            Feedback.ShowError("No se pudo actualizar el nombre de la sede");
         }
         finally
         {
-            _guardandoPlantillas = false;
+            _guardandoSede = false;
             StateHasChanged();
         }
     }
