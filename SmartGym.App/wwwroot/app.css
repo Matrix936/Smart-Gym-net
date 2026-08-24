@@ -1688,12 +1688,6 @@ table.data-table {
    Desviacion documentada del patron de tabla: grilla de tarjetas para uso
    repetitivo en mostrador (posible pantalla tactil). El carrito es un panel
    fijo a la derecha. Usa tokens glass del proyecto. */
-
-/* Separación de los spinners de MudNumericField respecto al borde derecho:
-   el usuario pidió "mételas un poquito más", no ocultarlas. */
-.num-spinner-gap {
-    padding-right: 8px;
-}
 .pos-alert {
     margin-bottom: 1rem;
 }

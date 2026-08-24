@@ -251,7 +251,7 @@ else
                                      Margin="Margin.Dense"
                                      Min="0"
                                      Format="C2"
-                                     Class="num-spinner-gap"
+                                     HideSpinButtons="true"
                                      @bind-Value="_montoPagado"
                                      Placeholder="Deja vacío para quedar debiendo todo" />
                     <MudNumericField T="int"
@@ -259,7 +259,7 @@ else
                                      Variant="Variant.Outlined"
                                      Margin="Margin.Dense"
                                      Min="1" Max="180"
-                                     Class="num-spinner-gap"
+                                     HideSpinButtons="true"
                                      @bind-Value="_plazoCreditoDias" />
                 }
                 <AsyncButton Text="@($"Cobrar {FormatearMonto(TotalCarrito())}")"
