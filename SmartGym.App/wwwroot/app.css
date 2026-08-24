@@ -1710,6 +1710,7 @@ table.data-table {
 .pos-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-auto-rows: 1fr;
     gap: 0.75rem;
     margin-top: 1rem;
 }
@@ -1718,6 +1719,7 @@ table.data-table {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    height: 100%;
     padding: 1rem;
     text-align: left;
     font-family: var(--font-family);
@@ -1726,6 +1728,28 @@ table.data-table {
     border: var(--glass-border);
     border-radius: var(--radius-md);
     cursor: pointer;
+}
+
+/* Precio tachado + final en una misma línea (combos y descuentos): evita
+   tarjetas más altas que sus vecinas por contenido extra. */
+.pos-precios {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.pos-precios .pos-card-precio {
+    margin-top: 0;
+}
+
+/* Desglose de componentes del combo: una sola línea con elipsis (el título
+   de la tarjeta muestra la lista completa al pasar el cursor). */
+.pos-card-componentes {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 
 .pos-card:hover:not(:disabled) {
@@ -1998,7 +2022,8 @@ table.data-table {
    La ayuda vive oculta y solo se despliega al pedirla (clic en el icono). */
 .ayuda-modulo {
     display: inline-flex;
-    align-items: flex-start;
+    align-self: center;
+    align-items: center;
 }
 
 .ayuda-modulo .mud-icon-button {

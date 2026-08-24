@@ -39,27 +39,31 @@
 }
 else
 {
-    @if (_showSede && _sedes.Count > 1)
+    @* Sede de la terminal (mismo patrón que el Kiosco): se elige UNA vez,
+       persiste en la terminal y después nunca se vuelve a preguntar. *@
+    @if (_showSede && _idSedeTerminal is null)
     {
-        <div class="glass-panel" style="margin-bottom: 1rem;">
-            <div class="page-toolbar">
-                <MudSelect T="long"
-                           Label="Sede"
-                           Variant="Variant.Outlined"
-                           Margin="Margin.Dense"
-                           OuterClass="filter-field"
-                           RelativeWidth="DropdownWidth.Adaptive"
-                           Value="_sedeSeleccionada"
-                           ValueChanged="OnSedeChangedAsync">
+        <div class="glass-panel" style="margin-bottom: 1rem; text-align: center;">
+            <p class="form-section">Selecciona la sede de este equipo</p>
+            @if (_sedes.Count == 0)
+            {
+                <p class="muted">No hay sedes activas configuradas. Contacta al administrador.</p>
+            }
+            else
+            {
+                <p class="muted" style="margin-bottom: 0.75rem;">Quedará guardada en esta terminal.</p>
+                <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
                     @foreach (var sede in _sedes)
                     {
-                        <MudSelectItem Value="@sede.IdSede">@sede.Nombre</MudSelectItem>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                   OnClick='() => SeleccionarSedeTerminalAsync(sede)'>@sede.Nombre</MudButton>
                     }
-                </MudSelect>
-            </div>
+                </div>
+            }
         </div>
     }
-
+    else
+    {
     @if (_cajaAbierta is null && !_cargando)
     {
         <MudAlert Severity="Severity.Warning" Dense Class="pos-alert">
@@ -107,8 +111,10 @@ else
                             <span class="pos-card-desc">@p.Descripcion</span>
                             @if (descuento is not null)
                             {
-                                <span class="pos-precio-tachado">@FormatearMonto(descuento.PrecioOriginalCentavos)</span>
-                                <span class="pos-card-precio pos-precio-final">@FormatearMonto(descuento.PrecioFinalCentavos)</span>
+                                <span class="pos-precios">
+                                    <span class="pos-precio-tachado">@FormatearMonto(descuento.PrecioOriginalCentavos)</span>
+                                    <span class="pos-card-precio pos-precio-final">@FormatearMonto(descuento.PrecioFinalCentavos)</span>
+                                </span>
                             }
                             else
                             {
@@ -130,9 +136,11 @@ else
                                 @onclick='() => AgregarComboAlCarrito(combo)'>
                             <span class="pos-combo-badge">COMBO</span>
                             <span class="pos-card-desc">@combo.Nombre</span>
-                            <span class="pos-precio-tachado">@FormatearMonto(combo.SubtotalComponentesCentavos)</span>
-                            <span class="pos-card-precio pos-precio-final">@FormatearMonto(combo.PrecioComboCentavos)</span>
-                            <span class="muted pos-card-stock">
+                            <span class="pos-precios">
+                                <span class="pos-precio-tachado">@FormatearMonto(combo.SubtotalComponentesCentavos)</span>
+                                <span class="pos-card-precio pos-precio-final">@FormatearMonto(combo.PrecioComboCentavos)</span>
+                            </span>
+                            <span class="muted pos-card-componentes" title="@string.Join(" + ", combo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))">
                                 Componentes: @string.Join(" + ", combo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))
                             </span>
                         </button>
@@ -275,6 +283,7 @@ else
         </div>
     </div>
     </div>
+    }
 }
 
 @* Recibo visual de la venta recién confirmada: resumen en pantalla (folio,
@@ -424,6 +433,7 @@ else
     [Inject] private ISociosRepository SociosRepo { get; set; } = default!;
     [Inject] private IUsuariosRepository UsuariosRepo { get; set; } = default!;
     [Inject] private ISedesRepository Sedes { get; set; } = default!;
+    [Inject] private ITerminalConfigStore Terminal { get; set; } = default!;
     [Inject] private IAuthorizationService Authz { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
     [Inject] private IEmpresaConfigService EmpresaConfig { get; set; } = default!;
@@ -435,7 +445,7 @@ else
     private bool _tienePermiso;
     private bool _cargando = true;
     private bool _showSede;
-    private long _sedeSeleccionada;
+    private long? _idSedeTerminal;
     private List<Sede> _sedes = [];
     private CajaSesion? _cajaAbierta;
 
@@ -566,15 +576,22 @@ else
         _showSede = sesion.IdSede is null;
         if (_showSede)
         {
-            try
+            // Sede de la TERMINAL (mismo mecanismo del Kiosco): se elige una
+            // sola vez y persiste; sin ella no se carga nada de venta.
+            _idSedeTerminal = await Terminal.ObtenerIdSedeAsync();
+            if (_idSedeTerminal is null)
             {
-                _sedes = (await Sedes.GetActivasAsync()).ToList();
+                try
+                {
+                    _sedes = (await Sedes.GetActivasAsync()).ToList();
+                }
+                catch
+                {
+                    _sedes = [];
+                }
+                StateHasChanged();
+                return;
             }
-            catch
-            {
-                _sedes = [];
-            }
-            _sedeSeleccionada = _sedes.FirstOrDefault()?.IdSede ?? 0;
         }
 
         try
@@ -709,11 +726,30 @@ else
     }
 
     private long IdSedeEfectivo(SessionInfo sesion) =>
-        _showSede ? _sedeSeleccionada : sesion.IdSede!.Value;
+        _showSede ? _idSedeTerminal!.Value : sesion.IdSede!.Value;
 
-    private async Task OnSedeChangedAsync(long value)
+    /// <summary>Selección única de sede para la terminal (patrón Kiosco): se
+    /// persiste en la terminal y a partir de aquí el POS carga normal.</summary>
+    private async Task SeleccionarSedeTerminalAsync(Sede sede)
     {
-        _sedeSeleccionada = value;
+        await Terminal.GuardarIdSedeAsync(sede.IdSede);
+        _idSedeTerminal = sede.IdSede;
+
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _permiteCredito = await EmpresaConfig.ObtenerPosPermiteCreditoAsync(sesion.Token);
+        }
+        catch (BusinessException)
+        {
+            // Sin configuración: crédito apagado (default).
+        }
+
         await CargarAsync();
     }
 
@@ -746,7 +782,7 @@ else
         _cargando = true;
         try
         {
-            _cajaAbierta = await Caja.ObtenerCajaAbiertaAsync(sesion.Token, _showSede ? _sedeSeleccionada : null);
+            _cajaAbierta = await Caja.ObtenerCajaAbiertaAsync(sesion.Token, _showSede ? _idSedeTerminal : null);
             await CargarProductosAsync();
         }
         catch (BusinessException ex)
@@ -1082,7 +1118,7 @@ else
             };
 
             var venta = await Pos.RegistrarVentaAsync(
-                sesion.Token, input, _showSede ? _sedeSeleccionada : null);
+                sesion.Token, input, _showSede ? _idSedeTerminal : null);
 
             // Recibo en pantalla (reemplaza al snackbar de "Venta registrada"):
             // snapshot ANTES de limpiar, porque el carrito ya no estará.
