@@ -51,6 +51,15 @@
         <span class="sg-nav-item-indicator"></span>
         <span class="sg-nav-item-label">Impresora</span>
     </div>
+    <div class="sg-nav-item @(_seccion == SeccionConfig.WhatsApp ? "active" : null)"
+         style="width: 100%;"
+         @onclick='() => IrA(SeccionConfig.WhatsApp)'
+         @onkeydown='e => SeccionKeyDown(e, SeccionConfig.WhatsApp)'
+         role="button" tabindex="0"
+         aria-current="@(_seccion == SeccionConfig.WhatsApp ? "true" : null)">
+        <span class="sg-nav-item-indicator"></span>
+        <span class="sg-nav-item-label">WhatsApp</span>
+    </div>
 </div>
 
 @if (_seccion == SeccionConfig.Empresa)
@@ -144,6 +153,39 @@ else
         </div>
     </div>
 }
+else if (_seccion == SeccionConfig.WhatsApp)
+{
+    <div class="glass-panel" style="flex: 1; min-width: 0;">
+        <p class="form-section" style="text-align: center;">Plantillas de WhatsApp</p>
+        @* Mensajes que el Dashboard usa para los recordatorios de membresía.
+           Placeholders {nombre} y {dias}; vacío = volver al texto por defecto. *@
+        <p class="muted" style="margin-bottom: 0.75rem; text-align: center;">
+            Se usan en el Dashboard para armar el mensaje de cada socio.
+            Placeholders disponibles: <strong>{nombre}</strong> y <strong>{dias}</strong>.
+        </p>
+        <div class="form-fields" style="max-width: 560px; margin: 0 auto;">
+            <MudTextField T="string"
+                          Label="Plantilla: próxima a vencer"
+                          Variant="Variant.Outlined"
+                          Lines="3"
+                          Margin="Margin.Dense"
+                          @bind-Value="_plantillaPorVencer" />
+            <MudTextField T="string"
+                          Label="Plantilla: ya vencida"
+                          Variant="Variant.Outlined"
+                          Lines="3"
+                          Margin="Margin.Dense"
+                          @bind-Value="_plantillaVencida" />
+            <p class="muted" style="margin: 0;">Deja vacío un campo para usar el texto por defecto.</p>
+            <div style="margin-top: 0.75rem;">
+                <AsyncButton Text="Guardar plantillas"
+                             LoadingText="Guardando..."
+                             IsLoading="_guardandoPlantillas"
+                             OnClick="GuardarPlantillasAsync" />
+            </div>
+        </div>
+    </div>
+}
 </div>
 
 @code {
@@ -151,10 +193,11 @@ else
     [Inject] private IEmpresaConfigService EmpresaConfig { get; set; } = default!;
     [Inject] private IAuthorizationService Authz { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
+    [Inject] private IDashboardService Dashboard { get; set; } = default!;
     [Inject] private SmartGym.App.Services.ILogoState LogoState { get; set; } = default!;
 
     // Navegación por secciones, mismo patrón que Mi Perfil.
-    private enum SeccionConfig { Empresa, Logo, Impresora }
+    private enum SeccionConfig { Empresa, Logo, Impresora, WhatsApp }
 
     private SeccionConfig _seccion = SeccionConfig.Empresa;
 
@@ -184,6 +227,10 @@ else
     private List<string> _impresoras = [];
     private string? _impresora;
     private bool _guardandoImpresora;
+
+    private string _plantillaPorVencer = "";
+    private string _plantillaVencida = "";
+    private bool _guardandoPlantillas;
 
     protected override async Task OnInitializedAsync()
     {
@@ -219,6 +266,15 @@ else
         catch (BusinessException ex)
         {
             Feedback.ShowError(ex.Message);
+        }
+
+        try
+        {
+            (_plantillaPorVencer, _plantillaVencida) = await Dashboard.ObtenerPlantillasWhatsAppAsync();
+        }
+        catch (BusinessException)
+        {
+            // Sin plantillas guardadas: los defaults del servicio aplican al guardar.
         }
 
         // Enumeración local de impresoras instaladas (API de Windows via WinForms,
@@ -399,6 +455,36 @@ else
         finally
         {
             _guardandoImpresora = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GuardarPlantillasAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _guardandoPlantillas)
+        {
+            return;
+        }
+
+        _guardandoPlantillas = true;
+        try
+        {
+            await Dashboard.GuardarPlantillasWhatsAppAsync(
+                sesion.Token, _plantillaPorVencer, _plantillaVencida);
+            Feedback.ShowSuccess("Plantillas de WhatsApp actualizadas");
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudieron guardar las plantillas");
+        }
+        finally
+        {
+            _guardandoPlantillas = false;
             StateHasChanged();
         }
     }
