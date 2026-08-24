@@ -92,6 +92,7 @@ else
                     @foreach (var p in _productos)
                     {
                         var agotado = Agotado(p);
+                        var descuento = DescuentoDe(p);
                         <button type="button"
                                 class="pos-card @(agotado ? "pos-card-agotado" : "")"
                                 disabled="@agotado"
@@ -99,9 +100,35 @@ else
                                 data-sg-pos-captura
                                 @onclick='e => AgregarAlCarritoAsync(p, e)'>
                             <span class="pos-card-desc">@p.Descripcion</span>
-                            <span class="pos-card-precio">@FormatearMonto(p.PrecioVentaCentavos)</span>
+                            @if (descuento is not null)
+                            {
+                                <span class="pos-precio-tachado">@FormatearMonto(descuento.PrecioOriginalCentavos)</span>
+                                <span class="pos-card-precio pos-precio-final">@FormatearMonto(descuento.PrecioFinalCentavos)</span>
+                            }
+                            else
+                            {
+                                <span class="pos-card-precio">@FormatearMonto(p.PrecioVentaCentavos)</span>
+                            }
                             <span class="muted pos-card-stock">
                                 @(p.RequiereInventario ? $"Stock: {(StockDe(p)?.ToString() ?? "0")}" : "Servicio")
+                            </span>
+                        </button>
+                    }
+                    @foreach (var combo in CombosFiltrados())
+                    {
+                        var agotadoCombo = ComboAgotado(combo);
+                        <button type="button"
+                                class="pos-card pos-card-combo @(agotadoCombo ? "pos-card-agotado" : "")"
+                                disabled="@agotadoCombo"
+                                title="@(agotadoCombo ? "Sin stock de algún componente" : $"Agregar combo al carrito — {string.Join(" + ", combo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))}")"
+                                data-sg-pos-captura
+                                @onclick='() => AgregarComboAlCarrito(combo)'>
+                            <span class="pos-combo-badge">COMBO</span>
+                            <span class="pos-card-desc">@combo.Nombre</span>
+                            <span class="pos-precio-tachado">@FormatearMonto(combo.SubtotalComponentesCentavos)</span>
+                            <span class="pos-card-precio pos-precio-final">@FormatearMonto(combo.PrecioComboCentavos)</span>
+                            <span class="muted pos-card-stock">
+                                Componentes: @string.Join(" + ", combo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))
                             </span>
                         </button>
                     }
@@ -115,7 +142,7 @@ else
 
         <div class="glass-panel pos-carrito">
             <p class="form-section">Carrito</p>
-            @if (_carrito.Count == 0)
+            @if (_carrito.Count == 0 && _combosCarrito.Count == 0)
             {
                 <p class="muted">Toca un producto para agregarlo.</p>
             }
@@ -125,10 +152,22 @@ else
                     @foreach (var linea in _carrito.Values)
                     {
                         var sinStockParaMas = linea.Producto.RequiereInventario && linea.Cantidad >= StockDe(linea.Producto);
+                        var descuentoLinea = DescuentoDe(linea.Producto);
+                        var precioFinalLinea = descuentoLinea?.PrecioFinalCentavos ?? linea.Producto.PrecioVentaCentavos;
                         <div class="pos-linea">
                             <div class="pos-linea-info">
                                 <strong>@linea.Producto.Descripcion</strong>
-                                <span class="muted">@FormatearMonto(linea.Producto.PrecioVentaCentavos) c/u</span>
+                                <span class="muted">
+                                    @if (descuentoLinea is not null)
+                                    {
+                                        <span class="pos-precio-tachado">@FormatearMonto(descuentoLinea.PrecioOriginalCentavos)</span>
+                                        @($"{FormatearMonto(precioFinalLinea)} c/u · {descuentoLinea.Nombre}")
+                                    }
+                                    else
+                                    {
+                                        @($"{FormatearMonto(linea.Producto.PrecioVentaCentavos)} c/u")
+                                    }
+                                </span>
                             </div>
                             <div class="pos-linea-cantidad">
                                 <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
@@ -140,7 +179,31 @@ else
                                                OnClick='() => CambiarCantidad(linea, +1)'
                                                aria-label="Agregar uno" />
                             </div>
-                            <span class="pos-linea-subtotal">@FormatearMonto(linea.Producto.PrecioVentaCentavos * linea.Cantidad)</span>
+                            <span class="pos-linea-subtotal">@FormatearMonto(precioFinalLinea * linea.Cantidad)</span>
+                        </div>
+                    }
+                    @foreach (var linea in _combosCarrito.Values)
+                    {
+                        <div class="pos-linea pos-linea-combo">
+                            <div class="pos-linea-info">
+                                <strong>@linea.Promo.Nombre</strong>
+                                <span class="muted">
+                                    <span class="pos-precio-tachado">@FormatearMonto(linea.Promo.SubtotalComponentesCentavos)</span>
+                                    @($"{FormatearMonto(linea.Promo.PrecioComboCentavos)} el combo")
+                                </span>
+                                <span class="muted">@string.Join(" + ", linea.Promo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))</span>
+                            </div>
+                            <div class="pos-linea-cantidad">
+                                <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
+                                               OnClick='() => CambiarCantidadCombo(linea, -1)'
+                                               aria-label="Quitar un combo" />
+                                <span class="pos-cantidad">@linea.Cantidad</span>
+                                <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                               Disabled="@ComboAgotado(linea.Promo)"
+                                               OnClick='() => CambiarCantidadCombo(linea, +1)'
+                                               aria-label="Agregar un combo" />
+                            </div>
+                            <span class="pos-linea-subtotal">@FormatearMonto(linea.Promo.PrecioComboCentavos * linea.Cantidad)</span>
                         </div>
                     }
                 </div>
@@ -249,6 +312,32 @@ else
     </DialogActions>
 </MudDialog>
 
+<style>
+    /* Promociones en POS: precio original tachado + final destacado; tarjeta
+       de combo con badge. Vive aquí y no en app.css para no pisar el WIP
+       compartido de estilos globales. */
+    .pos-precio-tachado {
+        text-decoration: line-through;
+        opacity: .55;
+        font-size: .8em;
+        margin-right: .35rem;
+    }
+    .pos-precio-final { color: var(--mud-palette-success, #2e7d32); font-weight: 700; }
+    .pos-card-combo { border: 2px dashed var(--mud-palette-primary, #1976d2); position: relative; }
+    .pos-combo-badge {
+        position: absolute;
+        top: .4rem;
+        right: .4rem;
+        background: var(--mud-palette-primary, #1976d2);
+        color: #fff;
+        font-size: .65rem;
+        font-weight: 800;
+        letter-spacing: .06em;
+        padding: .1rem .45rem;
+        border-radius: 999px;
+    }
+</style>
+
 @code {
     [Inject] private ISessionState Sesion { get; set; } = default!;
     [Inject] private IPosService Pos { get; set; } = default!;
@@ -260,6 +349,7 @@ else
     [Inject] private IAuthorizationService Authz { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
     [Inject] private IEmpresaConfigService EmpresaConfig { get; set; } = default!;
+    [Inject] private IPromocionesService Promos { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private DotNetObjectReference<PosPage>? _atajosRef;
@@ -282,6 +372,14 @@ else
     // Carrito: idProducto → línea (orden de inserción preservado).
     private sealed record CarritoLinea(Producto Producto, long Cantidad);
     private Dictionary<long, CarritoLinea> _carrito = new();
+
+    // Promociones vigentes de la sede (descuentos por producto + combos).
+    private List<PosPromocionInfo> _combosPos = [];
+    private Dictionary<long, PosPromocionInfo> _descuentoPorProducto = [];
+
+    // Carrito de combos: idPromocion → línea (el precio cerrado manda).
+    private sealed record CarritoComboLinea(PosPromocionInfo Promo, long Cantidad);
+    private Dictionary<string, CarritoComboLinea> _combosCarrito = new();
 
     private Socio? _socioSeleccionado;
     private string _metodoPago = MetodosPago.Efectivo;
@@ -534,12 +632,87 @@ else
         {
             _stockPorProducto = [];
         }
+
+        // Promociones vigentes: descuentos indexados por producto y combos para
+        // la grilla. Una promoción no vigente simplemente no aparece.
+        try
+        {
+            var promos = await Promos.ObtenerParaPosAsync(sesion.Token);
+            _descuentoPorProducto = promos
+                .Where(p => p.Tipo == PromocionTipos.Descuento && p.IdProducto is not null)
+                .GroupBy(p => p.IdProducto!.Value)
+                .ToDictionary(g => g.Key, g => g.First());
+            _combosPos = promos.Where(p => p.Tipo == PromocionTipos.Combo).ToList();
+        }
+        catch
+        {
+            _descuentoPorProducto = [];
+            _combosPos = [];
+        }
     }
 
     private long? StockDe(Producto p) =>
         p.RequiereInventario && _stockPorProducto.TryGetValue(p.IdProducto, out var stock) ? stock : null;
 
     private bool Agotado(Producto p) => p.RequiereInventario && (StockDe(p) ?? 0) <= 0;
+
+    /// <summary>Precio final del producto con su descuento vigente (null si no tiene).</summary>
+    private PosPromocionInfo? DescuentoDe(Producto p) =>
+        _descuentoPorProducto.TryGetValue(p.IdProducto, out var d) ? d : null;
+
+    /// <summary>Combos de la grilla, filtrados por la búsqueda activa (por nombre o componentes).</summary>
+    private IEnumerable<PosPromocionInfo> CombosFiltrados()
+    {
+        if (_query.Trim().Length == 0)
+        {
+            return _combosPos;
+        }
+        var q = _query.Trim();
+        return _combosPos.Where(c =>
+            c.Nombre.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+            c.Componentes.Any(x => x.DescripcionProducto.Contains(q, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>Combo agotado: algún componente con inventario no alcanza para una unidad más.</summary>
+    private bool ComboAgotado(PosPromocionInfo combo)
+    {
+        var enCarrito = _combosCarrito.TryGetValue(combo.IdPromocion, out var linea) ? linea.Cantidad : 0;
+        foreach (var c in combo.Componentes)
+        {
+            // Solo los componentes presentes en el snapshot requieren inventario.
+            if (!_stockPorProducto.TryGetValue(c.IdProducto, out var stock))
+            {
+                continue;
+            }
+            if (c.Cantidad * (enCarrito + 1) > stock)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void AgregarComboAlCarrito(PosPromocionInfo promo)
+    {
+        if (_cajaAbierta is null || ComboAgotado(promo))
+        {
+            return;
+        }
+
+        var cantidadActual = _combosCarrito.TryGetValue(promo.IdPromocion, out var linea) ? linea.Cantidad : 0;
+        _combosCarrito[promo.IdPromocion] = new CarritoComboLinea(promo, cantidadActual + 1);
+    }
+
+    private void CambiarCantidadCombo(CarritoComboLinea linea, long delta)
+    {
+        var nueva = linea.Cantidad + delta;
+        if (nueva <= 0)
+        {
+            _combosCarrito.Remove(linea.Promo.IdPromocion);
+            return;
+        }
+        _combosCarrito[linea.Promo.IdPromocion] = linea with { Cantidad = nueva };
+    }
 
     private async Task<IEnumerable<Socio?>> BuscarSociosAsync(string arg, CancellationToken ct)
     {
@@ -603,7 +776,12 @@ else
     }
 
     private long TotalCarrito() =>
-        _carrito.Values.Sum(l => l.Producto.PrecioVentaCentavos * l.Cantidad);
+        _carrito.Values.Sum(l =>
+            {
+                var d = DescuentoDe(l.Producto);
+                return (d?.PrecioFinalCentavos ?? l.Producto.PrecioVentaCentavos) * l.Cantidad;
+            })
+        + _combosCarrito.Values.Sum(c => c.Promo.PrecioComboCentavos * c.Cantidad);
 
     private async Task CobrarAsync()
     {
@@ -644,13 +822,22 @@ else
         _cobrando = true;
         try
         {
+            // Combos como unidades propias (el server resuelve componentes y
+            // precios); productos individuales con su precio final si tienen
+            // descuento vigente.
+            var items = new List<VentaItem>();
+            foreach (var l in _carrito.Values)
+            {
+                items.Add(new VentaItem { IdProducto = l.Producto.IdProducto, Cantidad = l.Cantidad });
+            }
+            foreach (var c in _combosCarrito.Values)
+            {
+                items.Add(new VentaItem { IdPromocion = c.Promo.IdPromocion, Cantidad = c.Cantidad });
+            }
+
             var input = new RegistrarVentaInput
             {
-                Items = _carrito.Values.Select(l => new VentaItem
-                {
-                    IdProducto = l.Producto.IdProducto,
-                    Cantidad = l.Cantidad,
-                }).ToList(),
+                Items = items,
                 IdSocio = _socioSeleccionado?.IdSocio,
                 MetodoPago = _metodoPago,
                 MontoPagadoCentavos = _montoPagado,
@@ -668,17 +855,29 @@ else
                 Socio: _socioSeleccionado is null
                     ? null
                     : $"{_socioSeleccionado.Nombre} {_socioSeleccionado.ApellidoPaterno}".Trim(),
-                Items: _carrito.Values.Select(l => new ReciboLinea(
-                    l.Producto.Descripcion,
-                    l.Cantidad,
-                    l.Producto.PrecioVentaCentavos,
-                    l.Producto.PrecioVentaCentavos * l.Cantidad)).ToList(),
+                Items: _carrito.Values.Select(l =>
+                    {
+                        var d = DescuentoDe(l.Producto);
+                        var precioFinal = d?.PrecioFinalCentavos ?? l.Producto.PrecioVentaCentavos;
+                        return new ReciboLinea(
+                            l.Producto.Descripcion,
+                            l.Cantidad,
+                            precioFinal,
+                            precioFinal * l.Cantidad);
+                    })
+                    .Concat(_combosCarrito.Values.Select(c => new ReciboLinea(
+                        $"Combo {c.Promo.Nombre}",
+                        c.Cantidad,
+                        c.Promo.PrecioComboCentavos,
+                        c.Promo.PrecioComboCentavos * c.Cantidad)))
+                    .ToList(),
                 TotalCentavos: venta.TotalCentavos,
                 SaldoPendienteCentavos: venta.SaldoPendienteCentavos);
 
             // El backend ya descontó stock y generó el movimiento de caja:
             // refresca snapshot y limpia el carrito para la siguiente venta.
             _carrito = new Dictionary<long, CarritoLinea>();
+            _combosCarrito = new Dictionary<string, CarritoComboLinea>();
             _socioSeleccionado = null;
             _montoPagado = null;
             await CargarProductosAsync();

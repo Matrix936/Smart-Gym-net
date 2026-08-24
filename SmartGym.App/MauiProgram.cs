@@ -72,7 +72,8 @@ public static MauiApp CreateMauiApp()
 		builder.Services.AddScoped<IAccesosRepository>(_ => new AccesosRepository(dbPath));
 		builder.Services.AddScoped<IDispositivosAccesoRepository>(_ => new DispositivosAccesoRepository(dbPath));
 		builder.Services.AddScoped<ISociosBiometricosRepository>(_ => new SociosBiometricosRepository(dbPath));
-		builder.Services.AddScoped<IProductosRepository>(_ => new ProductosRepository(dbPath));
+ 		builder.Services.AddScoped<IProductosRepository>(_ => new ProductosRepository(dbPath));
+		builder.Services.AddScoped<IPromocionesRepository>(_ => new PromocionesRepository(dbPath));
 		builder.Services.AddScoped<IMaquinariaRepository>(_ => new MaquinariaRepository(dbPath));
 		builder.Services.AddScoped<IInventarioSucursalRepository>(_ => new InventarioSucursalRepository(dbPath));
 		builder.Services.AddScoped<IVentasRepository>(_ => new VentasRepository(dbPath));
@@ -94,7 +95,8 @@ public static MauiApp CreateMauiApp()
 		builder.Services.AddScoped<IPosService, PosService>();
 		builder.Services.AddScoped<ICobranzaService, CobranzaService>();
 		builder.Services.AddScoped<IVentasService, VentasService>();
-		builder.Services.AddScoped<IProductosService, ProductosService>();
+ 		builder.Services.AddScoped<IProductosService, ProductosService>();
+		builder.Services.AddScoped<IPromocionesService, PromocionesService>();
 		builder.Services.AddScoped<IBitacoraService, BitacoraService>();
 		builder.Services.AddScoped<IMaquinariaService, MaquinariaService>();
 		builder.Services.AddScoped<IFinanzasRepository>(_ => new FinanzasRepository(dbPath));
