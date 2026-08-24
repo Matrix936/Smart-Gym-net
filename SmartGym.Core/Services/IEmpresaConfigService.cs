@@ -36,6 +36,16 @@ public interface IEmpresaConfigService
 
     Task<bool> ObtenerPosPermiteCreditoAsync(string token, CancellationToken ct = default);
 
+    /// <summary>
+    /// Periféricos del POS (impresora de tickets, papel, densidad, cajón e
+    /// impresión automática). Lectura con sesión válida — la UI del POS la
+    /// necesita sin permiso de configuración.
+    /// </summary>
+    Task<PerifericosTicket> ObtenerPerifericosAsync(string token, CancellationToken ct = default);
+
+    /// <summary>Guarda periféricos (gate ConfiguracionEditar + bitácora). Valores inválidos se normalizan al default.</summary>
+    Task<PerifericosTicket> GuardarPerifericosAsync(string token, PerifericosTicket perifericos, CancellationToken ct = default);
+
     /// <summary>Renombra la sede principal (passthrough con gate de sesión/permiso).</summary>
     Task<string> RenombrarSedeAsync(string token, string nombre, CancellationToken ct = default);
 }

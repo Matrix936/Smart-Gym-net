@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using SmartGym.Core.Authorization;
 using SmartGym.Core.Common;
 using SmartGym.Core.Entities;
@@ -16,6 +17,10 @@ public sealed class EmpresaConfigService : IEmpresaConfigService
 {
     private const string ClaveImpresora = "impresora.nombre";
     private const string ClavePosPermiteCredito = "pos.permite_credito";
+    private const string ClavePapel = "perifericos.papel";
+    private const string ClaveDensidad = "perifericos.densidad";
+    private const string ClaveAbrirCajon = "perifericos.abrir_cajon";
+    private const string ClaveImprimirAuto = "pos.imprimir_auto";
 
     private readonly IAuthService _auth;
     private readonly IAuthorizationService _authz;
@@ -159,6 +164,58 @@ public sealed class EmpresaConfigService : IEmpresaConfigService
         await _auth.ValidarSesionAsync(token, ct);
         return string.Equals(
             await _configuracion.GetAsync(ClavePosPermiteCredito, ct), "true", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public async Task<PerifericosTicket> ObtenerPerifericosAsync(string token, CancellationToken ct = default)
+    {
+        await _auth.ValidarSesionAsync(token, ct);
+        return await LeerPerifericosAsync(ct);
+    }
+
+    public async Task<PerifericosTicket> GuardarPerifericosAsync(
+        string token, PerifericosTicket perifericos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(perifericos);
+        var info = await GateAsync(token, ct);
+
+        // Normalización al estilo ferre-pos: valores fuera de rango vuelven al
+        // default en vez de rechazar (la validación dura vive en el builder).
+        var normalizado = new PerifericosTicket
+        {
+            ImpresoraTickets = Normalizar(perifericos.ImpresoraTickets),
+            PapelAncho = perifericos.PapelAncho is 32 or 42 or 48 ? perifericos.PapelAncho : 42,
+            Densidad = Math.Clamp(perifericos.Densidad, 0, 3),
+            AbrirCajon = perifericos.AbrirCajon,
+            ImprimirAutoAlCobrar = perifericos.ImprimirAutoAlCobrar,
+        };
+
+        await _configuracion.SetAsync(ClaveImpresora, normalizado.ImpresoraTickets, ct);
+        await _configuracion.SetAsync(ClavePapel, normalizado.PapelAncho.ToString(CultureInfo.InvariantCulture), ct);
+        await _configuracion.SetAsync(ClaveDensidad, normalizado.Densidad.ToString(CultureInfo.InvariantCulture), ct);
+        await _configuracion.SetAsync(ClaveAbrirCajon, normalizado.AbrirCajon ? "true" : "false", ct);
+        await _configuracion.SetAsync(ClaveImprimirAuto, normalizado.ImprimirAutoAlCobrar ? "true" : "false", ct);
+
+        await RegistrarBitacoraAsync(info, "configuracion.perifericos_guardada", ClaveImpresora,
+            tablaAfectada: "configuracion_general",
+            nuevo: $"impresora:{normalizado.ImpresoraTickets ?? "-"}|papel:{normalizado.PapelAncho}|" +
+                   $"densidad:{normalizado.Densidad}|cajon:{normalizado.AbrirCajon}|auto:{normalizado.ImprimirAutoAlCobrar}",
+            ct: ct);
+        return normalizado;
+    }
+
+    private async Task<PerifericosTicket> LeerPerifericosAsync(CancellationToken ct)
+    {
+        var impresora = await _configuracion.GetAsync(ClaveImpresora, ct);
+        return new PerifericosTicket
+        {
+            ImpresoraTickets = string.IsNullOrWhiteSpace(impresora) ? null : impresora.Trim(),
+            PapelAncho = int.TryParse(await _configuracion.GetAsync(ClavePapel, ct), out var papel)
+                && papel is 32 or 42 or 48 ? papel : 42,
+            Densidad = int.TryParse(await _configuracion.GetAsync(ClaveDensidad, ct), out var densidad)
+                ? Math.Clamp(densidad, 0, 3) : 2,
+            AbrirCajon = string.Equals(await _configuracion.GetAsync(ClaveAbrirCajon, ct), "true", StringComparison.OrdinalIgnoreCase),
+            ImprimirAutoAlCobrar = string.Equals(await _configuracion.GetAsync(ClaveImprimirAuto, ct), "true", StringComparison.OrdinalIgnoreCase),
+        };
     }
 
     /// <summary>Renombra la sede principal (passthrough a ISedesRepository con gate de sesión/permiso).</summary>

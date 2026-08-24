@@ -64,6 +64,9 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
         <PackageReference Include="MudBlazor" Version="9.8.0" />
         <PackageReference Include="Plugin.Maui.Audio" Version="4.0.0" />
+        <!-- Rasterización del logo del ticket a ESC/POS (GS v 0). Solo decodificación
+             de imágenes: PNG/JPG/WEBP. SVG no soportado en v1 (ticket sale sin logo). -->
+        <PackageReference Include="SkiaSharp" Version="4.151.1" />
     </ItemGroup>
 
     <ItemGroup>
