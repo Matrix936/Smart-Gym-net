@@ -14,10 +14,17 @@ public interface IBitacoraAuditoriaRepository
     /// Historial de auditoría de una sede con el actor resuelto (JOIN usuarios),
     /// paginado y con filtros de fecha/categoría/acción/usuario. Orden descendente.
     /// </summary>
-    Task<PagedResult<BitacoraHistorialDto>> BuscarAsync(
-        long? idSede,
-        BitacoraFiltros? filtros = null,
-        int pagina = 1,
-        int tamanoPagina = TamanosPagina.Default,
-        CancellationToken ct = default);
+Task<PagedResult<BitacoraHistorialDto>> BuscarAsync(
+long? idSede,
+BitacoraFiltros? filtros = null,
+int pagina = 1,
+int tamanoPagina = TamanosPagina.Default,
+CancellationToken ct = default);
+
+/// <summary>
+/// Última entrada 'venta.cancelada' para una venta: (fecha ISO, nombre del
+/// usuario que canceló). Null si nunca se canceló. Para el detalle de /ventas.
+/// </summary>
+Task<(string FechaIsoUtc, string Usuario)?> ObtenerUltimaCancelacionAsync(
+string idVenta, CancellationToken ct = default);
 }

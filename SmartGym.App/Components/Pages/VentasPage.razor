@@ -108,7 +108,8 @@
                        ValueChanged="OnTipoChangedAsync">
                 <MudSelectItem T="string?" Value="null">Todos</MudSelectItem>
                 <MudSelectItem T="string?" Value="@CajaReferenciaTipos.Venta">Venta</MudSelectItem>
-                <MudSelectItem T="string?" Value="@CajaReferenciaTipos.CancelacionVenta">Cancelación</MudSelectItem>
+                @* Sin opción "Cancelación": las cancelaciones ya no son filas
+                   propias del listado — el estado vive en la fila de la venta. *@
                 <MudSelectItem T="string?" Value="@CajaReferenciaTipos.PagoMembresia">Membresía</MudSelectItem>
                 <MudSelectItem T="string?" Value="@CajaReferenciaTipos.Abono">Abono</MudSelectItem>
             </MudSelect>
@@ -270,41 +271,28 @@
         }
         else if (_detalleVenta is not null)
         {
-            <div class="summary-row"><span class="summary-label">Folio</span><span class="muted">@_detalleVenta.IdVenta</span></div>
-            @if (_filaDetalle is not null)
+            string? estadoDetalle = null;
+            if (_detalleVenta.CanceladaElIsoUtc is not null && _detalleVenta.Estado == VentaEstados.Cancelada)
             {
-                <div class="summary-row"><span class="summary-label">Fecha</span><span>@FormatearFecha(_filaDetalle.Fecha)</span></div>
+                var por = string.IsNullOrWhiteSpace(_detalleVenta.CanceladaPor) ? "" : $" — por {_detalleVenta.CanceladaPor}";
+                estadoDetalle = $"{FormatearFecha(_detalleVenta.CanceladaElIsoUtc)}{por}";
             }
-            <div class="summary-row">
-                <span class="summary-label">Estado</span>
-                <span class="status-badge @(_detalleVenta.Estado == VentaEstados.Completada ? "status-success" : "status-danger")">
-                    @Capitalizar(_detalleVenta.Estado)
-                </span>
-            </div>
-            <div class="summary-row"><span class="summary-label">Método</span><span>@Capitalizar(_detalleVenta.MetodoPago)</span></div>
-            @if (!string.IsNullOrWhiteSpace(_filaDetalle?.NombreSocio))
-            {
-                <div class="summary-row"><span class="summary-label">Socio</span><span>@_filaDetalle.NombreSocio</span></div>
-            }
-            <div class="table-wrap" style="margin-top: 1rem;">
-                <table class="data-table">
-                    <thead>
-                        <tr><th>Producto</th><th class="col-numero">Cant.</th><th class="col-numero">P. unitario</th><th class="col-numero">Subtotal</th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var item in _detalleVenta.Items)
-                        {
-                            <tr>
-                                <td>@(item.DescripcionProducto ?? $"#{item.IdProducto}")</td>
-                                <td class="col-numero">@item.Cantidad</td>
-                                <td class="col-numero">@FormatearMonto(item.PrecioUnitarioCentavos)</td>
-                                <td class="col-numero">@FormatearMonto(item.SubtotalCentavos)</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-            <p class="form-section" style="text-align: right; margin-top: 0.75rem;">Total: @FormatearMonto(_detalleVenta.TotalCentavos)</p>
+
+            <TicketPreview Folio="@_detalleVenta.IdVenta"
+                           Fecha="@(_filaDetalle is null ? "—" : FormatearFecha(_filaDetalle.Fecha))"
+                           MetodoPago="@Capitalizar(_detalleVenta.MetodoPago)"
+                           Estado="@_detalleVenta.Estado"
+                           EstadoDetalle="@estadoDetalle"
+                           Socio="@_filaDetalle?.NombreSocio"
+                           Items="@ItemsDeDetalle()"
+                           TotalCentavos="@_detalleVenta.TotalCentavos"
+                           EmpresaNombre="@_negocioTicket?.Empresa"
+                           Rfc="@_negocioTicket?.Rfc"
+                           SedeNombre="@_negocioTicket?.Sede"
+                           Direccion="@_negocioTicket?.Direccion"
+                           Telefono="@_negocioTicket?.Telefono"
+                           MensajePie="@_negocioTicket?.MensajePie"
+                           LogoSrc="@_logoDataUrl" />
         }
     </DialogContent>
     <DialogActions>
@@ -433,6 +421,7 @@
     private bool _imprimiendoReimpresion;
     private TicketDatosNegocio? _negocioTicket;
     private byte[]? _logoRasterCache;
+    private string? _logoDataUrl;
 
     private MovimientoHistorialDto? _filaCancelando;
     private bool _cancelacionAbierta;
@@ -696,6 +685,16 @@
                 sesion.Token,
                 fila.ReferenciaId,
                 fila.IdSede);
+
+            // El preview de ticket necesita empresa/sede/logo: primera vez por sesión.
+            try
+            {
+                await CargarContextoTicketAsync();
+            }
+            catch (BusinessException)
+            {
+                // Preview con defaults; Reimprimir reportará su propio error si aplica.
+            }
         }
         catch (BusinessException ex)
         {

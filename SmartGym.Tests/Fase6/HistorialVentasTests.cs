@@ -45,7 +45,7 @@ public sealed class HistorialVentasTests
     }
 
     [Fact]
-    public async Task cancelar_venta_genera_ingreso_y_egreso_en_historial()
+    public async Task cancelar_venta_deja_una_sola_fila_con_estado_cancelada()
     {
         var (ctx, token, sedeId, idProducto) = await Fase6Helper.BaseAsync();
         await ctx.CajaService.AbrirCajaAsync(token, 100000, sedeId);
@@ -64,16 +64,23 @@ public sealed class HistorialVentasTests
 
         var pagina = await ctx.VentasService.BuscarHistorialAsync(token, idSedeFrontend: sedeId);
 
-        Assert.Equal(2, pagina.TotalRegistros);
+        // Una sola fila por venta: la cancelación ya no es fila propia —
+        // el egreso del reembolso es dato de Caja/Finanzas.
+        Assert.Equal(1, pagina.TotalRegistros);
         Assert.All(pagina.Items, f => Assert.Equal("tarjeta", f.MetodoPago));
 
-        var egreso = pagina.Items.Single(f => f.ReferenciaTipo == CajaReferenciaTipos.CancelacionVenta);
-        Assert.Equal("egreso", egreso.TipoMovimiento);
-        Assert.Equal(-Fase6Helper.PrecioProteina, egreso.MontoCentavos);
+        var fila = pagina.Items.Single(f => f.ReferenciaTipo == CajaReferenciaTipos.Venta);
+        Assert.Equal("ingreso", fila.TipoMovimiento);
+        Assert.Equal(Fase6Helper.PrecioProteina, fila.MontoCentavos);
+        Assert.Equal(VentaEstados.Cancelada, fila.EstadoVenta);
+        Assert.False(fila.EsVentaCancelable);
 
-        var ingreso = pagina.Items.Single(f => f.ReferenciaTipo == CajaReferenciaTipos.Venta);
-        Assert.Equal(VentaEstados.Cancelada, ingreso.EstadoVenta);
-        Assert.False(ingreso.EsVentaCancelable);
+        // El detalle conserva quién y cuándo canceló (dato que antes vivía en
+        // la fila de la cancelación).
+        var detalle = await ctx.VentasService.ObtenerDetalleVentaAsync(token, venta.IdVenta, sedeId);
+        Assert.Equal(VentaEstados.Cancelada, detalle.Estado);
+        Assert.False(string.IsNullOrWhiteSpace(detalle.CanceladaPor));
+        Assert.False(string.IsNullOrWhiteSpace(detalle.CanceladaElIsoUtc));
     }
 
     [Fact]
@@ -147,8 +154,9 @@ public sealed class HistorialVentasTests
 
         var canceladas = await ctx.VentasService.BuscarHistorialAsync(
             token, new HistorialFiltros { EstadoVenta = VentaEstados.Cancelada }, idSedeFrontend: sedeId);
-        // El ingreso y el egreso de la misma venta cancelada.
-        Assert.Equal(2, canceladas.TotalRegistros);
+        // Una sola fila por venta cancelada (el egreso ya no es fila propia).
+        Assert.Equal(1, canceladas.TotalRegistros);
+        Assert.All(canceladas.Items, f => Assert.Equal(VentaEstados.Cancelada, f.EstadoVenta));
     }
 
     [Fact]

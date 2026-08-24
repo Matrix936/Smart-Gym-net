@@ -12,6 +12,23 @@ public sealed class BitacoraAuditoriaRepository : RepositoryBase, IBitacoraAudit
     {
     }
 
+    /// <summary>Último 'venta.cancelada' de la venta con actor resuelto (JOIN usuarios).</summary>
+    public async Task<(string FechaIsoUtc, string Usuario)?> ObtenerUltimaCancelacionAsync(
+        string idVenta, CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        var fila = await conn.QuerySingleOrDefaultAsync<(string? CreatedAt, string? Usuario)>(
+            new CommandDefinition(
+                "SELECT b.created_at, TRIM(u.nombre || ' ' || u.apellido_paterno) AS Usuario " +
+                "FROM bitacora_auditoria b LEFT JOIN usuarios u ON u.id_usuario = b.id_usuario " +
+                "WHERE b.accion = 'venta.cancelada' AND b.id_registro_afectado = @idVenta " +
+                "AND b.deleted_at IS NULL ORDER BY b.created_at DESC LIMIT 1",
+                new { idVenta }, cancellationToken: ct));
+        return string.IsNullOrEmpty(fila.CreatedAt)
+            ? null
+            : (fila.CreatedAt, fila.Usuario ?? "-");
+    }
+
     public async Task InsertAsync(BitacoraAuditoria registro, CancellationToken ct = default)
     {
         await using var conn = ConnectionFactory.Open(DbPath);

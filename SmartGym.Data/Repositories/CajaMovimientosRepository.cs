@@ -79,7 +79,11 @@ public sealed class CajaMovimientosRepository : RepositoryBase, ICajaMovimientos
         "LEFT JOIN usuarios u1 ON u1.id_usuario = v.id_vendedor " +
         "LEFT JOIN usuarios u2 ON u2.id_usuario = mp.id_vendedor " +
         "LEFT JOIN usuarios u3 ON u3.id_usuario = ccu.id_cobrador " +
-        "WHERE (@idSede IS NULL OR cs.id_sede = @idSede) AND cm.deleted_at IS NULL AND cs.deleted_at IS NULL ";
+        "WHERE (@idSede IS NULL OR cs.id_sede = @idSede) AND cm.deleted_at IS NULL AND cs.deleted_at IS NULL " +
+        // Una venta cancelada se muestra como UNA fila (la original, con su
+        // estado vivo via v.estado); el egreso del reembolso es dato de Caja/
+        // Finanzas, no de este listado.
+        "AND cm.referencia_tipo <> 'cancelacion_venta' ";
 
     private const string HistorialSelect =
         "SELECT cm.created_at AS Fecha, " +

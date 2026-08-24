@@ -86,6 +86,11 @@ public sealed class VentaInfo
     public string Estado { get; set; } = VentaEstados.Completada;
     public long? IdVendedor { get; set; }
     public IReadOnlyList<DetalleVentaInfo> Items { get; set; } = Array.Empty<DetalleVentaInfo>();
+
+    /// <summary>Cuándo se canceló (bitácora venta.cancelada). Null si no aplica.</summary>
+    public string? CanceladaElIsoUtc { get; set; }
+    /// <summary>Quién canceló (nombre resuelto desde bitácora). Null si no aplica.</summary>
+    public string? CanceladaPor { get; set; }
 }
 
 public sealed class RegistrarVentaInput

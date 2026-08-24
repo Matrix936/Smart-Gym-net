@@ -14,6 +14,7 @@ public sealed class VentasService : IVentasService
     private readonly IVentasRepository _ventas;
     private readonly IProductosRepository _productos;
     private readonly ISedeResolutionService _sedeResolution;
+    private readonly IBitacoraAuditoriaRepository _bitacora;
 
     public VentasService(
         IAuthService auth,
@@ -21,7 +22,8 @@ public sealed class VentasService : IVentasService
         ICajaMovimientosRepository movimientos,
         IVentasRepository ventas,
         IProductosRepository productos,
-        ISedeResolutionService sedeResolution)
+        ISedeResolutionService sedeResolution,
+        IBitacoraAuditoriaRepository bitacora)
     {
         _auth = auth;
         _authz = authz;
@@ -29,6 +31,7 @@ public sealed class VentasService : IVentasService
         _ventas = ventas;
         _productos = productos;
         _sedeResolution = sedeResolution;
+        _bitacora = bitacora;
     }
 
     public async Task<PagedResult<MovimientoHistorialDto>> BuscarHistorialAsync(
@@ -85,7 +88,7 @@ public sealed class VentasService : IVentasService
             });
         }
 
-        return new VentaInfo
+        var detalle = new VentaInfo
         {
             IdVenta = venta.IdVenta,
             IdSocio = venta.IdSocio,
@@ -96,5 +99,18 @@ public sealed class VentasService : IVentasService
             IdVendedor = venta.IdVendedor,
             Items = items,
         };
+
+        // Quién y cuándo canceló (bitácora) — solo si aplica; el listado ya no
+        // muestra la fila de la cancelación como entrada propia.
+        if (venta.Estado == VentaEstados.Cancelada)
+        {
+            if (await _bitacora.ObtenerUltimaCancelacionAsync(idVenta, ct) is { } cancelacion)
+            {
+                detalle.CanceladaElIsoUtc = cancelacion.FechaIsoUtc;
+                detalle.CanceladaPor = cancelacion.Usuario;
+            }
+        }
+
+        return detalle;
     }
 }
