@@ -252,12 +252,6 @@ else
                                      Margin="Margin.Dense"
                                      Min="1" Max="180"
                                      @bind-Value="_plazoCreditoDias" />
-                    <MudNumericField T="int"
-                                     Label="Plazo (días)"
-                                     Variant="Variant.Outlined"
-                                     Margin="Margin.Dense"
-                                     Min="1" Max="180"
-                                     @bind-Value="_plazoCreditoDias" />
                 }
                 <AsyncButton Text="@($"Cobrar {FormatearMonto(TotalCarrito())}")"
                              LoadingText="Cobrando..."
@@ -424,9 +418,6 @@ else
     private long? _montoPagado;
 
     /// <summary>Plazo del crédito en días; default 10, editable antes de cobrar.</summary>
-    private int _plazoCreditoDias = 10;
-
-    /// <summary>Plazo del crédito en días; default 10 (POS histórico: 15), editable.</summary>
     private int _plazoCreditoDias = 10;
 
     // Foco en "Nueva venta" al abrir el recibo: Enter la activa nativamente.
