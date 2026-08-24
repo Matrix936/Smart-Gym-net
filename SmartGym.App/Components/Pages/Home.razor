@@ -135,12 +135,13 @@
                                     </span>
                                 </td>
                                 <td class="col-accion">
-                                    <MudIconButton Icon="@Icons.Material.Filled.Chat"
-                                                   Color="Color.Success"
+                                    <MudIconButton Color="Color.Success"
                                                    Variant="Variant.Outlined"
                                                    aria-label="Enviar WhatsApp"
                                                    title="Enviar WhatsApp"
-                                                   OnClick='() => EnviarWhatsAppAsync(r)' />
+                                                   OnClick='() => EnviarWhatsAppAsync(r)'>
+                                        <IconifyIcon Icon="simple-icons:whatsapp" />
+                                    </MudIconButton>
                                 </td>
                             </tr>
                         }
