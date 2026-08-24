@@ -29,6 +29,9 @@ public sealed class DetalleVenta
     public string IdDetalle { get; set; } = string.Empty;
     public string IdVenta { get; set; } = string.Empty;
     public long IdProducto { get; set; }
+
+    /// <summary>Promoción aplicada a la línea (descuento o combo); null sin promo.</summary>
+    public string? IdPromocion { get; set; }
     public long Cantidad { get; set; }
     public long PrecioUnitarioCentavos { get; set; }
     public long SubtotalCentavos { get; set; }
@@ -40,6 +43,12 @@ public sealed class DetalleVenta
 public sealed class VentaItem
 {
     public long IdProducto { get; set; }
+
+    /// <summary>
+    /// Promoción vendida como unidad (combo). Cuando viene, IdProducto se ignora:
+    /// los componentes y el precio salen del catálogo server-side.
+    /// </summary>
+    public string? IdPromocion { get; set; }
     public long Cantidad { get; set; }
 }
 
@@ -84,6 +93,12 @@ public sealed class RegistrarVentaInput
     /// Menor al total solo procede con pos.permite_credito encendido y socio válido.
     /// </summary>
     public long? MontoPagadoCentavos { get; set; }
+
+    /// <summary>
+    /// Plazo del crédito en días (vencimiento de la cuenta por cobrar).
+    /// Null = 15 (default histórico). Solo aplica con pago incompleto.
+    /// </summary>
+    public int? PlazoCreditoDias { get; set; }
 }
 
 public sealed class CancelarVentaInput

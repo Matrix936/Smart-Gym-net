@@ -18,6 +18,7 @@ public static class PermisoCatalogo
     public const string PosCancelarVenta = "pos.cancelar_venta";
     public const string PosVerHistorial = "pos.ver_historial";
     public const string ProductosGestionar = "productos.gestionar";
+    public const string PromocionesGestionar = "promociones.gestionar";
     public const string MaquinariaGestionar = "maquinaria.gestionar";
     public const string FinanzasVer = "finanzas.ver";
     public const string ConfiguracionEditar = "configuracion.editar";
@@ -34,7 +35,7 @@ public static class PermisoCatalogo
     [
         SociosCrear, SociosEditar, SociosEliminar,
         MembresiasCrear, MembresiasCongelar, MembresiasCancelar, MembresiasVer,
-        PosVender, PosCancelarVenta, PosVerHistorial, ProductosGestionar, MaquinariaGestionar,
+        PosVender, PosCancelarVenta, PosVerHistorial, ProductosGestionar, PromocionesGestionar, MaquinariaGestionar,
         FinanzasVer,
         ConfiguracionEditar,
         CajaAbrir, CajaCerrar,

@@ -13,7 +13,7 @@ public sealed class VentasRepository : RepositoryBase, IVentasRepository
         "id_caja_movimiento, id_vendedor, estado, updated_at, sincronizado, deleted_at " +
         "FROM ventas ";
 
-    private const string SelectDetalle = "SELECT id_detalle, id_venta, id_producto, cantidad, " +
+    private const string SelectDetalle = "SELECT id_detalle, id_venta, id_producto, id_promocion, cantidad, " +
         "precio_unitario_centavos, subtotal_centavos, updated_at, sincronizado, deleted_at " +
         "FROM detalle_ventas ";
 
@@ -98,9 +98,9 @@ public sealed class VentasRepository : RepositoryBase, IVentasRepository
             {
                 await conn.ExecuteAsync(
                     new CommandDefinition(
-                        "INSERT INTO detalle_ventas (id_detalle, id_venta, id_producto, cantidad, " +
+                        "INSERT INTO detalle_ventas (id_detalle, id_venta, id_producto, id_promocion, cantidad, " +
                         "precio_unitario_centavos, subtotal_centavos, updated_at, sincronizado) " +
-                        "VALUES (@IdDetalle, @IdVenta, @IdProducto, @Cantidad, @PrecioUnitarioCentavos, " +
+                        "VALUES (@IdDetalle, @IdVenta, @IdProducto, @IdPromocion, @Cantidad, @PrecioUnitarioCentavos, " +
                         "@SubtotalCentavos, @UpdatedAt, 0);",
                         detalle, tx, cancellationToken: ct));
             }

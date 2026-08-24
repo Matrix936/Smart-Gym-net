@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS sedes (
     id_sede           INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre            TEXT NOT NULL,
     direccion         TEXT,
+    codigo_postal     TEXT,
     telefono          TEXT,
     horario_apertura  TEXT,
     horario_cierre    TEXT,
@@ -131,9 +132,11 @@ CREATE TABLE IF NOT EXISTS configuracion_general (
 CREATE TABLE IF NOT EXISTS empresa_config_fiscal (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre_comercial TEXT NOT NULL,
-    telefono        TEXT NOT NULL,
-    direccion       TEXT NOT NULL,
-    codigo_postal   TEXT NOT NULL,
+    -- telefono/direccion/codigo_postal migran hacia sedes; quedan nullable aquí
+    -- por compatibilidad mientras convivan ambos repositorios.
+    telefono        TEXT,
+    direccion       TEXT,
+    codigo_postal   TEXT,
     razon_social    TEXT,
     rfc             TEXT,
     regimen_fiscal  TEXT,
@@ -419,6 +422,7 @@ CREATE TABLE IF NOT EXISTS detalle_ventas (
     id_detalle                TEXT PRIMARY KEY,
     id_venta                    TEXT NOT NULL,
     id_producto                    INTEGER NOT NULL,
+    id_promocion                     TEXT,     -- promoción aplicada a la línea (descuento o combo); NULL sin promo
     cantidad                          INTEGER NOT NULL,
     precio_unitario_centavos             INTEGER NOT NULL,
     subtotal_centavos                       INTEGER NOT NULL,
@@ -426,9 +430,44 @@ CREATE TABLE IF NOT EXISTS detalle_ventas (
     sincronizado                                 INTEGER NOT NULL DEFAULT 0,
     deleted_at                                    TEXT,
     FOREIGN KEY (id_venta) REFERENCES ventas(id_venta),
-    FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
+    FOREIGN KEY (id_producto) REFERENCES productos(id_producto),
+    FOREIGN KEY (id_promocion) REFERENCES promociones(id_promocion)
 );
 CREATE INDEX IF NOT EXISTS idx_detalle_ventas_id_venta ON detalle_ventas(id_venta);
+
+-- ============================================================================
+-- PROMOCIONES
+-- Una sola tabla: tipo discrimina descuento vs combo (mismo criterio que
+-- cuentas_cobrar.origen). fecha_inicio/fecha_fin se guardan como 'yyyy-MM-dd'
+-- (date-only) para comparación lexicográfica directa en SQLite.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS promociones (
+    id_promocion             TEXT PRIMARY KEY,
+    tipo                     TEXT NOT NULL, -- descuento | combo
+    nombre                   TEXT NOT NULL,
+    descripcion              TEXT,
+    id_producto              INTEGER,       -- solo descuento; NULL en combos
+    tipo_descuento           TEXT,          -- monto_fijo | porcentaje (solo descuento)
+    valor                    INTEGER,       -- centavos (monto_fijo) o entero 1..100 (porcentaje)
+    precio_combo_centavos    INTEGER,       -- precio cerrado del combo completo
+    fecha_inicio             TEXT,          -- 'yyyy-MM-dd'; NULL = vigente desde ya
+    fecha_fin                TEXT,          -- 'yyyy-MM-dd'; NULL = sin caducidad
+    es_activo                INTEGER NOT NULL DEFAULT 1,
+    updated_at               TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    sincronizado             INTEGER NOT NULL DEFAULT 0,
+    deleted_at               TEXT,
+    FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
+);
+CREATE INDEX IF NOT EXISTS idx_promociones_id_producto ON promociones(id_producto);
+
+CREATE TABLE IF NOT EXISTS promocion_productos (
+    id_promocion    TEXT NOT NULL,
+    id_producto     INTEGER NOT NULL,
+    cantidad        INTEGER NOT NULL,
+    PRIMARY KEY (id_promocion, id_producto),
+    FOREIGN KEY (id_promocion) REFERENCES promociones(id_promocion),
+    FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
+);
 
 -- ============================================================================
 -- 8. COBRANZA

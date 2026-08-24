@@ -27,4 +27,10 @@ public static class DateHelper
     /// <summary>Fecha de expiración típica de sesión (T + horas).</summary>
     public static string ExpiresAtUtc(double hoursFromNow) =>
         ToIsoUtc(DateTime.UtcNow.AddHours(hoursFromNow));
+
+    /// <summary>Hoy (UTC) como 'yyyy-MM-dd' — convención de fechas date-only de promociones.</summary>
+    public static string TodayIso() => DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    /// <summary>Normaliza un DateTime a 'yyyy-MM-dd' (date-only) para promociones.</summary>
+    public static string ToFechaSolo(DateTime fecha) => fecha.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 }

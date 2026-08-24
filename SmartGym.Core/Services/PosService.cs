@@ -25,6 +25,7 @@ public sealed class PosService : IPosService
     private readonly IConfiguracionRepository _configuracion;
     private readonly IBitacoraAuditoriaRepository _bitacora;
     private readonly ISedeResolutionService _sedeResolution;
+    private readonly IPromocionesRepository _promociones;
 
     public PosService(
         IAuthService auth,
@@ -37,7 +38,8 @@ public sealed class PosService : IPosService
         ICuentasCobrarRepository cuentas,
         IConfiguracionRepository configuracion,
         IBitacoraAuditoriaRepository bitacora,
-        ISedeResolutionService sedeResolution)
+        ISedeResolutionService sedeResolution,
+        IPromocionesRepository promociones)
     {
         _auth = auth;
         _authz = authz;
@@ -50,6 +52,7 @@ public sealed class PosService : IPosService
         _configuracion = configuracion;
         _bitacora = bitacora;
         _sedeResolution = sedeResolution;
+        _promociones = promociones;
     }
 
     public async Task<VentaInfo> RegistrarVentaAsync(
@@ -92,7 +95,7 @@ public sealed class PosService : IPosService
         }
 
         long totalCentavos = 0;
-        var validated = new List<(long idProducto, long cantidad, long precio, bool requiereInventario)>();
+        var validated = new List<(long idProducto, long cantidad, long precio, bool requiereInventario, string? idPromocion)>();
         foreach (var item in input.Items)
         {
             if (item.Cantidad <= 0)
@@ -102,23 +105,112 @@ public sealed class PosService : IPosService
                     "cantidad_invalida");
             }
 
-            var producto = await _productos.GetByIdAsync(item.IdProducto, ct)
+            if (item.IdPromocion is not null)
+            {
+                // Combo: precio cerrado server-side; los componentes entran como
+                // líneas prorrateadas (sum(detalles) == total se mantiene) y el
+                // stock se descuenta por componente dentro de la misma venta.
+                var promo = await _promociones.GetByIdAsync(item.IdPromocion, ct)
+                    ?? throw BusinessException.NotFound("Promoción no encontrada", "promocion_no_encontrada");
+
+                if (!PromocionesService.EsVigente(promo, DateHelper.NowIsoUtc()))
+                {
+                    throw BusinessException.Conflict("La promoción no está vigente", "promocion_no_vigente");
+                }
+                if (promo.Tipo != PromocionTipos.Combo)
+                {
+                    throw BusinessException.Validation("Solo los combos se venden como promoción", "tipo_promocion_invalido");
+                }
+
+                var componentesRaw = await _promociones.GetComponentesAsync(promo.IdPromocion, ct);
+                if (componentesRaw.Count == 0)
+                {
+                    throw BusinessException.Conflict("El combo no tiene componentes", "combo_sin_componentes");
+                }
+
+                var preciosComponentes = new List<(long idProducto, long cantidad, long precioVenta, bool requiereInventario)>();
+                long sumaPesos = 0;
+                foreach (var c in componentesRaw)
+                {
+                    var producto = await _productos.GetByIdAsync(c.IdProducto, ct)
+                        ?? throw BusinessException.NotFound(
+                            $"Producto {c.IdProducto} no encontrado o inactivo",
+                            "producto_no_encontrado");
+                    if (!producto.EsActivo)
+                    {
+                        throw BusinessException.Conflict(
+                            $"El producto {producto.Descripcion} del combo no está activo",
+                            "producto_no_activo_combo");
+                    }
+                    preciosComponentes.Add((c.IdProducto, c.Cantidad * item.Cantidad,
+                        producto.PrecioVentaCentavos, producto.RequiereInventario));
+                    sumaPesos += producto.PrecioVentaCentavos * c.Cantidad;
+                }
+
+                // Prorrateo del precio cerrado entre componentes proporcional a su
+                // precio de venta; el último absorbe el redondeo para que la suma
+                // de la línea sea exactamente precioCombo * cantidad.
+                var precioComboTotal = (promo.PrecioComboCentavos ?? 0) * item.Cantidad;
+                var asignado = 0L;
+                for (var i = 0; i < preciosComponentes.Count; i++)
+                {
+                    var comp = preciosComponentes[i];
+                    long precioLinea;
+                    if (sumaPesos == 0 || i == preciosComponentes.Count - 1)
+                    {
+                        precioLinea = precioComboTotal - asignado;
+                    }
+                    else
+                    {
+                        precioLinea = precioComboTotal * (comp.precioVenta * comp.cantidad) / sumaPesos;
+                    }
+                    asignado += precioLinea;
+
+                    var precioUnitario = comp.cantidad == 0 ? 0 : precioLinea / comp.cantidad;
+                    totalCentavos += precioLinea;
+                    validated.Add((comp.idProducto, comp.cantidad, precioUnitario,
+                        comp.requiereInventario, promo.IdPromocion));
+                }
+
+                continue;
+            }
+
+            var productoIndividual = await _productos.GetByIdAsync(item.IdProducto, ct)
                 ?? throw BusinessException.NotFound(
                     $"Producto {item.IdProducto} no encontrado o inactivo",
                     "producto_no_encontrado");
 
-            var subtotal = producto.PrecioVentaCentavos * item.Cantidad;
+            // Descuento vigente sobre el producto: el precio final lo decide
+            // siempre el server (el frontend nunca manda precios).
+            string? idPromocionDescuento = null;
+            var precioEfectivo = productoIndividual.PrecioVentaCentavos;
+            var descuentoVigente = await _promociones.GetDescuentoVigentePorProductoAsync(
+                item.IdProducto, DateHelper.NowIsoUtc(), ct);
+            if (descuentoVigente is not null)
+            {
+                precioEfectivo = PromocionesService.CalcularPrecioFinal(precioEfectivo, descuentoVigente);
+                idPromocionDescuento = descuentoVigente.IdPromocion;
+            }
+
+            var subtotal = precioEfectivo * item.Cantidad;
             totalCentavos += subtotal;
-            validated.Add((item.IdProducto, item.Cantidad, producto.PrecioVentaCentavos, producto.RequiereInventario));
+            validated.Add((item.IdProducto, item.Cantidad, precioEfectivo,
+                productoIndividual.RequiereInventario, idPromocionDescuento));
         }
 
-        foreach (var (idProducto, cantidad, _, requiereInventario) in validated)
+        // Stock agregado por producto: un mismo producto puede venir como línea
+        // individual y dentro de uno o más combos del mismo carrito.
+        var stockRequerido = new Dictionary<long, long>();
+        foreach (var v in validated)
         {
-            if (!requiereInventario)
+            if (!v.requiereInventario)
             {
                 continue;
             }
-
+            stockRequerido[v.idProducto] = stockRequerido.GetValueOrDefault(v.idProducto) + v.cantidad;
+        }
+        foreach (var (idProducto, cantidad) in stockRequerido)
+        {
             var stock = (await _inventario.GetByProductoSedeAsync(idProducto, idSede, ct))?.Stock ?? 0;
             if (stock < cantidad)
             {
@@ -146,7 +238,8 @@ public sealed class PosService : IPosService
         if (totalPagado < totalCentavos)
         {
             cuentaPos = await ValidarYCrearCuentaCreditoAsync(
-                input.IdSocio, totalCentavos - totalPagado, totalPagado, ahora, ct);
+                input.IdSocio, totalCentavos - totalPagado, totalPagado,
+                input.PlazoCreditoDias ?? DiasVencimientoCreditoPos, ahora, ct);
         }
 
         var idVenta = UuidHelper.NewV4();
@@ -187,6 +280,7 @@ public sealed class PosService : IPosService
                 IdDetalle = UuidHelper.NewV4(),
                 IdVenta = idVenta,
                 IdProducto = v.idProducto,
+                IdPromocion = v.idPromocion,
                 Cantidad = v.cantidad,
                 PrecioUnitarioCentavos = v.precio,
                 SubtotalCentavos = v.precio * v.cantidad,
@@ -198,7 +292,7 @@ public sealed class PosService : IPosService
             venta,
             movimiento,
             detalles,
-            validated.Where(v => v.requiereInventario).Select(v => (v.idProducto, v.cantidad)).ToList(),
+            stockRequerido.Select(kv => (kv.Key, kv.Value)).ToList(),
             RegistrarBitacora(info, "venta.creada", idVenta, idSede, null, null),
             cuentaPos,
             ct);
@@ -292,10 +386,10 @@ public sealed class PosService : IPosService
     /// Gate de venta a crédito: interruptor global encendido, socio obligatorio
     /// y sin deudas vencidas (pendiente/parcial con fecha_vencimiento pasada).
     /// Crea la cuenta por cobrar igual que MembresiasService.VenderAsync —
-    /// vencimiento por defecto a 15 días por no haber fecha fin de membresía.
+    /// el vencimiento usa el plazo recibido de la UI (default 15 días).
     /// </summary>
     private async Task<CuentaCobrar> ValidarYCrearCuentaCreditoAsync(
-        string? idSocio, long saldoPendiente, long montoPagado, string ahora, CancellationToken ct)
+        string? idSocio, long saldoPendiente, long montoPagado, int plazoDias, string ahora, CancellationToken ct)
     {
         if (!await LeerPermiteCreditoAsync(ct))
         {
@@ -308,6 +402,12 @@ public sealed class PosService : IPosService
         {
             throw BusinessException.Validation(
                 "Una venta a crédito requiere un socio asociado", "socio_requerido_credito");
+        }
+
+        if (plazoDias is < 1 or > 180)
+        {
+            throw BusinessException.Validation(
+                "El plazo de crédito debe estar entre 1 y 180 días", "plazo_invalido");
         }
 
         var hoy = DateHelper.ParseIsoUtc(ahora);
@@ -325,7 +425,7 @@ public sealed class PosService : IPosService
             Origen = CuentaCobrarOrigenes.Pos,
             IdSocio = idSocio,
             SaldoPendienteCentavos = saldoPendiente,
-            FechaVencimiento = DateHelper.ToIsoUtc(hoy.AddDays(DiasVencimientoCreditoPos)),
+            FechaVencimiento = DateHelper.ToIsoUtc(hoy.AddDays(plazoDias)),
             Estado = montoPagado == 0 ? CuentaCobrarEstados.Pendiente : CuentaCobrarEstados.Parcial,
             UpdatedAt = ahora,
         };

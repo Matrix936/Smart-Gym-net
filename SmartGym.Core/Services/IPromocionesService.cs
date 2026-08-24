@@ -1,0 +1,93 @@
+using SmartGym.Core.Common;
+using SmartGym.Core.Entities;
+
+namespace SmartGym.Core.Services;
+
+/// <summary>
+/// Catálogo de promociones: descuentos por producto y combos. Escrituras
+/// administrativas requieren sesión + permiso promociones.gestionar, como
+/// todo el resto del sistema.
+/// </summary>
+public interface IPromocionesService
+{
+    /// <summary>Solo lectura (sesión válida). tipo null → todos; esActivo null → sin filtro por estado.</summary>
+    Task<PagedResult<PromocionInfo>> BuscarAsync(string token, string? query = null, string? tipo = null, bool? esActivo = null, int pagina = 1, int tamanoPagina = TamanosPagina.Default, CancellationToken ct = default);
+
+    Task<PromocionInfo> CrearDescuentoAsync(
+        string token,
+        string nombre,
+        string? descripcion,
+        long idProducto,
+        string tipoDescuento,
+        long valor,
+        DateTime? fechaInicio = null,
+        DateTime? fechaFin = null,
+        CancellationToken ct = default);
+
+    /// <summary>Componentes del combo; el stock se descuenta por componente al vender en POS.</summary>
+    Task<PromocionInfo> CrearComboAsync(
+        string token,
+        string nombre,
+        string? descripcion,
+        long precioComboCentavos,
+        IReadOnlyList<PromocionComponente> componentes,
+        DateTime? fechaInicio = null,
+        DateTime? fechaFin = null,
+        CancellationToken ct = default);
+
+    Task<PromocionInfo> EditarDescuentoAsync(
+        string token,
+        string idPromocion,
+        string nombre,
+        string? descripcion,
+        long idProducto,
+        string tipoDescuento,
+        long valor,
+        DateTime? fechaInicio = null,
+        DateTime? fechaFin = null,
+        CancellationToken ct = default);
+
+    Task<PromocionInfo> EditarComboAsync(
+        string token,
+        string idPromocion,
+        string nombre,
+        string? descripcion,
+        long precioComboCentavos,
+        IReadOnlyList<PromocionComponente> componentes,
+        DateTime? fechaInicio = null,
+        DateTime? fechaFin = null,
+        CancellationToken ct = default);
+
+    /// <summary>Vuelve a ofrecerse — no revalida solapamiento histórico.</summary>
+    Task ActivarAsync(string token, string idPromocion, CancellationToken ct = default);
+
+    /// <summary>Deja de ofrecerse/aplicarse; no borra el historial de ventas.</summary>
+    Task DesactivarAsync(string token, string idPromocion, CancellationToken ct = default);
+
+    /// <summary>Catálogo vigente para POS: descuentos activos por producto + combos resueltos.</summary>
+    Task<IReadOnlyList<PosPromocionInfo>> ObtenerParaPosAsync(string token, CancellationToken ct = default);
+}
+
+public sealed class PosPromocionInfo
+{
+    public string IdPromocion { get; set; } = string.Empty;
+    public string Tipo { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
+
+    /// <summary>Solo descuento.</summary>
+    public long? IdProducto { get; set; }
+
+    /// <summary>Solo descuento: precio final del producto ya con descuento aplicado.</summary>
+    public long PrecioFinalCentavos { get; set; }
+
+    /// <summary>Precio original del producto (para tachar en UI). Solo descuento.</summary>
+    public long PrecioOriginalCentavos { get; set; }
+
+    /// <summary>Solo combo.</summary>
+    public long PrecioComboCentavos { get; set; }
+
+    /// <summary>Solo combo: suma precio_venta * cantidad de componentes (ahorro visible).</summary>
+    public long SubtotalComponentesCentavos { get; set; }
+
+    public IReadOnlyList<ComponenteInfo> Componentes { get; set; } = Array.Empty<ComponenteInfo>();
+}
