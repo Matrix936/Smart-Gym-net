@@ -165,6 +165,13 @@ public sealed class CajaMovimientosRepository : RepositoryBase, ICajaMovimientos
             where += "AND COALESCE(v.id_vendedor, mp.id_vendedor, ccu.id_cobrador) = @idVendedor ";
             parametros.Add("idVendedor", filtros.IdVendedor);
         }
+        if (!string.IsNullOrEmpty(filtros.Folio))
+        {
+            // Folio = id de la venta (referencia_id en filas de venta). Parcial:
+            // sirve para pegar un fragmento del UUID; sin acentos que normalizar.
+            where += "AND cm.referencia_id LIKE @folio ";
+            parametros.Add("folio", $"%{filtros.Folio.Trim()}%");
+        }
 
         await using var conn = ConnectionFactory.Open(DbPath);
 

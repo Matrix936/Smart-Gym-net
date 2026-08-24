@@ -23,6 +23,12 @@ public sealed class HistorialFiltros
 
     public string? IdSocio { get; set; }
     public long? IdVendedor { get; set; }
+
+    /// <summary>
+    /// Búsqueda puntual por folio (id de venta). Coincidencia parcial
+    /// (LIKE %..%): útil para pegar un fragmento del UUID copiado.
+    /// </summary>
+    public string? Folio { get; set; }
 }
 
 /// <summary>

@@ -49,6 +49,17 @@
                              VisiblesIniciales="_visiblesIniciales"
                              ConteoAplicados="ConteoAplicados"
                              VisiblesChanged="OnVisiblesChangedAsync" />
+        @* Folio fuera del menú de filtros: búsqueda puntual y directa (mismo
+           criterio que el buscador de Miembros/Productos). *@
+        <MudTextField T="string"
+                      Class="search-field"
+                      Placeholder="Buscar por folio..."
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Margin="Margin.Dense"
+                      Immediate="true"
+                      Value="@_folioBusqueda"
+                      ValueChanged="OnFolioBusquedaChangedAsync" />
         @if (_showSede && _sedes.Count > 1 && _filtrosVisibles.Contains("sede"))
         {
             <MudSelect T="long"
@@ -342,6 +353,7 @@
     </DialogActions>
 </MudDialog>
 
+@implements IDisposable
 @code {
     [Inject] private ISessionState Sesion { get; set; } = default!;
     [Inject] private IVentasService Ventas { get; set; } = default!;
@@ -367,6 +379,8 @@
     private string? _tipo;
     private string? _metodoPago;
     private string? _estadoVenta;
+    private string _folioBusqueda = "";
+    private CancellationTokenSource? _folioDebounce;
 
     /// <summary>0 = "Todas las sedes" (no se envía idSede al servicio).</summary>
     private const long SedeFiltroTodas = 0;
@@ -566,6 +580,24 @@
 
     private Task OnTipoChangedAsync(string? value) => CambiarFiltroAsync(() => _tipo = NormalizarNulo(value));
 
+    /// <summary>Búsqueda de folio con debounce de 300ms y reset de página
+    /// (mismo patrón que el buscador de Miembros/Productos).</summary>
+    private async Task OnFolioBusquedaChangedAsync(string value)
+    {
+        _folioBusqueda = value ?? "";
+        _pagina = 1;
+        _folioDebounce?.Cancel();
+        var cts = _folioDebounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(300, cts.Token);
+            await CargarAsync();
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
     private Task OnMetodoChangedAsync(string? value) => CambiarFiltroAsync(() => _metodoPago = NormalizarNulo(value));
 
     private Task OnEstadoChangedAsync(string? value) => CambiarFiltroAsync(() => _estadoVenta = NormalizarNulo(value));
@@ -621,6 +653,7 @@
             EstadoVenta = _estadoVenta,
             IdSocio = _socioSeleccionado?.IdSocio,
             IdVendedor = _idVendedor,
+            Folio = string.IsNullOrWhiteSpace(_folioBusqueda) ? null : _folioBusqueda.Trim(),
         };
     }
 
@@ -927,4 +960,6 @@
         var utc = local.Kind == DateTimeKind.Utc ? local : local.ToUniversalTime();
         return utc.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
     }
+
+    public void Dispose() => _folioDebounce?.Cancel();
 }

@@ -132,6 +132,46 @@ public sealed class HistorialVentasTests
     }
 
     [Fact]
+    public async Task busqueda_por_folio_exacta_parcial_y_combinada()
+    {
+        var (ctx, token, sedeId, idProducto) = await Fase6Helper.BaseAsync();
+        await ctx.CajaService.AbrirCajaAsync(token, 100000, sedeId);
+
+        var venta = await ctx.PosService.RegistrarVentaAsync(token, new RegistrarVentaInput
+        {
+            Items = [new VentaItem { IdProducto = idProducto, Cantidad = 1 }],
+            MetodoPago = "efectivo",
+        }, sedeId);
+        await VenderMembresiaAsync(ctx, token, sedeId); // segunda fila ajena
+
+        var folio = venta.IdVenta;
+
+        // Completa.
+        var completa = await ctx.VentasService.BuscarHistorialAsync(
+            token, new HistorialFiltros { Folio = folio }, idSedeFrontend: sedeId);
+        Assert.Equal(1, completa.TotalRegistros);
+        Assert.Equal(folio, completa.Items[0].ReferenciaId);
+
+        // Parcial (fragmento del UUID).
+        var fragmento = await ctx.VentasService.BuscarHistorialAsync(
+            token, new HistorialFiltros { Folio = folio[..8] }, idSedeFrontend: sedeId);
+        Assert.Equal(1, fragmento.TotalRegistros);
+        Assert.Equal(folio, fragmento.Items[0].ReferenciaId);
+
+        // Inexistente: vacío.
+        var inexistente = await ctx.VentasService.BuscarHistorialAsync(
+            token, new HistorialFiltros { Folio = "no-existe" }, idSedeFrontend: sedeId);
+        Assert.Equal(0, inexistente.TotalRegistros);
+
+        // Combinada con otro filtro que NO corresponde → vacío (se suman, no se excluyen).
+        var combinada = await ctx.VentasService.BuscarHistorialAsync(
+            token,
+            new HistorialFiltros { Folio = folio, MetodoPago = "tarjeta" },
+            idSedeFrontend: sedeId);
+        Assert.Equal(0, combinada.TotalRegistros);
+    }
+
+    [Fact]
     public async Task filtro_por_estado_venta_excluye_otros_tipos()
     {
         var (ctx, token, sedeId, idProducto) = await Fase6Helper.BaseAsync();
