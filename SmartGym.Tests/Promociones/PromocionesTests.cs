@@ -137,6 +137,42 @@ public sealed class PromocionesTests
         Assert.DoesNotContain(pos, p => p.IdPromocion == vencida.Promocion.IdPromocion);
     }
 
+    // ------------------------------------------------------- kiosco (carrusel)
+
+    [Fact]
+    public async Task kiosco_sin_sesion_devuelve_solo_vigentes_y_desactivar_quita()
+    {
+        var (ctx, token, sedeId, idProducto) = await Fase6Helper.BaseAsync();
+
+        var descuento = await ctx.PromocionesService.CrearDescuentoAsync(
+            token, "10% proteina", null, idProducto, PromocionTiposDescuento.Porcentaje, 10);
+        var combo = await ctx.PromocionesService.CrearComboAsync(
+            token, "Pack entrenamiento", null, 48000,
+            [new PromocionComponente { IdProducto = idProducto, Cantidad = 1 }]);
+        var vencida = await ctx.PromocionesService.CrearDescuentoAsync(
+            token, "Navidad pasado", null,
+            await Fase6Helper.InsertarProductoAsync(ctx, "Barrita energetica", 15000),
+            PromocionTiposDescuento.Porcentaje, 50,
+            fechaFin: DateTime.UtcNow.AddDays(-1));
+
+        // Sin token: el Kiosco corre sin usuario logueado. Mismo criterio de
+        // vigencia efectiva que POS — ambos tipos, nunca vencidas.
+        var kiosco = await ctx.PromocionesService.ObtenerVigentesParaKioscoAsync();
+        Assert.Contains(kiosco, p => p.IdPromocion == descuento.Promocion.IdPromocion);
+        Assert.Contains(kiosco, p => p.IdPromocion == combo.Promocion.IdPromocion);
+        Assert.DoesNotContain(kiosco, p => p.IdPromocion == vencida.Promocion.IdPromocion);
+
+        // Desactivar la promo de prueba → desaparece del carrusel sin dejar hueco.
+        await ctx.PromocionesService.DesactivarAsync(token, descuento.Promocion.IdPromocion);
+        Assert.DoesNotContain(
+            await ctx.PromocionesService.ObtenerVigentesParaKioscoAsync(),
+            p => p.IdPromocion == descuento.Promocion.IdPromocion);
+
+        // Precios proyectados igual que POS: descuento aplicado y precio cerrado.
+        Assert.Equal(45000, kiosco.Single(p => p.IdPromocion == descuento.Promocion.IdPromocion).PrecioFinalCentavos);
+        Assert.Equal(48000, kiosco.Single(p => p.IdPromocion == combo.Promocion.IdPromocion).PrecioComboCentavos);
+    }
+
     // --------------------------------------------------- activar/desactivar
 
     [Fact]

@@ -1615,6 +1615,91 @@ table.data-table {
     50% { transform: scale(1.05); filter: drop-shadow(0 0 18px rgba(0, 210, 255, 0.35)); }
 }
 
+/* Franja de promociones vigentes (carrusel): delgada, anclada abajo, fuera
+   del flujo (position:absolute) para no desplazar al ícono de huella ni al
+   mensaje. Sin promos vigentes el componente no renderiza nada — sin hueco.
+   Rotación cada 4.5s desde KioscoPage (Timer); la transición entre tarjetas
+   reutiliza el lenguaje de entrada del Kiosco (kiosco-enter, rebote sutil). */
+.kiosco-promos {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    padding: clamp(0.75rem, 1.8vh, 1.25rem) clamp(1rem, 3vw, 2rem);
+    padding-bottom: calc(clamp(0.75rem, 1.8vh, 1.25rem) + env(safe-area-inset-bottom, 0px));
+    pointer-events: none;
+}
+
+.kiosco-promo-card {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(0.6rem, 1.5vw, 1.25rem);
+    max-width: min(92vw, 760px);
+    padding: clamp(0.55rem, 1.4vh, 0.85rem) clamp(1.1rem, 3vw, 1.9rem);
+    border-radius: 999px;
+    background: var(--color-surface-2);
+    border: var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    animation: kiosco-promo-in 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.kiosco-promo-badge {
+    font-size: clamp(0.65rem, 1.1vw, 0.8rem);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-primary);
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 45%, transparent);
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.kiosco-promo-badge-combo {
+    color: var(--color-success);
+    border-color: rgba(105, 240, 174, 0.45);
+    background: rgba(105, 240, 174, 0.1);
+}
+
+.kiosco-promo-nombre {
+    font-size: clamp(0.95rem, 1.7vw, 1.3rem);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 46ch;
+}
+
+.kiosco-promo-precio {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    white-space: nowrap;
+}
+
+.kiosco-promo-precio s {
+    font-size: clamp(0.8rem, 1.3vw, 1rem);
+    color: var(--color-text-muted);
+}
+
+.kiosco-promo-precio strong {
+    font-size: clamp(1rem, 1.8vw, 1.35rem);
+    font-weight: 700;
+    color: var(--color-success);
+}
+
+/* Entrada de cada tarjeta: mismo espíritu que kiosco-enter pero deslizando
+   hacia arriba desde la franja — CSS puro, se dispara sola porque @key
+   remonta el DOM al cambiar de promo (sin JS interop). */
+@keyframes kiosco-promo-in {
+    from { opacity: 0; transform: translateY(14px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 /* Accesibilidad: si el sistema pide menos movimiento, todo apagado — la
    retroalimentación esencial (mensaje + sonido) no depende de la animación. */
 @media (prefers-reduced-motion: reduce) {
@@ -1623,7 +1708,8 @@ table.data-table {
     .kiosco-icon-idle,
     .kiosco-icon-ok,
     .kiosco-icon-error,
-    .kiosco-icon-warn {
+    .kiosco-icon-warn,
+    .kiosco-promo-card {
         animation: none;
     }
 }

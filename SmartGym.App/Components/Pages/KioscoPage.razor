@@ -5,6 +5,7 @@
    Kiosco es cerrar la ventana (X / Alt+F4), interceptado y confirmado a nivel nativo — ver
    KioscoWindowService.OnWindowCreated. *@
 @implements IDisposable
+@using System.Globalization
 @using MudBlazor
 @using SmartGym.Core.Biometrics
 @using SmartGym.Core.Entities
@@ -109,6 +110,35 @@
     }
 </div>
 
+@* Carrusel de promociones vigentes: franja delgada anclada abajo, fuera del
+   flujo (position:absolute) para no desplazar ni competir con el ícono de
+   huella ni el mensaje de bienvenida/denegación. Sin promos vigentes no se
+   renderiza nada — cero ruido en pantalla pública. *@
+@if (_promocionesVigentes.Count > 0)
+{
+    var promo = _promocionesVigentes[_indiceCarrusel];
+    <div class="kiosco-promos" aria-hidden="true">
+        <div class="kiosco-promo-card" @key="promo.IdPromocion">
+            <span class="kiosco-promo-badge @(promo.Tipo == PromocionTipos.Combo ? "kiosco-promo-badge-combo" : "")">
+                @(promo.Tipo == PromocionTipos.Combo ? "Combo" : "Descuento")
+            </span>
+            <span class="kiosco-promo-nombre">@promo.Nombre</span>
+            <span class="kiosco-promo-precio">
+                @if (promo.Tipo == PromocionTipos.Descuento)
+                {
+                    <s>@FormatearMonto(promo.PrecioOriginalCentavos)</s>
+                    <strong>@FormatearMonto(promo.PrecioFinalCentavos)</strong>
+                }
+                else
+                {
+                    <s>@FormatearMonto(promo.SubtotalComponentesCentavos)</s>
+                    <strong>@FormatearMonto(promo.PrecioComboCentavos)</strong>
+                }
+            </span>
+        </div>
+    </div>
+}
+
 @code {
     private enum KioscoEstado { Cargando, SeleccionarSede, Esperando, LectorOcupado, SinSociosRegistrados, ErrorInesperado, Resultado }
 
@@ -118,6 +148,7 @@
     [Inject] private ITerminalConfigStore TerminalConfig { get; set; } = default!;
     [Inject] private IBiometricCaptureService CaptureService { get; set; } = default!;
     [Inject] private IKioscoSoundService Sonido { get; set; } = default!;
+    [Inject] private IPromocionesService Promos { get; set; } = default!;
 
     private KioscoEstado _estado = KioscoEstado.Cargando;
     // volatile: se lee desde el hilo del ThreadPool del Timer y se escribe
@@ -148,6 +179,15 @@
 
     private Timer? _pollTimer;
     private Timer? _reintentoTemplatesTimer;
+
+    // ---- Carrusel de promociones vigentes ---------------------------------
+    // 4.5s por tarjeta: cómodo para leer nombre + precio sin sentirse lento
+    // ni apresurado. La recarga de vigencia ocurre al completar cada vuelta.
+    private const int IntervaloCarruselMs = 4500;
+    private List<PosPromocionInfo> _promocionesVigentes = [];
+    private int _indiceCarrusel;
+    private Timer? _carruselTimer;
+    private volatile bool _recargandoCarrusel;
 
     protected override async Task OnInitializedAsync()
     {
@@ -194,6 +234,21 @@
         }
 
         await IntentarIniciarIdentificacionAsync();
+
+        // Promociones vigentes para la franja inferior (carrusel). Extra
+        // decorativo: falla silenciosa y nunca afecta la identificación.
+        _ = RecargarPromocionesAsync();
+
+        // Rotación automática del carrusel — mismo patrón de Timer + InvokeAsync
+        // que el polling de arbitraje: el callback vive en un hilo del ThreadPool.
+        _carruselTimer ??= new Timer(_ =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+            _ = InvokeAsync(AvanzarCarruselAsync);
+        }, null, IntervaloCarruselMs, IntervaloCarruselMs);
 
         // El callback del Timer corre en un hilo del ThreadPool, no en el
         // dispatcher de Blazor — el chequeo de _disposed aquí es un atajo de
@@ -304,6 +359,78 @@
 
         await IntentarIniciarIdentificacionAsync();
     }
+
+    private async Task RecargarPromocionesAsync()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        List<PosPromocionInfo> vigentes;
+        try
+        {
+            vigentes = (await Promos.ObtenerVigentesParaKioscoAsync()).ToList();
+        }
+        catch
+        {
+            // Sin promos no se muestra la franja — jamás un error en pantalla.
+            return;
+        }
+
+        // El componente pudo desmontarse durante el await.
+        if (_disposed)
+        {
+            return;
+        }
+
+        _promocionesVigentes = vigentes;
+        if (_indiceCarrusel >= _promocionesVigentes.Count)
+        {
+            _indiceCarrusel = 0;
+        }
+        StateHasChanged();
+    }
+
+    private async Task AvanzarCarruselAsync()
+    {
+        // Congelado durante el resultado de acceso: la franja sigue visible pero
+        // deja de rotar hasta que la pantalla vuelve al estado de espera.
+        if (_disposed || _estado == KioscoEstado.Resultado || _promocionesVigentes.Count == 0)
+        {
+            return;
+        }
+
+        var siguiente = _indiceCarrusel + 1;
+        if (siguiente >= _promocionesVigentes.Count)
+        {
+            _indiceCarrusel = 0;
+            StateHasChanged();
+
+            // Vuelta completa: momento natural para refrescar la vigencia, así
+            // una promo desactivada/vencida desaparece sola (y con ella toda la
+            // franja si era la única) sin dejar espacio vacío.
+            if (!_recargandoCarrusel)
+            {
+                _recargandoCarrusel = true;
+                try
+                {
+                    await RecargarPromocionesAsync();
+                }
+                finally
+                {
+                    _recargandoCarrusel = false;
+                }
+            }
+            return;
+        }
+
+        _indiceCarrusel = siguiente;
+        StateHasChanged();
+    }
+
+    private static string FormatearMonto(long centavos) =>
+        (centavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("es-MX"));
 
     private void PollCurrentMode()
     {
@@ -481,6 +608,7 @@
         _disposed = true;
         _pollTimer?.Dispose();
         _reintentoTemplatesTimer?.Dispose();
+        _carruselTimer?.Dispose();
         _resultadoCts?.Cancel();
         CaptureService.IdentificationResultReceived -= OnIdentificationResult;
         DetenerIdentificacionSiActiva();

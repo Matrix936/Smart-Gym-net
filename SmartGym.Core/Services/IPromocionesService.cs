@@ -66,6 +66,14 @@ public interface IPromocionesService
 
     /// <summary>Catálogo vigente para POS: descuentos activos por producto + combos resueltos.</summary>
     Task<IReadOnlyList<PosPromocionInfo>> ObtenerParaPosAsync(string token, CancellationToken ct = default);
+
+    /// <summary>
+    /// Catálogo vigente para pantallas públicas sin sesión (Kiosco): misma
+    /// proyección y mismo criterio de vigencia efectiva que POS, sin token —
+    /// el Kiosco corre sin usuario logueado. Las promociones son globales
+    /// (sin IdSede), así que no hay filtro por sede de terminal.
+    /// </summary>
+    Task<IReadOnlyList<PosPromocionInfo>> ObtenerVigentesParaKioscoAsync(CancellationToken ct = default);
 }
 
 public sealed class PosPromocionInfo

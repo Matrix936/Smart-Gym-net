@@ -193,6 +193,19 @@ public sealed class PromocionesService : IPromocionesService
     public async Task<IReadOnlyList<PosPromocionInfo>> ObtenerParaPosAsync(string token, CancellationToken ct = default)
     {
         await _auth.ValidarSesionAsync(token, ct);
+        return await ObtenerVigentesCoreAsync(ct);
+    }
+
+    /// <summary>
+    /// Variante sin sesión para el Kiosco (pantalla pública sin usuario logueado).
+    /// Solo lectura y exactamente la misma lógica de vigencia/proyección que POS —
+    /// no duplica EsVigente ni la resolución de productos/componentes.
+    /// </summary>
+    public Task<IReadOnlyList<PosPromocionInfo>> ObtenerVigentesParaKioscoAsync(CancellationToken ct = default)
+        => ObtenerVigentesCoreAsync(ct);
+
+    private async Task<IReadOnlyList<PosPromocionInfo>> ObtenerVigentesCoreAsync(CancellationToken ct)
+    {
         var hoy = DateHelper.TodayIso();
         var resultado = await _promociones.SearchAsync(null, null, esActivo: true, 1, TamanosPagina.Cincuenta, ct);
         var vigentes = resultado.Items.Where(p => EsVigente(p, hoy)).ToList();
