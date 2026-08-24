@@ -129,7 +129,12 @@ public static class TicketEscposBuilder
         Line(buffer, Fit(Optional(ticket.EmpresaNombre, "SMART GYM"), width));
         Line(buffer, Fit($"RFC: {Optional(ticket.Rfc, "SIN RFC CONFIGURADO")}", width));
         Line(buffer, Fit(ticket.SedeNombre.Trim(), width));
-        Line(buffer, Fit($"FOLIO: {ticket.Folio}", width));
+
+        // Folio corto (primeros 8 chars): cabe completo en cualquier ancho de
+        // papel sin truncar, y es suficiente para el buscador parcial (LIKE)
+        // de /ventas. El UUID completo (36 + prefijo = 43 cols) ni siquiera
+        // cabía en 42 columnas y Fit() lo cortaba en algo ilegible.
+        Line(buffer, $"FOLIO: {FolioCorto(ticket.Folio)}");
         Line(buffer, separator);
         Center(buffer, on: false);
 
@@ -247,9 +252,15 @@ public static class TicketEscposBuilder
     private static string Optional(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
 
-    /// <summary>Trunca con "..." al ancho exacto (una sola línea).</summary>
-    private static string Fit(string value, int width)
+    /// <summary>Primeros 8 caracteres del folio, seguro con folios más cortos.</summary>
+    private static string FolioCorto(string folio)
     {
+        var f = folio.Trim();
+        return f.Length <= 8 ? f : f[..8];
+    }
+
+    /// <summary>Trunca con "..." al ancho exacto (una sola línea).</summary>
+    private static string Fit(string value, int width)    {
         var text = value.Replace("\n", " ").Trim();
         if (text.Length <= width)
         {

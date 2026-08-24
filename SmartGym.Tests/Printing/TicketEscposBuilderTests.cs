@@ -136,6 +136,18 @@ public sealed class TicketEscposBuilderTests
     }
 
     [Fact]
+    public void folio_uuid_se_imprime_solo_con_primeros_8_caracteres()
+    {
+        // UUID completo de 36 chars: el ticket imprime solo el prefijo corto
+        // (buscable con LIKE en /ventas), nunca truncado con "..." por Fit.
+        var uuid = "3f2b8c1e-9d4a-4f76-b2c1-5e8a7d6f9c0b";
+        var text = TextoAscii(TicketEscposBuilder.Build(Payload(p => p with { Folio = uuid })));
+        Assert.Contains($"FOLIO: {uuid[..8]}", text);
+        Assert.DoesNotContain("...", text);
+        Assert.DoesNotContain(uuid, text);
+    }
+
+    [Fact]
     public void partida_lleva_descripcion_mayusculas_y_linea_cantidad_importe()
     {
         var text = TextoAscii(TicketEscposBuilder.Build(Payload()));
