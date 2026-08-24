@@ -1226,7 +1226,10 @@ table.data-table {
     transition: opacity 240ms, max-width 240ms;
 }
 
-.sg-shell-collapsed .sg-nav-item-label {
+/* Acotado a .sg-sidebar: los submenús de página (Configuración, Mi Perfil)
+   reutilizan .sg-nav-item-label y NO deben colapsar cuando la shell está
+   en modo mini — solo las etiquetas del sidebar real se ocultan. */
+.sg-shell-collapsed .sg-sidebar .sg-nav-item-label {
     max-width: 0;
     opacity: 0;
 }
