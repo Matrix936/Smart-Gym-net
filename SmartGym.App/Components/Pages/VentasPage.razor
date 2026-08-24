@@ -193,14 +193,14 @@
                                     @* Mismo menú de tres puntos que el resto de las tablas
                                        (Miembros/Membresías/Bitácora): MorphToggle + ToggleAsync
                                        explícito por el breaking change de MudBlazor v9. *@
-                                    <MudMenu @bind-Open="_menuMorphAbierta" AnchorOrigin="Origin.BottomRight"
+                                    <MudMenu Open="@EsMenuAbierto(f.ReferenciaId)" OpenChanged="@(v => MenuOpenChanged(f.ReferenciaId, v))" AnchorOrigin="Origin.BottomRight"
                                              TransformOrigin="Origin.TopRight"
                                              Class="row-menu">
                                         <ActivatorContent>
                                             @* MudBlazor v9: ActivatorContent recibe MenuContext; el clic ya no
                                                abre el menu implicitamente (breaking change v9), hay que llamar
                                                context.ToggleAsync explicito. Ver
-                                               https://github.com/MudBlazor/MudBlazor/issues/12666 *@<span class="morph-toggle @(_menuMorphAbierta ? "abierto" : "")"
+                                               https://github.com/MudBlazor/MudBlazor/issues/12666 *@<span class="morph-toggle @(EsMenuAbierto(f.ReferenciaId) ? "abierto" : "")"
 
                                             @onclick="@context.ToggleAsync"
 
@@ -368,8 +368,17 @@
 
 @implements IDisposable
 @code {
-    // Estado del menu de fila con morfeo (bind-Open): duenos del estado, sin depender de aria-expanded.
-    private bool _menuMorphAbierta;
+    // Estado del menu de fila con morfeo: guarda el ID de la fila cuyo menu esta abierto (null = ninguno).
+    // Se alimenta de MudMenu.OpenChanged (dispara por TODOS los caminos de cierre: item, backdrop, Escape).
+    private string? _menuAbiertoId;
+
+    private bool EsMenuAbierto(object? idFila) => idFila is not null && _menuAbiertoId == idFila.ToString();
+
+    private void MenuOpenChanged(object? idFila, bool abierto) =>
+        _menuAbiertoId = abierto
+            ? idFila?.ToString()
+            : (_menuAbiertoId == idFila?.ToString() ? null : _menuAbiertoId);
+
     [Inject] private ISessionState Sesion { get; set; } = default!;
     [Inject] private IVentasService Ventas { get; set; } = default!;
     [Inject] private IPosService Pos { get; set; } = default!;

@@ -2118,22 +2118,18 @@ table.data-table {
     transform: rotate(-90deg) scale(0.5);
 }
 
-/* Menu abierto (aria-expanded="true" en el wrapper del activador).
-   ⚠️ NOTA (diagnóstico con DOM real): MudBlazor 9.8.0 renderiza
-   aria-expanded="" (VACÍO) siempre — Blazor no emite "True"/"true", así que
-   estas reglas NUNCA hacen match y el morfeo murió silenciosamente.
-   El mecanismo vigente es la clase .abierto (abajo), alimentada por
-   @bind-Open del propio MudMenu: dueños del estado, sin depender de cómo
-   renderice atributos internos la librería. Se conservan como referencia
-   histórica del enfoque abandonado.
-[aria-expanded="true" i] > .morph-toggle .morph-more,
-.morph-toggle:focus-visible .morph-more {
+/* Menu abierto: mecanismo VIGENTE = clase .abierto puesta por cada pagina
+   via @bind-Open del propio MudMenu (duenos del estado).
+   DIAGNOSTICO CON DOM REAL (conservar como referencia): el enfoque anterior
+   dependia de [aria-expanded="true"], pero MudBlazor 9.8.0 renderiza
+   aria-expanded="" (VACIO, nunca "True"/"true") — esas reglas NUNCA hacian
+   match y el morfeo murio silenciosamente en toda la app. */
+.morph-toggle.abierto .morph-more {
     opacity: 0;
     transform: rotate(90deg) scale(0.5);
 }
 
-[aria-expanded="true" i] > .morph-toggle .morph-close,
-.morph-toggle:focus-visible .morph-close {
+.morph-toggle.abierto .morph-close {
     opacity: 1;
     transform: rotate(0deg) scale(1);
 }

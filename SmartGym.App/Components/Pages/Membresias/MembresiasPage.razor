@@ -135,11 +135,11 @@
                                 <span class="status-badge @ClaseEstado(f.EstadoEfectivo)">@EtiquetaEstado(f.EstadoEfectivo)</span>
                             </td>
                             <td class="col-accion">
-                                <MudMenu @bind-Open="_menuMorphAbierta" AnchorOrigin="Origin.BottomRight"
+                                <MudMenu Open="@EsMenuAbierto(f.IdMembresia)" OpenChanged="@(v => MenuOpenChanged(f.IdMembresia, v))" AnchorOrigin="Origin.BottomRight"
                                          TransformOrigin="Origin.TopRight"
                                          Class="row-menu">
                                     <ActivatorContent>
-                                        @* MudBlazor v9: ToggleAsync explícito (breaking change v9). *@<span class="morph-toggle @(_menuMorphAbierta ? "abierto" : "")"
+                                        @* MudBlazor v9: ToggleAsync explícito (breaking change v9). *@<span class="morph-toggle @(EsMenuAbierto(f.IdMembresia) ? "abierto" : "")"
 
                                         @onclick="@context.ToggleAsync"
 
@@ -206,8 +206,17 @@
 }
 
 @code {
-    // Estado del menu de fila con morfeo (bind-Open): duenos del estado, sin depender de aria-expanded.
-    private bool _menuMorphAbierta;
+    // Estado del menu de fila con morfeo: guarda el ID de la fila cuyo menu esta abierto (null = ninguno).
+    // Se alimenta de MudMenu.OpenChanged (dispara por TODOS los caminos de cierre: item, backdrop, Escape).
+    private string? _menuAbiertoId;
+
+    private bool EsMenuAbierto(object? idFila) => idFila is not null && _menuAbiertoId == idFila.ToString();
+
+    private void MenuOpenChanged(object? idFila, bool abierto) =>
+        _menuAbiertoId = abierto
+            ? idFila?.ToString()
+            : (_menuAbiertoId == idFila?.ToString() ? null : _menuAbiertoId);
+
     [Inject] private ISessionState Sesion { get; set; } = default!;
     [Inject] private IMembresiasService Membresias { get; set; } = default!;
     [Inject] private IPlanesMembresiaService Planes { get; set; } = default!;
