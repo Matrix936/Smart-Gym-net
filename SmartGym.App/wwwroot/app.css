@@ -1344,9 +1344,10 @@ table.data-table {
 }
 
 /* Morfeo hamburguesa/X del botón del sidebar — mismo mecanismo del morfeo
-   de las tablas (clase .abierto sobre el ESTADO REAL, no atributos ARIA):
-   líneas cuando el sidebar está colapsado; X cuando está expandido.
-   Sincronizado también con el auto-colapso por navegación (_collapsed). */
+   de las tablas (clase .abierto sobre el ESTADO REAL _collapsed, que cubre
+   toggle manual y auto-colapso por navegación).
+   ⚠️ Esta regla fue borrada una vez por un guardado concurrente de otro
+   editor sobre app.css — si desaparece de nuevo, restaurarla desde git. */
 .sidebar-morph {
     position: relative;
     display: inline-flex;
@@ -1681,11 +1682,15 @@ table.data-table {
     50% { transform: scale(1.05); filter: drop-shadow(0 0 18px rgba(0, 210, 255, 0.35)); }
 }
 
-/* Franja de promociones vigentes (carrusel): delgada, anclada abajo, fuera
-   del flujo (position:absolute) para no desplazar al ícono de huella ni al
-   mensaje. Sin promos vigentes el componente no renderiza nada — sin hueco.
-   Rotación cada 4.5s desde KioscoPage (Timer); la transición entre tarjetas
-   reutiliza el lenguaje de entrada del Kiosco (kiosco-enter, rebote sutil). */
+/* Franja de promociones vigentes (tarjetas / cinta): delgada, anclada abajo,
+   fuera del flujo (position:absolute) para no desplazar al ícono de huella ni
+   al mensaje. Sin promos vigentes el componente no renderiza nada — sin hueco.
+   Sin fondo propio en el contenedor: cada variante se viste sola — la cinta
+   usa el mismo lenguaje glass-panel del resto de la app (color-paper +
+   backdrop blur + glass-border). Nota doble-blur: el shell NO tiene
+   backdrop-filter (fondo opaco) y la franja no tiene hover ni transiciones de
+   recomposición — un solo panel blur en pantalla, sin el parpadeo de paneles
+   blur adyacentes ya corregido en Mi Perfil/Configuración. */
 .kiosco-promos {
     position: absolute;
     left: 0;
@@ -1768,7 +1773,7 @@ table.data-table {
 
 /* Variante cinta (marquesina): todas las promos concatenadas deslizándose
    de derecha a izquierda en loop infinito. Técnica sin JS: el track contiene
-   el texto DUPLICADO (dos spans idénticos desde KioscoPage) y se anima
+   el contenido DUPLICADO (dos grupos idénticos desde KioscoPage) y se anima
    translateX(0 → -50%) — al recorrer justo una copia, el reinicio del loop es
    invisible. Duración seteada por inline style proporcional al largo del
    texto (velocidad de lectura constante). Congelado durante el resultado de
@@ -1778,7 +1783,9 @@ table.data-table {
     overflow: hidden;
     padding-left: 0;
     padding-right: 0;
-    background: var(--color-surface-2);
+    background: var(--color-paper);
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
     border-top: var(--glass-border);
     border-bottom: var(--glass-border);
 }
@@ -1795,12 +1802,61 @@ table.data-table {
     animation-play-state: paused;
 }
 
-.kiosco-cinta-texto {
-    font-size: clamp(0.95rem, 2.4vw, 1.85rem);
-    font-weight: 600;
+/* Una copia completa de la lista de entradas. */
+.kiosco-cinta-grupo {
+    display: inline-flex;
+    align-items: baseline;
+}
+
+.kiosco-cinta-entrada {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.55rem;
     white-space: nowrap;
-    /* Separación entre entradas y entre la copia y su repetición. */
-    padding-right: 6rem;
+}
+
+/* Etiqueta de tipo: chip con la misma paleta de los badges de tarjetas —
+   COMBO en verde success, DESCUENTO en el cian de marca. Legibles sobre el
+   glass oscuro y consistentes con el ícono ok/idle del Kiosco. */
+.kiosco-cinta-tipo {
+    font-size: 0.72em;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 0.18em 0.75em;
+    border-radius: 999px;
+}
+
+.kiosco-cinta-tipo-combo {
+    color: var(--color-success);
+    border: 1px solid rgba(105, 240, 174, 0.45);
+    background: rgba(105, 240, 174, 0.1);
+}
+
+.kiosco-cinta-tipo-descuento {
+    color: var(--color-primary);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 45%, transparent);
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.kiosco-cinta-nombre {
+    font-size: clamp(0.95rem, 2.4vw, 1.85rem);
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.kiosco-cinta-precio {
+    font-size: clamp(1.1rem, 2.7vw, 2.1rem);
+    font-weight: 800;
+    color: var(--color-success);
+}
+
+/* Separador entre entradas: visible pero sin competir — tras CADA entrada,
+   de modo que la costura entre copias del loop queda igual de espaciada. */
+.kiosco-cinta-sep {
+    color: var(--color-text-muted);
+    font-weight: 800;
+    padding: 0 1.4rem;
 }
 
 @keyframes kiosco-cinta-deslizar {
@@ -2153,18 +2209,22 @@ table.data-table {
     transform: rotate(-90deg) scale(0.5);
 }
 
-/* Menu abierto: mecanismo VIGENTE = clase .abierto puesta por cada pagina
-   via @bind-Open del propio MudMenu (duenos del estado).
-   DIAGNOSTICO CON DOM REAL (conservar como referencia): el enfoque anterior
-   dependia de [aria-expanded="true"], pero MudBlazor 9.8.0 renderiza
-   aria-expanded="" (VACIO, nunca "True"/"true") — esas reglas NUNCA hacian
-   match y el morfeo murio silenciosamente en toda la app. */
-.morph-toggle.abierto .morph-more {
+/* Menu abierto (aria-expanded="true" en el wrapper del activador).
+   ⚠️ NOTA (diagnóstico con DOM real): MudBlazor 9.8.0 renderiza
+   aria-expanded="" (VACÍO) siempre — Blazor no emite "True"/"true", así que
+   estas reglas NUNCA hacen match y el morfeo murió silenciosamente.
+   El mecanismo vigente es la clase .abierto (abajo), alimentada por
+   @bind-Open del propio MudMenu: dueños del estado, sin depender de cómo
+   renderice atributos internos la librería. Se conservan como referencia
+   histórica del enfoque abandonado.
+[aria-expanded="true" i] > .morph-toggle .morph-more,
+.morph-toggle:focus-visible .morph-more {
     opacity: 0;
     transform: rotate(90deg) scale(0.5);
 }
 
-.morph-toggle.abierto .morph-close {
+[aria-expanded="true" i] > .morph-toggle .morph-close,
+.morph-toggle:focus-visible .morph-close {
     opacity: 1;
     transform: rotate(0deg) scale(1);
 }
