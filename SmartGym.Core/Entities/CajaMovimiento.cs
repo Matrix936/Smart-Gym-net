@@ -13,6 +13,13 @@ public static class MetodosPago
     public const string Tarjeta = "tarjeta";
     public const string Transferencia = "transferencia";
 
+    /// <summary>
+    /// Venta con pago parcial (queda en Cobranza). Solo se ofrece como opción
+    /// en el POS cuando pos.permite_credito está encendido; no forma parte de
+    /// Todos para que filtros de Ventas/Finanzas no cambien sin querer.
+    /// </summary>
+    public const string Credito = "credito";
+
     public static readonly IReadOnlyList<string> Todos = [Efectivo, Tarjeta, Transferencia];
 }
 

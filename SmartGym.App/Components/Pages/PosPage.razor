@@ -229,29 +229,37 @@ else
                            Variant="Variant.Outlined"
                            Margin="Margin.Dense"
                            Value="_metodoPago"
-                           ValueChanged="@(v => _metodoPago = v)">
+                           ValueChanged="OnMetodoPagoChangedAsync">
                     @foreach (var m in MetodosPago.Todos)
                     {
                         <MudSelectItem Value="@m">@Capitalizar(m)</MudSelectItem>
                     }
+                    @if (_permiteCredito)
+                    {
+                        <MudSelectItem Value="@MetodosPago.Credito">Crédito</MudSelectItem>
+                    }
                 </MudSelect>
-                @if (_permiteCredito)
+                @if (_metodoPago == MetodosPago.Credito)
                 {
-                    @* Venta a crédito habilitada: pago parcial queda en Cobranza.
-                       Apagado, este campo no existe y la venta siempre es completa. *@
+                    @* Pago a crédito: parcial queda en Cobranza con el plazo
+                       elegido; si se cubre el total, se procesa como venta normal
+                       sin generar cuenta. Requiere pos.permite_credito encendido
+                       (sin él, "Crédito" ni siquiera aparece como opción). *@
                     <MudNumericField T="long?"
                                      Label="Monto pagado"
                                      Variant="Variant.Outlined"
                                      Margin="Margin.Dense"
                                      Min="0"
                                      Format="C2"
+                                     Class="num-spinner-gap"
                                      @bind-Value="_montoPagado"
-                                     Placeholder="Paga completo si lo dejas vacío" />
+                                     Placeholder="Deja vacío para quedar debiendo todo" />
                     <MudNumericField T="int"
                                      Label="Plazo (días)"
                                      Variant="Variant.Outlined"
                                      Margin="Margin.Dense"
                                      Min="1" Max="180"
+                                     Class="num-spinner-gap"
                                      @bind-Value="_plazoCreditoDias" />
                 }
                 <AsyncButton Text="@($"Cobrar {FormatearMonto(TotalCarrito())}")"
@@ -781,6 +789,17 @@ else
 
     private void OnSocioChangedAsync(Socio? socio) => _socioSeleccionado = socio;
 
+    /// <summary>Al salir del método Crédito se limpia el monto parcial: con
+    /// Efectivo/Tarjeta/Transferencia la venta siempre es de pago completo.</summary>
+    private void OnMetodoPagoChangedAsync(string metodo)
+    {
+        _metodoPago = metodo;
+        if (metodo != MetodosPago.Credito)
+        {
+            _montoPagado = null;
+        }
+    }
+
     /// <summary>Agrega al carrito y, si el toque fue con puntero (Detail > 0;
     /// la activación por teclado reporta Detail = 0), suelta el foco de la
     /// tarjeta para que Enter después signifique "cobrar", no re-agregar.</summary>
@@ -857,11 +876,13 @@ else
         }
 
         // Avisar antes, no esperar el error del servidor (mismo criterio que
-        // Membresías/Caja): pago incompleto exige crédito encendido y monto válido.
+        // Membresías/Caja): pago incompleto solo vía método Crédito con
+        // pos.permite_credito encendido y monto válido.
         var total = TotalCarrito();
+        var esCredito = _metodoPago == MetodosPago.Credito;
         if (_montoPagado is not null)
         {
-            if (!_permiteCredito && _montoPagado.Value < total)
+            if (esCredito && !_permiteCredito)
             {
                 Feedback.ShowWarning("La venta a crédito no está habilitada — habilita el crédito en Configuración");
                 return;
@@ -869,6 +890,21 @@ else
             if (_montoPagado.Value < 0 || _montoPagado.Value > total)
             {
                 Feedback.ShowWarning("El monto pagado debe estar entre cero y el total de la venta");
+                return;
+            }
+        }
+        else if (esCredito)
+        {
+            // Método Crédito sin monto = queda debiendo todo: requiere socio y
+            // crédito habilitado; el plazo viaja igual.
+            if (!_permiteCredito)
+            {
+                Feedback.ShowWarning("La venta a crédito no está habilitada — habilita el crédito en Configuración");
+                return;
+            }
+            if (_socioSeleccionado is null)
+            {
+                Feedback.ShowWarning("Selecciona el socio para registrar la venta a crédito");
                 return;
             }
         }
@@ -894,7 +930,9 @@ else
                 Items = items,
                 IdSocio = _socioSeleccionado?.IdSocio,
                 MetodoPago = _metodoPago,
-                MontoPagadoCentavos = _montoPagado,
+                // En crédito, campo vacío = no pagó nada (queda debiendo todo);
+                // si cubre el total, el backend ni genera cuenta.
+                MontoPagadoCentavos = esCredito ? (_montoPagado ?? 0) : _montoPagado,
                 PlazoCreditoDias = _plazoCreditoDias,
             };
 

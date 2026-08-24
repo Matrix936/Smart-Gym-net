@@ -35,6 +35,36 @@ public sealed class PosCreditoTests
     }
 
     [Fact]
+    public async Task credito_metodo_con_pago_total_no_genera_cuenta()
+    {
+        // Método "credito" cubriendo el total: se procesa como venta normal —
+        // sin CuentaCobrar, sin importar el plazo enviado.
+        var (ctx, token, sedeId, idProducto) = await Fase6Helper.BaseAsync();
+        var idSocio = UuidHelper.NewV4();
+        await Fase6Helper.InsertarSocioAsync(ctx, idSocio, sedeId);
+        await ctx.Configuracion.SetAsync("pos.permite_credito", "true");
+        await ctx.CajaService.AbrirCajaAsync(token, 100000, sedeId);
+
+        var venta = await ctx.PosService.RegistrarVentaAsync(token, new RegistrarVentaInput
+        {
+            Items = [new VentaItem { IdProducto = idProducto, Cantidad = 1 }],
+            IdSocio = idSocio,
+            MetodoPago = MetodosPago.Credito,
+            MontoPagadoCentavos = Fase6Helper.PrecioProteina,
+            PlazoCreditoDias = 20,
+        }, sedeId);
+
+        Assert.Equal(Fase6Helper.PrecioProteina, venta.TotalCentavos);
+        Assert.Equal(0, venta.SaldoPendienteCentavos);
+
+        await using var conn = ConnectionFactory.Open(ctx.DbPath);
+        var cuentas = await conn.QueryAsync<CuentaCobrar>(new CommandDefinition(
+            "SELECT * FROM cuentas_cobrar WHERE id_socio = @idSocio AND deleted_at IS NULL",
+            new { idSocio }));
+        Assert.Empty(cuentas);
+    }
+
+    [Fact]
     public async Task credito_encendido_socio_sin_deuda_crea_cuenta_cobrar()
     {
         var (ctx, token, sedeId, idProducto) = await Fase6Helper.BaseAsync();
