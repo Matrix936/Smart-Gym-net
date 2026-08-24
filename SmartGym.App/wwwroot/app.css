@@ -1679,7 +1679,7 @@ table.data-table {
 }
 
 .kiosco-promo-badge {
-    font-size: clamp(0.65rem, 1.1vw, 0.8rem);
+    font-size: clamp(0.65rem, 1.3vw, 0.95rem);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -1697,7 +1697,7 @@ table.data-table {
 }
 
 .kiosco-promo-nombre {
-    font-size: clamp(0.95rem, 1.7vw, 1.3rem);
+    font-size: clamp(0.95rem, 2vw, 1.6rem);
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
@@ -1713,12 +1713,12 @@ table.data-table {
 }
 
 .kiosco-promo-precio s {
-    font-size: clamp(0.8rem, 1.3vw, 1rem);
+    font-size: clamp(0.8rem, 1.6vw, 1.2rem);
     color: var(--color-text-muted);
 }
 
 .kiosco-promo-precio strong {
-    font-size: clamp(1rem, 1.8vw, 1.35rem);
+    font-size: clamp(1.1rem, 2.2vw, 1.7rem);
     font-weight: 700;
     color: var(--color-success);
 }
@@ -2075,7 +2075,13 @@ table.data-table {
     transform: rotate(-90deg) scale(0.5);
 }
 
-/* Menu abierto (aria-expanded="true" en el wrapper del activador). */
+/* Menu abierto (aria-expanded="true" en el wrapper del activador).
+   ⚠️ NO ELIMINAR NI RELAJAR ESTE SELECTOR: el morfeo tres-puntos↔X de TODAS
+   las tablas depende de él. El combinador hijo directo (>) exige que
+   .morph-toggle sea hijo del elemento con aria-expanded — si MudBlazor
+   cambia su DOM o alguien mueve el span de lugar, el efecto muere
+   silenciosamente. Ya ocurrió una vez por depender de :hover (ver
+   08-problemas-resueltos-blazor.md). */
 [aria-expanded="true" i] > .morph-toggle .morph-more,
 .morph-toggle:focus-visible .morph-more {
     opacity: 0;
