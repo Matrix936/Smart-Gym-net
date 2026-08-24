@@ -2,6 +2,7 @@ using SmartGym.Core.Common;
 using SmartGym.Core.Entities;
 using SmartGym.Core.Errors;
 using SmartGym.Tests.Fase4;
+using SmartGym.Tests.Accesos;
 using SmartGym.Tests.Security;
 
 namespace SmartGym.Tests.Fase5;
@@ -29,6 +30,9 @@ public sealed class AccessTests
         var (ctx, _token, sedeId, idSocio, _planId, idDispositivo) = await Fase5Helper.BaseAccessAsync();
 
         var r1 = await ctx.AccesoService.RegistrarAccesoKioskoAsync(idSocio, sedeId, idDispositivo);
+        // Ventana anti-doble-toque: retrocede el timestamp del primero para
+        // simular que el segundo toque ocurrió después de la ventana.
+        ModoRegistroAccesoTests.RetrocederTimestampAsync(ctx, r1.IdAcceso, minutos: 5);
         var r2 = await ctx.AccesoService.RegistrarAccesoKioskoAsync(idSocio, sedeId, idDispositivo);
 
         var bitacora1 = await ctx.Accesos.GetByIdAsync(r1.IdAcceso);

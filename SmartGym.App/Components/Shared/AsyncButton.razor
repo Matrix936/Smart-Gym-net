@@ -1,5 +1,5 @@
 @* AsyncButton (AsyncButton.tsx): MudButton con spinner, evita doble-click. type submit => Enter = submit. *@
-<MudButton Variant="Variant.Filled"
+<MudButton Variant="@Variant"
            Color="Color.Primary"
            Disabled="@(Disabled || IsLoading)"
            ButtonType="@(ButtonType == "submit" ? MudBlazor.ButtonType.Submit : MudBlazor.ButtonType.Button)"
@@ -19,6 +19,10 @@
 @code {
     [Parameter] public string Text { get; set; } = "Continuar";
     [Parameter] public string? ButtonType { get; set; } = "button";
+
+    /// <summary>Variante visual del MudButton subyacente (Filled por defecto).</summary>
+    [Parameter] public Variant Variant { get; set; } = Variant.Filled;
+
     [Parameter] public bool Disabled { get; set; }
     [Parameter] public bool IsLoading { get; set; }
     [Parameter] public string? LoadingText { get; set; }

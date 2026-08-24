@@ -92,7 +92,6 @@
     </div>
 </div>
 
-<ErrorBoundary @ref="_boundaryDiag" Context="diagEx">
 @if (_seccion == SeccionConfig.Empresa)
 {
     <div class="glass-panel" style="flex: 1; min-width: 0;">
@@ -362,7 +361,6 @@ else
         </div>
     </div>
 }
-</ErrorBoundary>
 </div>
 
 @code {
@@ -377,16 +375,8 @@ else
     // Navegación por secciones, mismo patrón que Mi Perfil.
     private enum SeccionConfig { Empresa, Logo, Perifericos, Pos, ControlAcceso, Kiosco, WhatsApp }
 
-    // TEMP-DIAG: recuperacion del ErrorBoundary de diagnostico.
-    private void diagExRecover()
-    {
-        if (_boundaryDiag is not null)
-        {
-            _boundaryDiag.Recover();
-        }
-    }
 
-    private Microsoft.AspNetCore.Components.Web.ErrorBoundary? _boundaryDiag;
+
     private SeccionConfig _seccion = SeccionConfig.Empresa;
 
     private void IrA(SeccionConfig seccion) => _seccion = seccion;
