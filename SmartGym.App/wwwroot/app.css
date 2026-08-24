@@ -2049,14 +2049,42 @@ table.data-table {
     min-width: 300px;
     position: sticky;
     top: 1rem;
+    /* El panel nunca excede el viewport: la lista absorbe el espacio restante
+       y el bloque de total + botón Cobrar queda SIEMPRE visible. */
+    max-height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+}
+
+.pos-carrito-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+/* Los campos y el total no se comprimen cuando la lista crece. */
+.pos-carrito > .form-fields,
+.pos-total {
+    flex-shrink: 0;
 }
 
 .pos-lineas {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    max-height: 40vh;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
+}
+
+/* Total del carrito con protagonismo propio (ya no comparte estilo de rótulo). */
+.pos-total {
+    font-size: 1.5rem;
+    font-weight: 800;
+    text-align: right;
+    color: var(--color-primary);
+    margin: 0.5rem 0 0.75rem;
 }
 
 .pos-linea {
@@ -2096,6 +2124,12 @@ table.data-table {
     .pos-carrito {
         width: 100%;
         position: static;
+        max-height: none;
+    }
+
+    .pos-lineas {
+        flex: none;
+        max-height: 40vh;
     }
 }
 

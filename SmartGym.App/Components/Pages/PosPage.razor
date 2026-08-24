@@ -154,8 +154,20 @@ else
         </div>
 
         <div class="glass-panel pos-carrito">
-            <p class="form-section">Carrito</p>
-            @if (_carrito.Count == 0 && _combosCarrito.Count == 0)
+            <div class="pos-carrito-header">
+                <p class="form-section">Carrito</p>
+                @if (!CarritoVacio())
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Size="Size.Small"
+                                   Color="Color.Error"
+                                   Variant="Variant.Text"
+                                   aria-label="Vaciar carrito"
+                                   title="Vaciar carrito"
+                                   OnClick="PedirVaciarCarrito" />
+                }
+            </div>
+            @if (CarritoVacio())
             {
                 <p class="muted">Toca un producto para agregarlo.</p>
             }
@@ -193,6 +205,10 @@ else
                                                aria-label="Agregar uno" />
                             </div>
                             <span class="pos-linea-subtotal">@FormatearMonto(precioFinalLinea * linea.Cantidad)</span>
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                           aria-label="Eliminar línea"
+                                           title="Eliminar línea"
+                                           OnClick="() => EliminarLinea(linea)" />
                         </div>
                     }
                     @foreach (var linea in _combosCarrito.Values)
@@ -217,12 +233,13 @@ else
                                                aria-label="Agregar un combo" />
                             </div>
                             <span class="pos-linea-subtotal">@FormatearMonto(linea.Promo.PrecioComboCentavos * linea.Cantidad)</span>
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                           aria-label="Eliminar combo"
+                                           title="Eliminar combo"
+                                           OnClick="() => EliminarLineaCombo(linea)" />
                         </div>
                     }
                 </div>
-                <p class="form-section" style="text-align: right;">Total: @FormatearMonto(TotalCarrito())</p>
-            }
-
             <div class="form-fields">
                 <MudAutocomplete T="Socio"
                                  Label="Socio (opcional)"
@@ -274,6 +291,10 @@ else
                                      Min="1" Max="180"
                                      HideSpinButtons="true"
                                      @bind-Value="_plazoCreditoDias" />
+                }
+                @if (!CarritoVacio())
+                {
+                    <p class="pos-total">Total: @FormatearMonto(TotalCarrito())</p>
                 }
                 <AsyncButton Text="@($"Cobrar {FormatearMonto(TotalCarrito())}")"
                              LoadingText="Cobrando..."
@@ -383,6 +404,12 @@ else
                    OnClick="@(() => _confirmacionAbierta = false)">Cancelar</MudButton>
     </DialogActions>
 </MudDialog>
+<ConfirmDialog IsOpen="_vaciarConfirmacion"
+              Titulo="Vaciar carrito"
+              Mensaje="@_vaciarMensaje"
+              TextoConfirmar="Vaciar"
+              OnConfirm="VaciarCarritoConfirmadoAsync"
+              OnCancel="@(() => _vaciarConfirmacion = false)" />
 
 <style>
     /* Confirmación de cobro: total protagonista + cambio calculado en vivo. */
@@ -542,6 +569,9 @@ else
         set => _efectivoRecibido = value is null ? null : (long)Math.Round(value.Value * 100m);
     }
 
+    // Vaciar carrito: confirmación cuando hay más de una línea.
+    private bool _vaciarConfirmacion;
+    private string _vaciarMensaje = "";
     // Confirmación de cobro: total congelado al abrir la ventana y efectivo
     // recibido OBLIGATORIO en efectivo (confirmar deshabilitado hasta >= total).
     private bool _confirmacionAbierta;
@@ -1203,6 +1233,52 @@ else
         }
     }
 
+    /// <summary>Elimina una línea completa del carrito de productos.</summary>
+    private void EliminarLinea(CarritoLinea linea) =>
+        _carrito.Remove(linea.Producto.IdProducto);
+
+    /// <summary>Elimina una línea completa de combo.</summary>
+    private void EliminarLineaCombo(CarritoComboLinea linea) =>
+        _combosCarrito.Remove(linea.Promo.IdPromocion);
+
+    /// <summary>
+    /// Vaciar carrito: con más de una línea pide confirmación (evita vaciados
+    /// accidentales); con una sola, vacía directo.
+    /// </summary>
+    private void PedirVaciarCarrito()
+    {
+        var lineas = _carrito.Count + _combosCarrito.Count;
+        if (lineas == 0)
+        {
+            return;
+        }
+
+        if (lineas > 1)
+        {
+            _vaciarMensaje = $"Se eliminarán {lineas} línea(s) del carrito.";
+            _vaciarConfirmacion = true;
+            StateHasChanged();
+            return;
+        }
+
+        VaciarCarritoAhora();
+    }
+
+    private void VaciarCarritoConfirmadoAsync()
+    {
+        VaciarCarritoAhora();
+        _vaciarConfirmacion = false;
+        StateHasChanged();
+    }
+
+    private void VaciarCarritoAhora()
+    {
+        _carrito = new Dictionary<long, CarritoLinea>();
+        _combosCarrito = new Dictionary<string, CarritoComboLinea>();
+        _montoPagado = null;
+        _efectivoRecibido = null;
+        Feedback.ShowSuccess("Carrito vaciado");
+    }
     private static string Capitalizar(string texto) =>
         string.IsNullOrEmpty(texto) ? texto : char.ToUpperInvariant(texto[0]) + texto[1..];
 
