@@ -328,12 +328,16 @@ else
             <p class="pos-total-confirmacion">@FormatearMonto(_totalConfirmacion)</p>
             @if (EsMetodoEfectivo)
             {
+                @* Immediate: el valor llega en cada tecla para que el cambio
+                   y la habilitación del botón reaccionen en vivo (sin esto,
+                   el binding solo se actualiza al perder el foco). *@
                 <MudNumericField T="long?"
                                  Label="Efectivo recibido"
                                  Variant="Variant.Outlined"
                                  Margin="Margin.Dense"
                                  Min="0"
                                  Format="C2"
+                                 Immediate="true"
                                  @bind-Value="_efectivoRecibido"
                                  Placeholder="Captura el monto recibido" />
                 <div class="tk-row pos-cambio">
