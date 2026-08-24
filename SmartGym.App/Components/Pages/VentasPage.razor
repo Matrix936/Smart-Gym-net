@@ -286,6 +286,7 @@
 
             <TicketPreview Folio="@_detalleVenta.IdVenta"
                            Fecha="@(_filaDetalle is null ? "—" : FormatearFecha(_filaDetalle.Fecha))"
+                           Atendio="@_atendioDetalle"
                            MetodoPago="@Capitalizar(_detalleVenta.MetodoPago)"
                            Estado="@_detalleVenta.Estado"
                            EstadoDetalle="@estadoDetalle"
@@ -436,6 +437,9 @@
     private MovimientoHistorialDto? _filaCancelando;
     private bool _cancelacionAbierta;
     private int _cancelacionPaso = 1;
+
+    /// <summary>Nombre del vendedor para el detalle ("Atendió"); null si la venta no tiene.</summary>
+    private string? _atendioDetalle;
     private string _cancelacionPassword = "";
     private bool _cancelando;
 
@@ -702,6 +706,7 @@
         _detalleAbierto = true;
         _detalleCargando = true;
         _detalleVenta = null;
+        _atendioDetalle = null;
         StateHasChanged();
         try
         {
@@ -710,6 +715,16 @@
                 sesion.Token,
                 fila.ReferenciaId,
                 fila.IdSede);
+
+            // Atendió: nombre del usuario que registró la venta (IdVendedor).
+            if (_detalleVenta.IdVendedor is not null)
+            {
+                var vendedor = await UsuariosRepo.GetByIdAsync(_detalleVenta.IdVendedor.Value);
+                _atendioDetalle = vendedor is null
+                    ? null
+                    : string.Join(" ", new[] { vendedor.Nombre, vendedor.ApellidoPaterno }
+                        .Where(p => !string.IsNullOrWhiteSpace(p)));
+            }
 
             // El preview de ticket necesita empresa/sede/logo: primera vez por sesión.
             try

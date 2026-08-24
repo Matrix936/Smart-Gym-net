@@ -22,6 +22,10 @@
     <hr class="tk-sep" />
 
     <div class="tk-row"><span>Fecha</span><span>@Fecha</span></div>
+    @if (!string.IsNullOrWhiteSpace(Atendio))
+    {
+        <div class="tk-row"><span>Atendió</span><span>@Atendio</span></div>
+    }
     @if (!string.IsNullOrWhiteSpace(Cajero))
     {
         <div class="tk-row"><span>Cajero</span><span>@Cajero</span></div>
@@ -117,6 +121,9 @@
 
     [Parameter] public string? Socio { get; set; }
     [Parameter] public string? Cajero { get; set; }
+
+    /// <summary>Nombre del vendedor que registró la venta (detalle de /ventas).</summary>
+    [Parameter] public string? Atendio { get; set; }
 
     /// <summary>Partidas del ticket (descripcion, cantidad, precio unitario, subtotal).</summary>
     [Parameter] public IReadOnlyList<SmartGym.Core.Printing.TicketItemInput> Items { get; set; } = [];
