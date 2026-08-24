@@ -51,34 +51,40 @@
 
     private static readonly NavGroup[] NAV_GROUPS =
     [
-        new("Principal",
+        new("General",
         [
             new NavItem("Dashboard", "/", "solar:widget-3-line-duotone", true),
         ]),
-        new("Operación",
+        new("Socios",
         [
             new NavItem("Miembros", "/miembros", "solar:users-group-two-rounded-line-duotone", true, "Gestión de miembros"),
-            new NavItem("Planes", "/planes", "solar:tag-price-line-duotone", true, "Catálogo de planes"),
             new NavItem("Membresías", "/membresias", "solar:card-recive-line-duotone", true, "Membresías de los socios"),
+            new NavItem("Planes", "/planes", "solar:tag-price-line-duotone", true, "Catálogo de planes"),
+        ]),
+        new("Operación diaria",
+        [
             new NavItem("Caja", "/caja", "solar:wallet-money-line-duotone", true, "Apertura y cierre de caja"),
             new NavItem("Control de Acceso", "/control-acceso", "solar:lock-keyhole-line-duotone", true, "Acceso por huella/RFID", AbreVentana: true),
-            new NavItem("Historial de Acceso", "/historial-acceso", "solar:login-3-line-duotone", true, "Entradas y salidas del Kiosco"),
-        ]),
-        new("Comercial",
-        [
             new NavItem("POS", "/pos", "solar:cart-5-line-duotone", true, "Punto de venta"),
-            new NavItem("Productos", "/productos", "solar:tag-price-line-duotone", true, "Catálogo del punto de venta"),
-            new NavItem("Promociones", "/promociones", "solar:ticket-sale-line-duotone", true, "Descuentos y combos"),
-            new NavItem("Maquinaria", "/maquinaria", "solar:dumbbell-line-duotone", true, "Equipo físico y su estado"),
             new NavItem("Ventas", "/ventas", "solar:receipt-2-line-duotone", true, "Historial de ventas"),
+        ]),
+        new("Catálogo",
+        [
+            new NavItem("Productos", "/productos", "solar:tag-price-line-duotone", true, "Catálogo del punto de venta"),
+            new NavItem("Maquinaria", "/maquinaria", "solar:dumbbell-line-duotone", true, "Equipo físico y su estado"),
+            new NavItem("Promociones", "/promociones", "solar:ticket-sale-line-duotone", true, "Descuentos y combos"),
+        ]),
+        new("Cobranza y Finanzas",
+        [
             new NavItem("Cobranza", "/cobranza", "solar:wallet-money-line-duotone", true, "Cuentas por cobrar"),
             new NavItem("Finanzas", "/finanzas", "solar:pie-chart-line-duotone", true, "Reportes financieros"),
         ]),
-        new("Administración",
+        new("Auditoría",
         [
             // Configuración vive en el menú desplegable del topbar (avatar),
             // no en el sidebar — es un ajuste puntual, no navegación frecuente.
             new NavItem("Bitácora", "/bitacora", "solar:clipboard-check-line-duotone", true, "Bitácora operativa"),
+            new NavItem("Historial de Acceso", "/historial-acceso", "solar:login-3-line-duotone", true, "Entradas y salidas del Kiosco"),
         ]),
     ];
 
