@@ -9,7 +9,9 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using MudBlazor
 @using SmartGym.Core.Authorization
+@using SmartGym.Core.Common
 @using SmartGym.Core.Entities
+@using SmartGym.Core.Printing
 @using SmartGym.Core.Repositories
 @using SmartGym.Core.Services
 @using SmartGym.App.Services
@@ -43,14 +45,14 @@
         <span class="sg-nav-item-indicator"></span>
         <span class="sg-nav-item-label">Logo</span>
     </div>
-    <div class="sg-nav-item @(_seccion == SeccionConfig.Impresora ? "active" : null)"
+    <div class="sg-nav-item @(_seccion == SeccionConfig.Perifericos ? "active" : null)"
          style="width: 100%;"
-         @onclick='() => IrA(SeccionConfig.Impresora)'
-         @onkeydown='e => SeccionKeyDown(e, SeccionConfig.Impresora)'
+         @onclick='() => IrA(SeccionConfig.Perifericos)'
+         @onkeydown='e => SeccionKeyDown(e, SeccionConfig.Perifericos)'
          role="button" tabindex="0"
-         aria-current="@(_seccion == SeccionConfig.Impresora ? "true" : null)">
+         aria-current="@(_seccion == SeccionConfig.Perifericos ? "true" : null)">
         <span class="sg-nav-item-indicator"></span>
-        <span class="sg-nav-item-label">Impresora</span>
+        <span class="sg-nav-item-label">Periféricos</span>
     </div>
     <div class="sg-nav-item @(_seccion == SeccionConfig.Pos ? "active" : null)"
          style="width: 100%;"
@@ -150,29 +152,76 @@ else if (_seccion == SeccionConfig.Logo)
         </div>
     </div>
 }
-else if (_seccion == SeccionConfig.Impresora)
+else if (_seccion == SeccionConfig.Perifericos)
 {
+    @* Reemplaza a la vieja sección "Impresora" (era solo la preferencia
+       guardada para cuando existiera impresión). La clave es la misma
+       (impresora.nombre): un solo selector, ahora con flujo real. *@
     <div class="glass-panel" style="flex: 1; min-width: 0;">
-        <p class="form-section" style="text-align: center;">Impresora</p>
-        <p class="muted" style="margin-bottom: 0.75rem; text-align: center;">
-            Se guarda tu selección para cuando exista la impresión de tickets. Sin flujo de impresión todavía.
-        </p>
+        <p class="form-section" style="text-align: center;">Periféricos</p>
         <div class="form-fields" style="max-width: 720px; margin: 0 auto;">
             <MudSelect T="string"
-                       Label="Impresora"
+                       Label="Impresora de tickets"
                        Variant="Variant.Outlined"
                        Margin="Margin.Dense"
-                       Value="_impresora"
+                       Clearable="true"
+                       Value="_selImpresora"
                        ValueChanged="OnImpresoraChangedAsync">
                 @foreach (var impresora in _impresoras)
                 {
                     <MudSelectItem Value="@impresora">@impresora</MudSelectItem>
                 }
             </MudSelect>
-            <AsyncButton Text="Guardar impresora"
-                         LoadingText="Guardando..."
-                         IsLoading="_guardandoImpresora"
-                         OnClick="GuardarImpresoraAsync" />
+            <div style="display: flex; gap: 1rem;">
+                <MudSelect T="int"
+                           Label="Ancho de papel"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Style="flex: 1;"
+                           Value="_papelAncho"
+                           ValueChanged="@(v => _papelAncho = v)">
+                    <MudSelectItem Value="32">32 caracteres (58 mm)</MudSelectItem>
+                    <MudSelectItem Value="42">42 caracteres (80 mm)</MudSelectItem>
+                    <MudSelectItem Value="48">48 caracteres (80 mm ancho)</MudSelectItem>
+                </MudSelect>
+                <MudSelect T="int"
+                           Label="Densidad de impresión"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Style="flex: 1;"
+                           Value="_densidad"
+                           ValueChanged="@(v => _densidad = v)">
+                    <MudSelectItem Value="0">0 — clara</MudSelectItem>
+                    <MudSelectItem Value="1">1</MudSelectItem>
+                    <MudSelectItem Value="2">2 — normal</MudSelectItem>
+                    <MudSelectItem Value="3">3 — oscura</MudSelectItem>
+                </MudSelect>
+            </div>
+            <MudSwitch T="bool"
+                       Label="Abrir cajón monedero al imprimir ventas en efectivo"
+                       Color="Color.Primary"
+                       Value="_abrirCajon"
+                       ValueChanged="@(v => _abrirCajon = v)" />
+            <MudSwitch T="bool"
+                       Label="Imprimir ticket automáticamente al cobrar en el POS"
+                       Color="Color.Primary"
+                       Value="_imprimirAuto"
+                       ValueChanged="@(v => _imprimirAuto = v)" />
+            <p class="muted" style="margin: 0;">
+                Con impresión automática apagada (por defecto), el ticket se imprime
+                desde el botón del recibo al confirmar la venta.
+            </p>
+            <div style="display: flex; gap: 0.75rem; margin-top: 0.75rem;">
+                <AsyncButton Text="Guardar periféricos"
+                             LoadingText="Guardando..."
+                             IsLoading="_guardandoPerifericos"
+                             OnClick="GuardarPerifericosAsync" />
+                <AsyncButton Text="Imprimir ticket de prueba"
+                             LoadingText="Imprimiendo..."
+                             IsLoading="_imprimiendoPrueba"
+                             Disabled="@(_imprimiendoPrueba || string.IsNullOrWhiteSpace(_selImpresora))"
+                             OnClick="ImprimirTicketPruebaAsync" />
+            </div>
         </div>
     </div>
 }
@@ -246,7 +295,7 @@ else
     [Inject] private SmartGym.App.Services.ILogoState LogoState { get; set; } = default!;
 
     // Navegación por secciones, mismo patrón que Mi Perfil.
-    private enum SeccionConfig { Empresa, Logo, Impresora, Pos, WhatsApp }
+    private enum SeccionConfig { Empresa, Logo, Perifericos, Pos, WhatsApp }
 
     private SeccionConfig _seccion = SeccionConfig.Empresa;
 
@@ -274,8 +323,16 @@ else
     private bool _guardandoDatos;
 
     private List<string> _impresoras = [];
-    private string? _impresora;
-    private bool _guardandoImpresora;
+
+    // --- Periféricos (tickets) ---------------------------------------------
+    [Inject] private ITicketPrintService Print { get; set; } = default!;
+    private string? _selImpresora;
+    private int _papelAncho = 42;
+    private int _densidad = 2;
+    private bool _abrirCajon;
+    private bool _imprimirAuto;
+    private bool _guardandoPerifericos;
+    private bool _imprimiendoPrueba;
 
     private string _nombreSede = "";
     private bool _guardandoSede;
@@ -338,11 +395,16 @@ else
 
         try
         {
-            _impresora = await EmpresaConfig.ObtenerImpresoraAsync(sesion.Token);
+            var perifericos = await EmpresaConfig.ObtenerPerifericosAsync(sesion.Token);
+            _selImpresora = perifericos.ImpresoraTickets;
+            _papelAncho = perifericos.PapelAncho;
+            _densidad = perifericos.Densidad;
+            _abrirCajon = perifericos.AbrirCajon;
+            _imprimirAuto = perifericos.ImprimirAutoAlCobrar;
         }
         catch (BusinessException)
         {
-            // Sin permiso o sin sesion: el selector queda vacio.
+            // Sin permiso o sin sesion: quedan los defaults.
         }
 
         try
@@ -527,7 +589,7 @@ else
 
     private void OnImpresoraChangedAsync(string? impresora)
     {
-        _impresora = impresora;
+        _selImpresora = impresora;
     }
 
     // --- Punto de venta: interruptor de venta a crédito -------------------------
@@ -565,26 +627,30 @@ else
         }
     }
 
-    private async Task GuardarImpresoraAsync()
+    private async Task GuardarPerifericosAsync()
     {
         var sesion = Sesion.Current;
-        if (sesion is null || _guardandoImpresora)
+        if (sesion is null || _guardandoPerifericos)
         {
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(_impresora))
-        {
-            Feedback.ShowWarning("Selecciona una impresora");
-            return;
-        }
-
-        _guardandoImpresora = true;
+        _guardandoPerifericos = true;
         try
         {
-            await EmpresaConfig.GuardarImpresoraAsync(
-                sesion.Token, _impresora.Trim());
-            Feedback.ShowSuccess("Impresora guardada");
+            var guardada = await EmpresaConfig.GuardarPerifericosAsync(sesion.Token, new PerifericosTicket
+            {
+                ImpresoraTickets = string.IsNullOrWhiteSpace(_selImpresora) ? null : _selImpresora.Trim(),
+                PapelAncho = _papelAncho,
+                Densidad = _densidad,
+                AbrirCajon = _abrirCajon,
+                ImprimirAutoAlCobrar = _imprimirAuto,
+            });
+            // Reconcilia el formulario con lo normalizado (papel/densidad fuera de rango).
+            _selImpresora = guardada.ImpresoraTickets;
+            _papelAncho = guardada.PapelAncho;
+            _densidad = guardada.Densidad;
+            Feedback.ShowSuccess("Periféricos guardados");
         }
         catch (BusinessException ex)
         {
@@ -592,12 +658,96 @@ else
         }
         catch
         {
-            Feedback.ShowError("No se pudo guardar la impresora");
+            Feedback.ShowError("No se pudo guardar la configuración de periféricos");
         }
         finally
         {
-            _guardandoImpresora = false;
+            _guardandoPerifericos = false;
             StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Ticket de prueba: payload fijo con los datos reales de empresa/sede para
+    /// validar hardware (alineación, acentos CP850, corte, cajón) sin vender.
+    /// </summary>
+    private async Task ImprimirTicketPruebaAsync()
+    {
+        var sesion = Sesion.Current;
+        if (sesion is null || _imprimiendoPrueba)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_selImpresora))
+        {
+            Feedback.ShowWarning("Selecciona una impresora de tickets");
+            return;
+        }
+
+        _imprimiendoPrueba = true;
+        try
+        {
+            var logoRaster = await ExtraerLogoRasterAsync();
+
+            var bytes = TicketEscposBuilder.Build(new TicketPayloadInput
+            {
+                Folio = "PRUEBA",
+                FechaTexto = DateTime.Now.ToString("dd/MM/yyyy HH:mm"),
+                EmpresaNombre = string.IsNullOrWhiteSpace(_nombreComercial) ? null : _nombreComercial,
+                Rfc = string.IsNullOrWhiteSpace(_rfc) ? null : _rfc,
+                SedeNombre = string.IsNullOrWhiteSpace(_nombreSede) ? "Sede" : _nombreSede,
+                Cajero = "Configuración",
+                MetodoPago = "efectivo",
+                Items = [new TicketItemInput("Producto de prueba", 1, 50000, 50000)],
+                TotalCentavos = 50000,
+                MensajePie = "TICKET DE PRUEBA — si llego completo, la impresora esta lista.",
+                LogoRaster = logoRaster,
+                PapelAncho = _papelAncho,
+                Densidad = _densidad,
+                AbrirCajon = _abrirCajon,
+            });
+
+            await Print.ImprimirRawAsync(_selImpresora.Trim(), bytes);
+            Feedback.ShowSuccess($"Ticket de prueba enviado a {_selImpresora}");
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo imprimir el ticket de prueba");
+        }
+        finally
+        {
+            _imprimiendoPrueba = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Logo actual (dataUrl) → raster ESC/POS. SVG u otros no decodificables devuelven null.</summary>
+    private async Task<byte[]?> ExtraerLogoRasterAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_logoDataUrl))
+        {
+            return null;
+        }
+
+        var separador = _logoDataUrl.IndexOf(";base64,", StringComparison.Ordinal);
+        if (separador < 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            var bytes = Convert.FromBase64String(_logoDataUrl[(separador + 8)..]);
+            return await Print.RasterizarLogoAsync(bytes, _papelAncho, 384);
+        }
+        catch (FormatException)
+        {
+            return null;
         }
     }
 

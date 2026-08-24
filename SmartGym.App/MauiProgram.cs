@@ -96,6 +96,7 @@ public static MauiApp CreateMauiApp()
 		builder.Services.AddScoped<ICobranzaService, CobranzaService>();
 		builder.Services.AddScoped<IVentasService, VentasService>();
  		builder.Services.AddScoped<IProductosService, ProductosService>();
+		builder.Services.AddSingleton<SmartGym.App.Services.ITicketPrintService, SmartGym.App.Services.TicketPrintService>();
 		builder.Services.AddScoped<IPromocionesService, PromocionesService>();
 		builder.Services.AddScoped<IBitacoraService, BitacoraService>();
 		builder.Services.AddScoped<IMaquinariaService, MaquinariaService>();
