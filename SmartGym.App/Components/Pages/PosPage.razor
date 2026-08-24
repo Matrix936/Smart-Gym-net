@@ -245,14 +245,15 @@ else
                        elegido; si se cubre el total, se procesa como venta normal
                        sin generar cuenta. Requiere pos.permite_credito encendido
                        (sin él, "Crédito" ni siquiera aparece como opción). *@
-                    <MudNumericField T="long?"
+                    <MudNumericField T="decimal?"
                                      Label="Monto pagado"
                                      Variant="Variant.Outlined"
                                      Margin="Margin.Dense"
                                      Min="0"
                                      Format="C2"
+                                     Pattern="^\d*([.,]\d{0,2})?$"
                                      HideSpinButtons="true"
-                                     @bind-Value="_montoPagado"
+                                     @bind-Value="MontoPagadoPesos"
                                      Placeholder="Vacío para deber todo" />
                     <MudNumericField T="int"
                                      Label="Plazo (días)"
@@ -331,15 +332,16 @@ else
                 @* Immediate: el valor llega en cada tecla para que el cambio
                    y la habilitación del botón reaccionen en vivo (sin esto,
                    el binding solo se actualiza al perder el foco). *@
-                <MudNumericField T="long?"
+                <MudNumericField T="decimal?"
                                  Label="Efectivo recibido"
                                  Variant="Variant.Outlined"
                                  Margin="Margin.Dense"
                                  Min="0"
                                  Format="C2"
                                  Immediate="true"
+                                 Pattern="^\d*([.,]\d{0,2})?$"
                                  HideSpinButtons="true"
-                                 @bind-Value="_efectivoRecibido"
+                                 @bind-Value="EfectivoRecibidoPesos"
                                  Placeholder="Captura el monto recibido" />
                 <div class="tk-row pos-cambio">
                     <span>Cambio</span>
@@ -496,6 +498,22 @@ else
 
     /// <summary>Null = paga el total completo; menor al total = queda a crédito.</summary>
     private long? _montoPagado;
+
+    // Puentes pesos <-> centavos para los MudNumericField: el usuario captura
+    // pesos (decimal) y la lógica del carrito/backend opera en centavos. Sin
+    // esto, Format="C2" mostraba "$80.00" mientras el valor interno era 80
+    // CENTAVOS — el botón de confirmar nunca se habilitaba.
+    private decimal? MontoPagadoPesos
+    {
+        get => _montoPagado / 100m;
+        set => _montoPagado = value is null ? null : (long)Math.Round(value.Value * 100m);
+    }
+
+    private decimal? EfectivoRecibidoPesos
+    {
+        get => _efectivoRecibido / 100m;
+        set => _efectivoRecibido = value is null ? null : (long)Math.Round(value.Value * 100m);
+    }
 
     // Confirmación de cobro: total congelado al abrir la ventana y efectivo
     // recibido OBLIGATORIO en efectivo (confirmar deshabilitado hasta >= total).
