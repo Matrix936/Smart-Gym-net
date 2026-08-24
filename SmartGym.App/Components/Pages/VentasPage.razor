@@ -808,6 +808,7 @@
                 sede.Telefono,
                 Cajero: sesion.Nombre ?? "POS",
                 MensajePie: "REIMPRESIÓN");
+            _logoDataUrl = logoDataUrl;
             _logoRasterCache = await Print.RasterizarLogoAsync(
                 TicketVentaMapper.DecodificarDataUrl(logoDataUrl) ?? [], _papelAncho, 384);
         }
@@ -816,6 +817,12 @@
             _negocioTicket = new TicketDatosNegocio(null, null, "Smart Gym", null, null, "POS", "REIMPRESIÓN");
         }
     }
+
+    /// <summary>Detalle de la venta → items del preview/ticket.</summary>
+    private IReadOnlyList<SmartGym.Core.Printing.TicketItemInput> ItemsDeDetalle() =>
+        _detalleVenta!.Items.Select(i => new SmartGym.Core.Printing.TicketItemInput(
+            i.DescripcionProducto ?? $"#{i.IdProducto}", i.Cantidad,
+            i.PrecioUnitarioCentavos, i.SubtotalCentavos)).ToList();
 
     private void AbrirCancelacion(MovimientoHistorialDto fila)
     {

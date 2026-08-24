@@ -1933,3 +1933,68 @@ table.data-table {
     opacity: 1;
     transform: rotate(0deg) scale(1);
 }
+
+/* ---------- TicketPreview: vista de ticket termico en pantalla ----------
+   Espejo visual del papel real (fuente mono, divisores punteados, filas
+   dos columnas). Lo usan el recibo del POS y el detalle de /ventas. */
+.ticket-preview {
+    max-width: 330px;
+    margin: 0 auto;
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    border: 1px dashed rgba(128, 128, 128, 0.45);
+    border-radius: var(--radius-md);
+    padding: 1.25rem 1.35rem;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+}
+
+.ticket-preview .tk-logo {
+    display: block;
+    max-width: 96px;
+    max-height: 64px;
+    object-fit: contain;
+    margin: 0 auto 0.5rem;
+}
+
+.ticket-preview .tk-center {
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+.ticket-preview .tk-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.ticket-preview .tk-row > span:last-child {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.ticket-preview .tk-item-desc {
+    font-weight: 700;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+    margin-top: 0.4rem;
+}
+
+.ticket-preview .tk-sep {
+    border: none;
+    border-top: 1px dashed currentColor;
+    opacity: 0.5;
+    margin: 0.7rem 0;
+}
+
+.ticket-preview .tk-negrita,
+.ticket-preview .tk-total {
+    font-weight: 700;
+}
+
+.ticket-preview .tk-total {
+    font-size: 1rem;
+    margin-top: 0.3rem;
+}

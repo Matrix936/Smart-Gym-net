@@ -1,0 +1,131 @@
+@* TicketPreview (TicketPreview.tsx de ferre-pos): previsualización de un
+   ticket térmico en pantalla — papel angosto centrado, fuente mono, divisores
+   punteados, filas dos columnas y bloques condicionales (estado badge,
+   socio, saldo/vence de crédito). Lo consumen el recibo del POS y el
+   detalle de /ventas; la generación de comandos reales vive aparte en
+   Core (TicketEscposBuilder). *@
+<div class="ticket-preview">
+    @if (!string.IsNullOrWhiteSpace(LogoSrc))
+    {
+        <img class="tk-logo" src="@LogoSrc" alt="Logo" />
+    }
+    <div class="tk-center">
+        <strong>@(EmpresaNombre ?? "SMART GYM")</strong>
+        @if (!string.IsNullOrWhiteSpace(Rfc))
+        {
+            <div>RFC: @Rfc</div>
+        }
+        <div>@SedeNombre</div>
+        <div>FOLIO: @Folio</div>
+    </div>
+
+    <hr class="tk-sep" />
+
+    <div class="tk-row"><span>Fecha</span><span>@Fecha</span></div>
+    @if (!string.IsNullOrWhiteSpace(Cajero))
+    {
+        <div class="tk-row"><span>Cajero</span><span>@Cajero</span></div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Socio))
+    {
+        <div class="tk-row"><span>Socio</span><span>@Socio</span></div>
+    }
+    <div class="tk-row"><span>Pago</span><span>@MetodoPago</span></div>
+    @if (!string.IsNullOrWhiteSpace(Estado))
+    {
+        <div class="tk-row">
+            <span>Estado</span>
+            <span class="status-badge @(Estado == "completada" ? "status-success" : "status-danger")">@CapitalizarEstado</span>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(EstadoDetalle))
+        {
+            <div class="tk-row"><span>Cancelada</span><span>@EstadoDetalle</span></div>
+        }
+    }
+
+    <hr class="tk-sep" />
+
+    @foreach (var item in Items)
+    {
+        <div class="tk-item-desc">@item.Descripcion</div>
+        <div class="tk-row">
+            <span>@item.Cantidad x @FormatearMonto(item.PrecioUnitarioCentavos)</span>
+            <span>@FormatearMonto(item.ImporteCentavos)</span>
+        </div>
+    }
+
+    <hr class="tk-sep" />
+
+    @if (SaldoPendienteCentavos > 0)
+    {
+        <div class="tk-row"><span>Pago recibido</span><span>@FormatearMonto(TotalCentavos - SaldoPendienteCentavos)</span></div>
+        <div class="tk-row tk-negrita"><span>Saldo pendiente</span><span>@FormatearMonto(SaldoPendienteCentavos)</span></div>
+        @if (!string.IsNullOrWhiteSpace(VenceTexto))
+        {
+            <div class="tk-row"><span>Vence</span><span>@VenceTexto</span></div>
+        }
+    }
+    <div class="tk-row tk-total"><span>TOTAL</span><span>@FormatearMonto(TotalCentavos)</span></div>
+
+    @if (SaldoPendienteCentavos > 0)
+    {
+        <hr class="tk-sep" />
+        <div class="tk-center">__________________________________</div>
+        <div class="tk-center">Firma de Conformidad</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(MensajePie) || !string.IsNullOrWhiteSpace(Direccion) || !string.IsNullOrWhiteSpace(Telefono))
+    {
+        <hr class="tk-sep" />
+        if (!string.IsNullOrWhiteSpace(MensajePie))
+        {
+            <div class="tk-center">@MensajePie</div>
+        }
+        if (!string.IsNullOrWhiteSpace(Direccion))
+        {
+            <div class="tk-center">@Direccion</div>
+        }
+        if (!string.IsNullOrWhiteSpace(Telefono))
+        {
+            <div class="tk-center">Tel.: @Telefono</div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public string Folio { get; set; } = string.Empty;
+    [Parameter] public string Fecha { get; set; } = string.Empty;
+    [Parameter] public string MetodoPago { get; set; } = string.Empty;
+
+    /// <summary>"completada"/"cancelada": badge verde/rojo; vacío = sin fila Estado.</summary>
+    [Parameter] public string? Estado { get; set; }
+
+    /// <summary>Texto complementario del estado (ej. "23/08/2026 14:05 — por Admin").</summary>
+    [Parameter] public string? EstadoDetalle { get; set; }
+
+    private string CapitalizarEstado =>
+        string.IsNullOrEmpty(Estado) ? Estado : char.ToUpperInvariant(Estado[0]) + Estado[1..];
+
+    [Parameter] public string? Socio { get; set; }
+    [Parameter] public string? Cajero { get; set; }
+
+    /// <summary>Partidas del ticket (descripcion, cantidad, precio unitario, subtotal).</summary>
+    [Parameter] public IReadOnlyList<SmartGym.Core.Printing.TicketItemInput> Items { get; set; } = [];
+
+    [Parameter] public long TotalCentavos { get; set; }
+    [Parameter] public long SaldoPendienteCentavos { get; set; }
+    [Parameter] public string? VenceTexto { get; set; }
+
+    [Parameter] public string? EmpresaNombre { get; set; }
+    [Parameter] public string? Rfc { get; set; }
+    [Parameter] public string? SedeNombre { get; set; }
+    [Parameter] public string? Direccion { get; set; }
+    [Parameter] public string? Telefono { get; set; }
+    [Parameter] public string? MensajePie { get; set; }
+
+    /// <summary>Logo como dataUrl para pantalla (el raster ESC/POS es solo para papel).</summary>
+    [Parameter] public string? LogoSrc { get; set; }
+
+    private static string FormatearMonto(long centavos) =>
+        (centavos / 100m).ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("es-MX"));
+}

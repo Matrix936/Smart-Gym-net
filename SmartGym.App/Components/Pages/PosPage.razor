@@ -253,7 +253,7 @@ else
                                      Format="C2"
                                      HideSpinButtons="true"
                                      @bind-Value="_montoPagado"
-                                     Placeholder="Deja vacío para quedar debiendo todo" />
+                                     Placeholder="Vacío para deber todo" />
                     <MudNumericField T="int"
                                      Label="Plazo (días)"
                                      Variant="Variant.Outlined"
@@ -285,45 +285,21 @@ else
     <DialogContent>
         @if (_recibo is not null)
         {
-            <div class="summary-row"><span class="summary-label">Folio</span><span class="muted">@_recibo.Folio</span></div>
-            <div class="summary-row"><span class="summary-label">Fecha</span><span>@_recibo.Fecha</span></div>
-            <div class="summary-row"><span class="summary-label">Método de pago</span><span>@_recibo.MetodoPago</span></div>
-            @if (_recibo.Socio is not null)
-            {
-                <div class="summary-row"><span class="summary-label">Socio</span><span>@_recibo.Socio</span></div>
-            }
-            <div class="table-wrap" style="margin-top: 1rem;">
-                <table class="data-table">
-                    <thead>
-                        <tr><th>Producto</th><th>Cant.</th><th style="text-align: right;">P. unitario</th><th style="text-align: right;">Subtotal</th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var item in _recibo.Items)
-                        {
-                            <tr>
-                                <td>@item.Descripcion</td>
-                                <td>@item.Cantidad</td>
-                                <td style="text-align: right;">@FormatearMonto(item.PrecioUnitarioCentavos)</td>
-                                <td style="text-align: right;">@FormatearMonto(item.SubtotalCentavos)</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-            <p class="form-section" style="text-align: right; margin-top: 0.75rem;">Total: @FormatearMonto(_recibo.TotalCentavos)</p>
-            @if (_recibo.SaldoPendienteCentavos > 0)
-            {
-                @* Venta a crédito: lo pagado y lo que queda en Cobranza. *@
-                <div class="summary-row"><span class="summary-label">Pagado</span><span>@FormatearMonto(_recibo.TotalCentavos - _recibo.SaldoPendienteCentavos)</span></div>
-                <div class="summary-row">
-                    <span class="summary-label">Saldo pendiente</span>
-                    <span class="status-badge status-warning">@FormatearMonto(_recibo.SaldoPendienteCentavos) — queda en Cobranza</span>
-                </div>
-                @if (_recibo.VenceTexto is not null)
-                {
-                    <div class="summary-row"><span class="summary-label">Vence</span><span>@_recibo.VenceTexto</span></div>
-                }
-            }
+            <TicketPreview Folio="@_recibo.Folio"
+                           Fecha="@_recibo.Fecha"
+                           MetodoPago="@_recibo.MetodoPago"
+                           Socio="@_recibo.Socio"
+                           Items="@(ReciboComoItems())"
+                           TotalCentavos="@_recibo.TotalCentavos"
+                           SaldoPendienteCentavos="@_recibo.SaldoPendienteCentavos"
+                           VenceTexto="@_recibo.VenceTexto"
+                           EmpresaNombre="@_negocioTicket?.Empresa"
+                           Rfc="@_negocioTicket?.Rfc"
+                           SedeNombre="@_negocioTicket?.Sede"
+                           Direccion="@_negocioTicket?.Direccion"
+                           Telefono="@_negocioTicket?.Telefono"
+                           MensajePie="@_negocioTicket?.MensajePie"
+                           LogoSrc="@_logoDataUrl" />
         }
     </DialogContent>
     <DialogActions>
@@ -445,6 +421,7 @@ else
     // Datos del negocio para el encabezado del ticket: lazy (primera impresión).
     private TicketDatosNegocio? _negocioTicket;
     private byte[]? _logoRasterCache;
+    private string? _logoDataUrl;
 
     /// <summary>Null = paga el total completo; menor al total = queda a crédito.</summary>
     private long? _montoPagado;
@@ -1099,6 +1076,7 @@ else
                 sede.Telefono,
                 Cajero: "POS",
                 MensajePie: "¡Gracias por su compra!");
+            _logoDataUrl = logoDataUrl;
             _logoRasterCache = await Print.RasterizarLogoAsync(
                 TicketVentaMapper.DecodificarDataUrl(logoDataUrl) ?? [], _papelAncho, 384);
         }
@@ -1108,4 +1086,9 @@ else
             _negocioTicket = new TicketDatosNegocio(null, null, "Smart Gym", null, null, "POS", null);
         }
     }
+
+    /// <summary>Snapshot del recibo → items del preview/ticket.</summary>
+    private IReadOnlyList<SmartGym.Core.Printing.TicketItemInput> ReciboComoItems() =>
+        _recibo!.Items.Select(l => new SmartGym.Core.Printing.TicketItemInput(
+            l.Descripcion, l.Cantidad, l.PrecioUnitarioCentavos, l.SubtotalCentavos)).ToList();
 }
