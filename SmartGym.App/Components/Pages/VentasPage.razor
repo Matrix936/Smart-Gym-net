@@ -30,9 +30,18 @@
 
 <div class="glass-panel">
     <div class="page-toolbar">
-        @* Filtros primarios primero; la sede es un filtro secundario APAGADO
-           por defecto (patrón FiltrosDesplegables): encenderla muestra "Todas
-           las sedes" y solo filtra al elegir una específica. *@
+        @* Folio primero (búsqueda puntual, fuera del menú de filtros);
+           Tipo es filtro primario siempre visible; la sede conserva su
+           lógica condicional de superadmin multi-sede. *@
+        <MudTextField T="string"
+                      Class="search-field"
+                      Placeholder="Buscar por folio..."
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Margin="Margin.Dense"
+                      Immediate="true"
+                      Value="@_folioBusqueda"
+                      ValueChanged="OnFolioBusquedaChangedAsync" />
         <MudDatePicker t="DateTime?"
                        Label="Desde"
                        Variant="Variant.Outlined"
@@ -45,21 +54,24 @@
                        Margin="Margin.Dense"
                        Date="_hasta"
                        DateChanged="OnHastaChangedAsync" />
+        <MudSelect T="string?"
+                   Label="Tipo"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Clearable="true"
+                   Value="_tipo"
+                   ValueChanged="OnTipoChangedAsync">
+            <MudSelectItem T="string?" Value="null">Todos</MudSelectItem>
+            <MudSelectItem T="string?" Value="@CajaReferenciaTipos.Venta">Venta</MudSelectItem>
+            @* Sin opción "Cancelación": las cancelaciones ya no son filas
+               propias del listado — el estado vive en la fila de la venta. *@
+            <MudSelectItem T="string?" Value="@CajaReferenciaTipos.PagoMembresia">Membresía</MudSelectItem>
+            <MudSelectItem T="string?" Value="@CajaReferenciaTipos.Abono">Abono</MudSelectItem>
+        </MudSelect>
         <FiltrosDesplegables Filtros="_definicionesFiltros"
                              VisiblesIniciales="_visiblesIniciales"
                              ConteoAplicados="ConteoAplicados"
                              VisiblesChanged="OnVisiblesChangedAsync" />
-        @* Folio fuera del menú de filtros: búsqueda puntual y directa (mismo
-           criterio que el buscador de Miembros/Productos). *@
-        <MudTextField T="string"
-                      Class="search-field"
-                      Placeholder="Buscar por folio..."
-                      Adornment="Adornment.Start"
-                      AdornmentIcon="@Icons.Material.Filled.Search"
-                      Margin="Margin.Dense"
-                      Immediate="true"
-                      Value="@_folioBusqueda"
-                      ValueChanged="OnFolioBusquedaChangedAsync" />
         @if (_showSede && _sedes.Count > 1 && _filtrosVisibles.Contains("sede"))
         {
             <MudSelect T="long"
@@ -106,23 +118,6 @@
                 {
                     <MudSelectItem Value="@((long?)u.IdUsuario)">@($"{u.Nombre} {u.ApellidoPaterno}".Trim())</MudSelectItem>
                 }
-            </MudSelect>
-        }
-        @if (_filtrosVisibles.Contains("tipo"))
-        {
-            <MudSelect T="string?"
-                       Label="Tipo"
-                       Variant="Variant.Outlined"
-                       Margin="Margin.Dense"
-                       Clearable="true"
-                       Value="_tipo"
-                       ValueChanged="OnTipoChangedAsync">
-                <MudSelectItem T="string?" Value="null">Todos</MudSelectItem>
-                <MudSelectItem T="string?" Value="@CajaReferenciaTipos.Venta">Venta</MudSelectItem>
-                @* Sin opción "Cancelación": las cancelaciones ya no son filas
-                   propias del listado — el estado vive en la fila de la venta. *@
-                <MudSelectItem T="string?" Value="@CajaReferenciaTipos.PagoMembresia">Membresía</MudSelectItem>
-                <MudSelectItem T="string?" Value="@CajaReferenciaTipos.Abono">Abono</MudSelectItem>
             </MudSelect>
         }
         @if (_filtrosVisibles.Contains("metodo"))
@@ -391,23 +386,22 @@
             ? _sedeSeleccionada
             : null;
 
-    // FiltrosDesplegables: socio visible por defecto; vendedor/tipo/método/estado ocultos.
+    // FiltrosDesplegables: socio visible por defecto; vendedor/método/estado/sede ocultos.
+    // Tipo ya no vive en el menú: es filtro primario siempre visible.
     private readonly List<FiltrosDesplegables.FiltroDefinicion> _definicionesFiltros = new()
     {
         new("socio", "Socio"),
         new("vendedor", "Vendedor"),
-        new("tipo", "Tipo"),
         new("metodo", "Método"),
         new("estado", "Estado venta"),
         new("sede", "Sede"),
     };
-    private static readonly string[] _visiblesIniciales = ["tipo"];
-    private HashSet<string> _filtrosVisibles = ["tipo"];
+    private static readonly string[] _visiblesIniciales = ["socio"];
+    private HashSet<string> _filtrosVisibles = ["socio"];
 
     private int ConteoAplicados =>
         (_socioSeleccionado is not null ? 1 : 0) +
         (_idVendedor is not null ? 1 : 0) +
-        (_tipo is not null ? 1 : 0) +
         (_metodoPago is not null ? 1 : 0) +
         (_estadoVenta is not null ? 1 : 0) +
         (SedeActiva is not null ? 1 : 0);
@@ -555,10 +549,6 @@
         if (!_filtrosVisibles.Contains("vendedor"))
         {
             _idVendedor = null;
-        }
-        if (!_filtrosVisibles.Contains("tipo"))
-        {
-            _tipo = null;
         }
         if (!_filtrosVisibles.Contains("metodo"))
         {
