@@ -226,17 +226,18 @@
 
             @if (_formTipo == "descuento")
             {
-                <MudSelect T="long?"
-                           Label="Producto"
-                           Variant="Variant.Outlined"
-                           Margin="Margin.Dense"
-                           RelativeWidth="DropdownWidth.Adaptive"
-                           @bind-Value="_formIdProducto">
-                    @foreach (var prod in _productosDisponibles)
-                    {
-                        <MudSelectItem Value="@((long?)prod.IdProducto)">@prod.Descripcion</MudSelectItem>
-                    }
-                </MudSelect>
+                <MudAutocomplete T="Producto"
+                                 Label="Producto *"
+                                 Variant="Variant.Outlined"
+                                 Margin="Margin.Dense"
+                                 SearchFunc="@BuscarProductosAsync"
+                                 ToStringFunc="@(p => p is null ? "" : p.Descripcion)"
+                                 MaxItems="10"
+                                 MinCharacters="0"
+                                 ResetValueOnEmptyText="true"
+                                 Clearable="true"
+                                 Value="_productoDescSeleccionado"
+                                 ValueChanged="OnProductoDescSeleccionadoChanged" />
                 <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
                     <MudSelect T="string"
                                Label="Tipo de descuento"
@@ -287,24 +288,26 @@
                     <p class="muted">Componentes: @SubtotalComponentesTexto - ahorro: @AhorroComboTexto</p>
                 }
 
+                @* Buscador tipo POS: encontrar y agregar productos a la lista;
+                   la cantidad se ajusta por componente en la lista de abajo. *@
+                <MudAutocomplete T="Producto"
+                                 Label="Buscar producto para agregar..."
+                                 Variant="Variant.Outlined"
+                                 Margin="Margin.Dense"
+                                 SearchFunc="@BuscarProductosAsync"
+                                 ToStringFunc="@(p => p is null ? "" : p.Descripcion)"
+                                 MaxItems="10"
+                                 MinCharacters="0"
+                                 ResetValueOnEmptyText="true"
+                                 Value="_comboBusqueda"
+                                 ValueChanged="AgregarComponenteDesdeBusqueda" />
+
                 <MudText Typo="Typo.subtitle2">Componentes</MudText>
                 @foreach (var (componente, idx) in _componentesForm.Select((c, i) => (c, i)))
                 {
                     var index = idx;
                     <div style="display: flex; gap: 0.75rem; align-items: center;">
-                        <MudSelect T="long"
-                                   Label="Producto"
-                                   Variant="Variant.Outlined"
-                                   Margin="Margin.Dense"
-                                   RelativeWidth="DropdownWidth.Adaptive"
-                                   Style="flex: 3;"
-                                   Value="@componente.IdProducto"
-                                   ValueChanged="v => OnComponenteProductoChanged(index, v)">
-                            @foreach (var prod in _productosDisponibles)
-                            {
-                                <MudSelectItem Value="@prod.IdProducto">@prod.Descripcion</MudSelectItem>
-                            }
-                        </MudSelect>
+                        <span style="flex: 3;" class="@(index >= 0 ? "" : "")">@componente.Descripcion</span>
                         <MudNumericField T="long"
                                          Label="Cant."
                                          Variant="Variant.Outlined"
@@ -321,9 +324,6 @@
                                        OnClick="() => QuitarComponente(index)" />
                     </div>
                 }
-                <MudButton Variant="Variant.Text" Color="Color.Primary"
-                           StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="AgregarComponente">Agregar componente</MudButton>
             }
 
             <div style="display: flex; gap: 0.75rem;">
@@ -403,6 +403,8 @@
     private string _formNombre = "";
     private string _formDescripcion = "";
     private long? _formIdProducto;
+    private Producto? _productoDescSeleccionado;
+    private Producto? _comboBusqueda;
     private string _formTipoDescuento = "porcentaje";
     private long _formValorEntero = 10;
     private decimal _formValorMonto;
@@ -414,7 +416,7 @@
     /// <summary>Filas de componentes del combo en edición (id, cantidad).</summary>
     private List<ComponenteForm> _componentesForm = [];
 
-    private sealed record ComponenteForm(long IdProducto, long Cantidad);
+    private sealed record ComponenteForm(long IdProducto, long Cantidad, string Descripcion, long PrecioVentaCentavos);
 
     private sealed record ConfirmarTarea(string Titulo, string Mensaje, string TextoConfirmar, Func<Task> Accion);
     private ConfirmarTarea? _confirmar;
@@ -557,6 +559,8 @@
         _formNombre = "";
         _formDescripcion = "";
         _formIdProducto = null;
+        _productoDescSeleccionado = null;
+        _comboBusqueda = null;
         _formTipoDescuento = "porcentaje";
         _formValorEntero = 10;
         _formValorMonto = 0;
@@ -587,8 +591,19 @@
         _formFechaInicio = ParseFechaSolo(p.FechaInicio);
         _formFechaFin = ParseFechaSolo(p.FechaFin);
         _componentesForm = info.Componentes
-            .Select(c => new ComponenteForm(c.IdProducto, c.Cantidad))
+            .Select(c => new ComponenteForm(c.IdProducto, c.Cantidad,
+                c.DescripcionProducto ?? $"Producto {c.IdProducto}", c.PrecioVentaCentavos))
             .ToList();
+
+        // Prefill del autocomplete de descuento con el producto actual.
+        _productoDescSeleccionado = p.IdProducto is null
+            ? null
+            : new Producto
+            {
+                IdProducto = p.IdProducto.Value,
+                Descripcion = info.DescripcionProducto ?? "",
+            };
+        _comboBusqueda = null;
         _formAbierto = true;
     }
 
@@ -616,14 +631,28 @@
         }
     }
 
-    private void AgregarComponente()
+    private void AgregarComponenteDesdeBusqueda(Producto? producto)
     {
-        var idLibre = _productosDisponibles.FirstOrDefault(p => _componentesForm.All(c => c.IdProducto != p.IdProducto))?.IdProducto;
-        if (idLibre is null)
+        if (producto is null)
         {
             return;
         }
-        _componentesForm.Add(new ComponenteForm(idLibre.Value, 1));
+
+        // Carrito-style: si ya está en la lista, sube la cantidad; si no, entra con 1.
+        var existente = _componentesForm.FirstOrDefault(c => c.IdProducto == producto.IdProducto);
+        if (existente is not null)
+        {
+            var idx = _componentesForm.IndexOf(existente);
+            _componentesForm[idx] = existente with { Cantidad = existente.Cantidad + 1 };
+        }
+        else
+        {
+            _componentesForm.Add(new ComponenteForm(
+                producto.IdProducto, 1, producto.Descripcion, producto.PrecioVentaCentavos));
+        }
+
+        _comboBusqueda = null;
+        StateHasChanged();
     }
 
     private void QuitarComponente(int idx)
@@ -634,12 +663,30 @@
         }
     }
 
-    private void OnComponenteProductoChanged(int idx, long idProducto)
+    /// <summary>Búsqueda en vivo sobre productos activos — mismo patrón que
+    /// la selección de socio en POS/VenderMembresiaDialog.</summary>
+    private async Task<IEnumerable<Producto?>> BuscarProductosAsync(string arg, CancellationToken ct)
     {
-        if (idx < _componentesForm.Count)
+        var sesion = Sesion.Current;
+        if (sesion is null)
         {
-            _componentesForm[idx] = _componentesForm[idx] with { IdProducto = idProducto };
+            return [];
         }
+
+        var pagina = await Productos.BuscarAsync(
+            sesion.Token,
+            string.IsNullOrWhiteSpace(arg) ? null : arg.Trim(),
+            pagina: 1,
+            tamanoPagina: 10,
+            esActivo: true,
+            ct);
+        return pagina.Items.Cast<Producto?>();
+    }
+
+    private void OnProductoDescSeleccionadoChanged(Producto? producto)
+    {
+        _productoDescSeleccionado = producto;
+        _formIdProducto = producto?.IdProducto;
     }
 
     private void OnComponenteCantidadChanged(int idx, long cantidad)
@@ -651,8 +698,7 @@
     }
 
     private long SubtotalComponentes =>
-        _componentesForm.Sum(c =>
-            (_productosDisponibles.FirstOrDefault(p => p.IdProducto == c.IdProducto)?.PrecioVentaCentavos ?? 0) * c.Cantidad);
+        _componentesForm.Sum(c => c.PrecioVentaCentavos * c.Cantidad);
 
     private string SubtotalComponentesTexto => FormatearMonto(SubtotalComponentes);
 
