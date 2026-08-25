@@ -443,10 +443,11 @@ CREATE INDEX IF NOT EXISTS idx_detalle_ventas_id_venta ON detalle_ventas(id_vent
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS promociones (
     id_promocion             TEXT PRIMARY KEY,
-    tipo                     TEXT NOT NULL, -- descuento | combo
+    tipo                     TEXT NOT NULL, -- descuento | combo | combo_membresia
     nombre                   TEXT NOT NULL,
     descripcion              TEXT,
     id_producto              INTEGER,       -- solo descuento; NULL en combos
+    id_plan                  INTEGER,       -- solo combo_membresia: el plan incluido
     tipo_descuento           TEXT,          -- monto_fijo | porcentaje (solo descuento)
     valor                    INTEGER,       -- centavos (monto_fijo) o entero 1..100 (porcentaje)
     precio_combo_centavos    INTEGER,       -- precio cerrado del combo completo
@@ -456,9 +457,11 @@ CREATE TABLE IF NOT EXISTS promociones (
     updated_at               TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     sincronizado             INTEGER NOT NULL DEFAULT 0,
     deleted_at               TEXT,
-    FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
+    FOREIGN KEY (id_producto) REFERENCES productos(id_producto),
+    FOREIGN KEY (id_plan) REFERENCES planes_membresia(id_plan)
 );
 CREATE INDEX IF NOT EXISTS idx_promociones_id_producto ON promociones(id_producto);
+CREATE INDEX IF NOT EXISTS idx_promociones_id_plan ON promociones(id_plan);
 
 CREATE TABLE IF NOT EXISTS promocion_productos (
     id_promocion    TEXT NOT NULL,

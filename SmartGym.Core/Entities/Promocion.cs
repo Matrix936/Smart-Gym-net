@@ -3,10 +3,14 @@ using SmartGym.Core.Services;
 
 namespace SmartGym.Core.Entities;
 
+/// <summary>Tipos de promoción del catálogo.</summary>
 public static class PromocionTipos
 {
     public const string Descuento = "descuento";
     public const string Combo = "combo";
+
+    /// <summary>Combo que incluye 1 plan de membresía + 1..n productos a precio cerrado. Siempre de contado.</summary>
+    public const string ComboMembresia = "combo_membresia";
 }
 
 public static class PromocionTiposDescuento
@@ -39,6 +43,9 @@ public sealed class Promocion
     /// <summary>Solo combo: precio cerrado del combo completo.</summary>
     public long? PrecioComboCentavos { get; set; }
 
+    /// <summary>Solo combo_membresia: el plan incluido en el combo.</summary>
+    public long? IdPlan { get; set; }
+
     public string? FechaInicio { get; set; }
     public string? FechaFin { get; set; }
     public bool EsActivo { get; set; } = true;
@@ -70,6 +77,9 @@ public sealed class PromocionInfo
 {
     public Promocion Promocion { get; set; } = new();
     public string? DescripcionProducto { get; set; }
+
+    /// <summary>Solo combo_membresia: nombre del plan incluido.</summary>
+    public string? NombrePlan { get; set; }
 
     /// <summary>Componentes resueltos (solo combos).</summary>
     public IReadOnlyList<ComponenteInfo> Componentes { get; set; } = Array.Empty<ComponenteInfo>();

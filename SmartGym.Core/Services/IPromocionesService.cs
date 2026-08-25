@@ -58,6 +58,33 @@ public interface IPromocionesService
         DateTime? fechaFin = null,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Combo que incluye 1 plan de membresía + 1..n productos a precio cerrado.
+    /// Siempre de contado al venderse desde POS.
+    /// </summary>
+    Task<PromocionInfo> CrearComboMembresiaAsync(
+        string token,
+        string nombre,
+        string? descripcion,
+        long idPlan,
+        long precioComboCentavos,
+        IReadOnlyList<PromocionComponente> componentes,
+        DateTime? fechaInicio = null,
+        DateTime? fechaFin = null,
+        CancellationToken ct = default);
+
+    Task<PromocionInfo> EditarComboMembresiaAsync(
+        string token,
+        string idPromocion,
+        string nombre,
+        string? descripcion,
+        long idPlan,
+        long precioComboCentavos,
+        IReadOnlyList<PromocionComponente> componentes,
+        DateTime? fechaInicio = null,
+        DateTime? fechaFin = null,
+        CancellationToken ct = default);
+
     /// <summary>Vuelve a ofrecerse — no revalida solapamiento histórico.</summary>
     Task ActivarAsync(string token, string idPromocion, CancellationToken ct = default);
 
@@ -94,8 +121,19 @@ public sealed class PosPromocionInfo
     /// <summary>Solo combo.</summary>
     public long PrecioComboCentavos { get; set; }
 
+
     /// <summary>Solo combo: suma precio_venta * cantidad de componentes (ahorro visible).</summary>
     public long SubtotalComponentesCentavos { get; set; }
+
+    /// <summary>Solo combo_membresia: el plan incluido (para crear la membresía al cobrar).</summary>
+    public long? IdPlan { get; set; }
+    public string? NombrePlan { get; set; }
+
+    /// <summary>
+    /// <summary>Solo combo_membresia: precio de lista total (plan + suma de componentes).
+    /// Base del prorrateo del precio cerrado en el momento del cobro.
+    /// </summary>
+    public long PrecioListaTotalCentavos { get; set; }
 
     public IReadOnlyList<ComponenteInfo> Componentes { get; set; } = Array.Empty<ComponenteInfo>();
 }

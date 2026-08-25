@@ -40,10 +40,10 @@ public sealed class DbSchemaTests
     }
 
     [Fact]
-    public void Schema_tiene_34_indices_con_prefijo_idx()
+    public void Schema_tiene_35_indices_con_prefijo_idx()
     {
         var indexes = Count(_fixture.DbPath, "type = 'index' AND name LIKE 'idx_%'");
-        Assert.Equal(34, indexes);
+        Assert.Equal(35, indexes);
     }
 
     [Fact]

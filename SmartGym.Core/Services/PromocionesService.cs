@@ -12,6 +12,7 @@ public sealed class PromocionesService : IPromocionesService
     private readonly IAuthorizationService _authz;
     private readonly IPromocionesRepository _promociones;
     private readonly IProductosRepository _productos;
+    private readonly IPlanesMembresiaRepository _planes;
     private readonly IBitacoraAuditoriaRepository _bitacora;
 
     public PromocionesService(
@@ -19,12 +20,14 @@ public sealed class PromocionesService : IPromocionesService
         IAuthorizationService authz,
         IPromocionesRepository promociones,
         IProductosRepository productos,
+        IPlanesMembresiaRepository planes,
         IBitacoraAuditoriaRepository bitacora)
     {
         _auth = auth;
         _authz = authz;
         _promociones = promociones;
         _productos = productos;
+        _planes = planes;
         _bitacora = bitacora;
     }
 
@@ -118,6 +121,51 @@ public sealed class PromocionesService : IPromocionesService
         return await ObtenerInfoAsync(promo.IdPromocion, ct);
     }
 
+    /// <summary>Combo que incluye 1 plan de membresía + 1..n productos a precio
+    /// cerrado. Siempre de contado al venderse desde POS.</summary>
+    public async Task<PromocionInfo> CrearComboMembresiaAsync(
+        string token, string nombre, string? descripcion, long idPlan, long precioComboCentavos,
+        IReadOnlyList<PromocionComponente> componentes, DateTime? fechaInicio = null, DateTime? fechaFin = null,
+        CancellationToken ct = default)
+    {
+        var (info, idPromocion) = await CrearCoreAsync(token, nombre, descripcion, fechaInicio, fechaFin, ct);
+
+        var plan = await ValidarPlanActivoAsync(idPlan, ct);
+        ValidarPrecioCombo(precioComboCentavos);
+        var componentesValidados = await ValidarComponentesAsync(componentes, ct);
+
+        var promo = new Promocion
+        {
+            IdPromocion = idPromocion,
+            Tipo = PromocionTipos.ComboMembresia,
+            Nombre = nombre.Trim(),
+            Descripcion = Limpiar(descripcion),
+            IdPlan = idPlan,
+            PrecioComboCentavos = precioComboCentavos,
+            FechaInicio = Normalizar(fechaInicio),
+            FechaFin = Normalizar(fechaFin),
+            EsActivo = true,
+            UpdatedAt = DateHelper.NowIsoUtc(),
+        };
+
+        await _promociones.InsertAsync(promo, componentesValidados, ct);
+        await RegistrarBitacoraAsync(info, "promocion.creada", promo,
+            $"combo_membresia|plan:{plan.Nombre}|{componentesValidados.Count} productos|precio:{precioComboCentavos}", ct);
+        return await ObtenerInfoAsync(promo.IdPromocion, ct);
+    }
+
+    /// <summary>Plan activo requerido para combo_membresia.</summary>
+    private async Task<PlanMembresia> ValidarPlanActivoAsync(long idPlan, CancellationToken ct)
+    {
+        var plan = await _planes.GetByIdAsync(idPlan, ct)
+            ?? throw BusinessException.NotFound("Plan no encontrado", "plan_no_encontrado");
+        if (!plan.EsActivo)
+        {
+            throw BusinessException.Validation("El plan está inactivo", "plan_inactivo");
+        }
+        return plan;
+    }
+
     public async Task<PromocionInfo> EditarDescuentoAsync(
         string token, string idPromocion, string nombre, string? descripcion, long idProducto,
         string tipoDescuento, long valor, DateTime? fechaInicio = null, DateTime? fechaFin = null,
@@ -169,6 +217,34 @@ public sealed class PromocionesService : IPromocionesService
         await _promociones.UpdateAsync(existente, componentesValidados, ct);
         await RegistrarBitacoraAsync(info, "promocion.editada", existente,
             $"combo:{componentesValidados.Count} componentes|precio:{precioComboCentavos}", ct);
+        return await ObtenerInfoAsync(idPromocion, ct);
+    }
+
+    public async Task<PromocionInfo> EditarComboMembresiaAsync(
+        string token, string idPromocion, string nombre, string? descripcion, long idPlan, long precioComboCentavos,
+        IReadOnlyList<PromocionComponente> componentes, DateTime? fechaInicio = null, DateTime? fechaFin = null,
+        CancellationToken ct = default)
+    {
+        var info = await EditarGateAsync(token, idPromocion, ct);
+        var existente = await ObtenerTipoAsync(idPromocion, PromocionTipos.ComboMembresia, ct);
+
+        ValidarNombre(nombre);
+        var plan = await ValidarPlanActivoAsync(idPlan, ct);
+        ValidarPrecioCombo(precioComboCentavos);
+        ValidarRangoFechas(fechaInicio, fechaFin);
+        var componentesValidados = await ValidarComponentesAsync(componentes, ct);
+
+        existente.Nombre = nombre.Trim();
+        existente.Descripcion = Limpiar(descripcion);
+        existente.IdPlan = idPlan;
+        existente.PrecioComboCentavos = precioComboCentavos;
+        existente.FechaInicio = Normalizar(fechaInicio);
+        existente.FechaFin = Normalizar(fechaFin);
+        existente.UpdatedAt = DateHelper.NowIsoUtc();
+
+        await _promociones.UpdateAsync(existente, componentesValidados, ct);
+        await RegistrarBitacoraAsync(info, "promocion.editada", existente,
+            $"combo_membresia|plan:{plan.Nombre}|{componentesValidados.Count} productos|precio:{precioComboCentavos}", ct);
         return await ObtenerInfoAsync(idPromocion, ct);
     }
 
@@ -257,7 +333,7 @@ public sealed class PromocionesService : IPromocionesService
 
                 if (componentes.Count > 0)
                 {
-                    lista.Add(new PosPromocionInfo
+                    PosPromocionInfo info = new()
                     {
                         IdPromocion = promo.IdPromocion,
                         Tipo = promo.Tipo,
@@ -265,7 +341,26 @@ public sealed class PromocionesService : IPromocionesService
                         PrecioComboCentavos = promo.PrecioComboCentavos ?? 0,
                         SubtotalComponentesCentavos = subtotal,
                         Componentes = componentes,
-                    });
+                    };
+
+                    // combo_membresia: resuelve el plan incluido (para que POS
+                    // pueda crear la membresía al cobrar).
+                    if (promo.Tipo == PromocionTipos.ComboMembresia)
+                    {
+                        var plan = await _planes.GetByIdAsync(promo.IdPlan!.Value, ct);
+                        if (plan is null || !plan.EsActivo)
+                        {
+                            continue;
+                        }
+                        info.IdPlan = plan.IdPlan;
+                        info.NombrePlan = plan.Nombre;
+                        // Precio de lista total (plan + componentes): base del
+                        // prorrateo del precio cerrado en el momento del cobro.
+                        info.PrecioListaTotalCentavos =
+                            plan.PrecioCentavos + subtotal;
+                    }
+
+                    lista.Add(info);
                 }
             }
         }
@@ -421,6 +516,13 @@ public sealed class PromocionesService : IPromocionesService
             }
             else
             {
+                // combo y combo_membresia: resuelve el plan incluido (si hay).
+                if (promo.IdPlan is not null)
+                {
+                    var plan = await _planes.GetByIdAsync(promo.IdPlan.Value, ct);
+                    info.NombrePlan = plan?.Nombre;
+                }
+
                 var componentesRaw = await _promociones.GetComponentesAsync(promo.IdPromocion, ct);
                 var componentes = new List<ComponenteInfo>();
                 foreach (var c in componentesRaw)

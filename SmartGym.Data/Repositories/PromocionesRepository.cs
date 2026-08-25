@@ -9,7 +9,7 @@ namespace SmartGym.Data.Repositories;
 
 public sealed class PromocionesRepository : RepositoryBase, IPromocionesRepository
 {
-    private const string Select = "SELECT id_promocion, tipo, nombre, descripcion, id_producto, " +
+    private const string Select = "SELECT id_promocion, tipo, nombre, descripcion, id_producto, id_plan, " +
         "tipo_descuento, valor, precio_combo_centavos, fecha_inicio, fecha_fin, es_activo, " +
         "updated_at, sincronizado, deleted_at FROM promociones ";
 
@@ -30,10 +30,10 @@ public sealed class PromocionesRepository : RepositoryBase, IPromocionesReposito
         {
             await conn.ExecuteAsync(
                 new CommandDefinition(
-                    "INSERT INTO promociones (id_promocion, tipo, nombre, descripcion, id_producto, " +
+                    "INSERT INTO promociones (id_promocion, tipo, nombre, descripcion, id_producto, id_plan, " +
                     "tipo_descuento, valor, precio_combo_centavos, fecha_inicio, fecha_fin, es_activo, " +
                     "updated_at, sincronizado) " +
-                    "VALUES (@IdPromocion, @Tipo, @Nombre, @Descripcion, @IdProducto, " +
+                    "VALUES (@IdPromocion, @Tipo, @Nombre, @Descripcion, @IdProducto, @IdPlan, " +
                     "@TipoDescuento, @Valor, @PrecioComboCentavos, @FechaInicio, @FechaFin, @EsActivo, " +
                     "@UpdatedAt, 0);",
                     promo, tx, cancellationToken: ct));
@@ -103,7 +103,7 @@ public sealed class PromocionesRepository : RepositoryBase, IPromocionesReposito
         {
             var affected = await conn.ExecuteAsync(
                 new CommandDefinition(
-                    "UPDATE promociones SET nombre = @Nombre, descripcion = @Descripcion, id_producto = @IdProducto, " +
+                    "UPDATE promociones SET nombre = @Nombre, descripcion = @Descripcion, id_producto = @IdProducto, id_plan = @IdPlan, " +
                     "tipo_descuento = @TipoDescuento, valor = @Valor, precio_combo_centavos = @PrecioComboCentavos, " +
                     "fecha_inicio = @FechaInicio, fecha_fin = @FechaFin, updated_at = @UpdatedAt " +
                     "WHERE id_promocion = @IdPromocion AND deleted_at IS NULL",
