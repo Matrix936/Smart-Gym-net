@@ -50,6 +50,21 @@ public static MauiApp CreateMauiApp()
 		builder.Services.AddMauiBlazorWebView();
 		builder.Services.AddMudServices();
 
+#if WINDOWS
+		// Carpeta de datos de usuario de WebView2 en ubicación con escritura
+		// garantizada. Sin esto, WebView2 usa su default exe-adyacente
+		// ({exe}.WebView2 junto al binario): funciona en dev, pero instalado
+		// en Program Files un usuario normal no puede escribir ahí y el
+		// BlazorWebView se queda atascado en el splash. La variable de
+		// entorno la honra CoreWebView2Environment cuando el handler no pasa
+		// userDataFolder explícito (el caso del handler MAUI).
+		var webView2DataDir = Path.Combine(
+			Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+			"Smart-Gym-net", "WebView2");
+		Directory.CreateDirectory(webView2DataDir);
+		Environment.SetEnvironmentVariable("WEBVIEW2_USER_DATA_FOLDER", webView2DataDir);
+#endif
+
 		// ---- Infraestructura (Fase 1) ----
 		// Datos de la app en AppData\Roaming\Smart-Gym-net (DB, logos, etc.).
 		var dataDir = Path.Combine(

@@ -56,7 +56,14 @@ public sealed class BiometricCaptureService : DPFP.Capture.EventHandler, IBiomet
         _templatesDir = templatesDir;
         Directory.CreateDirectory(_templatesDir);
 
-        _logPath = Path.Combine(AppContext.BaseDirectory, "BiometricCapture", "capture_log.txt");
+        // Log junto a los templates (carpeta de datos en %APPDATA%, escritura
+        // garantizada). AppContext.BaseDirectory era un bug latente: instalado
+        // en Program Files un usuario normal no puede escribir ahí y el
+        // UnauthorizedAccessException dentro de un event handler del SDK
+        // DPFP revienta la app con diálogo fatal.
+        _logPath = Path.Combine(
+            Path.GetDirectoryName(_templatesDir) ?? AppContext.BaseDirectory,
+            "BiometricCapture", "capture_log.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(_logPath)!);
 
         _capturer.EventHandler = this;
@@ -506,9 +513,22 @@ public sealed class BiometricCaptureService : DPFP.Capture.EventHandler, IBiomet
     private void Log(string message)
     {
         var line = $"{DateTime.Now:HH:mm:ss.fff} {message}";
-        lock (_fileLock)
+        try
         {
-            File.AppendAllText(_logPath, line + Environment.NewLine);
+            lock (_fileLock)
+            {
+                File.AppendAllText(_logPath, line + Environment.NewLine);
+            }
+        }
+        catch (IOException)
+        {
+            // El log de diagnóstico jamás debe tumbar la app: corriendo dentro
+            // de un event handler del SDK DPFP, una excepción aquí se convierte
+            // en diálogo fatal ("Event Handler has generated an Exception").
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Ídem: si la carpeta no es escribible, se pierde la línea y punto.
         }
     }
 
