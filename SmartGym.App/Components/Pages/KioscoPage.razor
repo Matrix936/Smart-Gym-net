@@ -525,8 +525,29 @@ else if (_promocionesVigentes.Count > 0)
         else if (modo == BiometricCaptureMode.Idle && _estado == KioscoEstado.LectorOcupado)
         {
             File.AppendAllText(diagLog, $"[{DateTime.Now:HH:mm:ss.fff}] POLL: → reiniciando identificación\n");
-            _ = IntentarIniciarIdentificacionAsync();
+            _ = RecargarYReiniciarAsync();
         }
+    }
+
+    /// <summary>
+    /// Recarga templates desde BD y reinicia identificación: garantiza que
+    /// enrolamientos hechos mientras el lector estaba ocupado se incluyan en
+    /// el set de comparación al retomar el control.
+    /// </summary>
+    private async Task RecargarYReiniciarAsync()
+    {
+        if (!_disposed && _idSede is not null)
+        {
+            try
+            {
+                _templatePaths = (await Biometricos.GetTemplatePathsBySedeAsync(_idSede.Value)).ToList();            }
+            catch
+            {
+                // Si la recarga falla, mantiene los previos (mejor que no identificar).
+            }
+        }
+
+        await IntentarIniciarIdentificacionAsync();
     }
 
     private void OnIdentificationResult(object? sender, IdentificationResultEventArgs e)
