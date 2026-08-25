@@ -119,7 +119,7 @@
             else
             {
                 <p class="muted" style="margin-bottom: 0.5rem;">Monto contado: @FormatearMonto((long)Math.Round(_montoContado * 100, MidpointRounding.AwayFromZero))</p>
-                <PasswordField Label="Confirma tu contraseña" Autocomplete="current-password" @bind-Value="_cierrePassword" />
+                <PasswordField Label="Confirma tu contraseña" Immediate="true" Autocomplete="current-password" @bind-Value="_cierrePassword" />
             }
         </div>
     </DialogContent>

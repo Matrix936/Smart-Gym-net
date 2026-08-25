@@ -114,7 +114,7 @@
            criterio que CancelarVenta/cierre de caja. Un solo dialogo para las
            dos acciones de la página. *@
         <div @onkeydown="HandleReauthKeyDown">
-            <PasswordField Label="Contraseña actual *" Autocomplete="current-password" @bind-Value="_reauthPassword" />
+            <PasswordField Label="Contraseña actual *" Immediate="true" Autocomplete="current-password" @bind-Value="_reauthPassword" />
         </div>
     </DialogContent>
     <DialogActions>

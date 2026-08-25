@@ -90,7 +90,7 @@
             <p><strong>@(Session.Current?.Nombre ?? "usuario")</strong></p>
             <p class="muted">Ingresa tu contraseña para continuar</p>
             <div class="form-fields" style="max-width: 280px; margin: 0 auto;" @onkeydown="HandleDesbloqueoKeyDown">
-                <PasswordField Label="Contraseña"
+                <PasswordField Label="Contraseña" Immediate="true"
                                Autocomplete="current-password"
                                @bind-Value="_passwordDesbloqueo" />
                 <AsyncButton Text="Desbloquear"
