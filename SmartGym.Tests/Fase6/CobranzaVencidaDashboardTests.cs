@@ -56,7 +56,7 @@ public sealed class CobranzaVencidaDashboardTests
         await Fase6Helper.InsertarSocioAsync(ctx, socioCobrada, sedeId);
         await SembrarCuentaAsync(ctx, socioCobrada, sedeId, saldoCentavos: 7000, diasVencimiento: -5, estado: "cobrada");
 
-        var vencidas = (await ctx.DashboardService.ObtenerCobranzaVencidaAsync(token)).ToList();
+        var vencidas = (await ctx.DashboardService.ObtenerCobranzaVencidaAsync(token)).Items.ToList();
 
         Assert.Equal(2, vencidas.Count);
         Assert.All(vencidas, v => Assert.True(v.SaldoPendienteCentavos > 0));
@@ -86,7 +86,7 @@ public sealed class CobranzaVencidaDashboardTests
             "VALUES (@id, NULL, 'pos', @idSocio, 30000, @vencimiento, 'parcial', @ahora, 0)",
             new { id = UuidHelper.NewV4(), idSocio, vencimiento = vencimientoPasado, ahora = DateHelper.NowIsoUtc() }));
 
-        var vencidas = (await ctx.DashboardService.ObtenerCobranzaVencidaAsync(token)).ToList();
+        var vencidas = (await ctx.DashboardService.ObtenerCobranzaVencidaAsync(token)).Items.ToList();
 
         var dto = Assert.Single(vencidas);
         Assert.Equal("+5215500000000", dto.Telefono);

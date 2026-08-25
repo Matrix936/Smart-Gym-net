@@ -174,7 +174,7 @@ private static async Task SetTelefonoAsync(SecurityTestContext ctx, string idSoc
         await Fase6Helper.InsertarSocioAsync(ctx, socioD, sede1);
         await InsertarMembresiaAsync(ctx, socioD, plan, sede1, 4);
 
-        var recordatorios = (await ctx.DashboardService.ObtenerRecordatoriosAsync(token)).ToList();
+        var recordatorios = (await ctx.DashboardService.ObtenerRecordatoriosAsync(token)).Items.ToList();
 
         Assert.Equal(2, recordatorios.Count);
 
@@ -198,7 +198,7 @@ private static async Task SetTelefonoAsync(SecurityTestContext ctx, string idSoc
         await SetTelefonoAsync(ctx, socio, "+5215533333333");
         await InsertarMembresiaAsync(ctx, socio, plan, sede1, -12);
 
-        var r = Assert.Single(await ctx.DashboardService.ObtenerRecordatoriosAsync(token));
+        var r = Assert.Single((await ctx.DashboardService.ObtenerRecordatoriosAsync(token)).Items);
         Assert.Equal(RecordatorioCategorias.Vencida, r.Categoria);
         Assert.Equal(12, r.Dias);
     }

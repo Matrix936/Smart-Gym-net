@@ -150,6 +150,32 @@
                     </tbody>
                 </table>
             </div>
+            <div class="table-footer">
+                <span class="muted">Mostrando @_recordatorios.Count de @_totalRecordatorios recordatorio(s)</span>
+                <div class="pagination-controls">
+                    <MudSelect T="int"
+                               Label="Ver"
+                               Margin="Margin.Dense"
+                               Variant="Variant.Outlined"
+                               OuterClass="page-size-field"
+                               RelativeWidth="DropdownWidth.Adaptive"
+                               Value="_tamanoPaginaRecordatorios"
+                               ValueChanged="OnTamanoPaginaRecordatoriosChanged">
+                        @foreach (var tamano in TamanosPagina.Validos)
+                        {
+                            <MudSelectItem Value="@tamano">@tamano</MudSelectItem>
+                        }
+                    </MudSelect>
+                    @if (_totalPaginasRecordatorios > 1)
+                    {
+                        <MudPagination Count="_totalPaginasRecordatorios"
+                                       Selected="_paginaRecordatorios"
+                                       SelectedChanged="OnPaginaRecordatoriosChanged"
+                                       Color="Color.Primary"
+                                       Size="Size.Small" />
+                    }
+                </div>
+            </div>
         }
     </div>
 }
@@ -220,6 +246,32 @@
                     </tbody>
                 </table>
             </div>
+            <div class="table-footer">
+                <span class="muted">Mostrando @_cobranzaVencida.Count de @_totalCobranza cuenta(s) vencida(s)</span>
+                <div class="pagination-controls">
+                    <MudSelect T="int"
+                               Label="Ver"
+                               Margin="Margin.Dense"
+                               Variant="Variant.Outlined"
+                               OuterClass="page-size-field"
+                               RelativeWidth="DropdownWidth.Adaptive"
+                               Value="_tamanoPaginaCobranza"
+                               ValueChanged="OnTamanoPaginaCobranzaChanged">
+                        @foreach (var tamano in TamanosPagina.Validos)
+                        {
+                            <MudSelectItem Value="@tamano">@tamano</MudSelectItem>
+                        }
+                    </MudSelect>
+                    @if (_totalPaginasCobranza > 1)
+                    {
+                        <MudPagination Count="_totalPaginasCobranza"
+                                       Selected="_paginaCobranza"
+                                       SelectedChanged="OnPaginaCobranzaChanged"
+                                       Color="Color.Primary"
+                                       Size="Size.Small" />
+                    }
+                </div>
+            </div>
         }
     </div>
 }
@@ -252,10 +304,16 @@
     // Cobranza vencida.
     private bool _verCobranzaVencida;
     private bool _cargandoCobranza = true;
+    private int _paginaCobranza = 1;
+    private int _tamanoPaginaCobranza = TamanosPagina.Default;
+    private int _totalCobranza;
     private List<CobranzaVencidaDto> _cobranzaVencida = [];
     private string PlantillaCobranza { get; set; } = "";
 
     // Recordatorios.
+    private int _paginaRecordatorios = 1;
+    private int _tamanoPaginaRecordatorios = TamanosPagina.Default;
+    private int _totalRecordatorios;
     private bool _verRecordatorios;
     private bool _cargandoRecordatorios = true;
     private List<RecordatorioMembresiaDto> _recordatorios = [];
@@ -371,6 +429,35 @@
         }
     }
 
+    private int _totalPaginasRecordatorios => TamanosPagina.Default <= 0 ? 0 : (int)Math.Ceiling(_totalRecordatorios / (double)_tamanoPaginaRecordatorios);
+
+    private async Task OnPaginaRecordatoriosChanged(int pagina)
+    {
+        _paginaRecordatorios = pagina;
+        await CargarRecordatoriosAsync();
+    }
+
+    private async Task OnTamanoPaginaRecordatoriosChanged(int tamano)
+    {
+        _tamanoPaginaRecordatorios = tamano;
+        _paginaRecordatorios = 1;
+        await CargarRecordatoriosAsync();
+    }
+
+    private int _totalPaginasCobranza => TamanosPagina.Default <= 0 ? 0 : (int)Math.Ceiling(_totalCobranza / (double)_tamanoPaginaCobranza);
+
+    private async Task OnPaginaCobranzaChanged(int pagina)
+    {
+        _paginaCobranza = pagina;
+        await CargarCobranzaVencidaAsync();
+    }
+
+    private async Task OnTamanoPaginaCobranzaChanged(int tamano)
+    {
+        _tamanoPaginaCobranza = tamano;
+        _paginaCobranza = 1;
+        await CargarCobranzaVencidaAsync();
+    }
     private async Task CargarRecordatoriosAsync()
     {
         if (_token is null)
@@ -381,7 +468,9 @@
         StateHasChanged();
         try
         {
-            _recordatorios = (await Dashboard.ObtenerRecordatoriosAsync(_token)).ToList();
+            var resultadoRec = await Dashboard.ObtenerRecordatoriosAsync(_token, pagina: _paginaRecordatorios, tamanoPagina: _tamanoPaginaRecordatorios);
+            _recordatorios = resultadoRec.Items.ToList();
+            _totalRecordatorios = resultadoRec.TotalRegistros;
         }
         catch (BusinessException ex)
         {
@@ -408,7 +497,9 @@
         StateHasChanged();
         try
         {
-            _cobranzaVencida = (await Dashboard.ObtenerCobranzaVencidaAsync(_token)).ToList();
+            var resultadoCob = await Dashboard.ObtenerCobranzaVencidaAsync(_token, pagina: _paginaCobranza, tamanoPagina: _tamanoPaginaCobranza);
+            _cobranzaVencida = resultadoCob.Items.ToList();
+            _totalCobranza = resultadoCob.TotalRegistros;
             var (_, _, plantilla) = await Dashboard.ObtenerPlantillasWhatsAppAsync();
             PlantillaCobranza = plantilla;
         }
