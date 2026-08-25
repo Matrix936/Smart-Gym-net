@@ -87,6 +87,13 @@ public sealed class VentaInfo
     public long? IdVendedor { get; set; }
     public IReadOnlyList<DetalleVentaInfo> Items { get; set; } = Array.Empty<DetalleVentaInfo>();
 
+    /// <summary>
+    /// Solo combo_membresia: plan incluido y su share prorrateado del precio
+    /// cerrado — la UI crea la membresía con ese monto en segunda llamada.
+    /// </summary>
+    public long? IdPlanComboMembresia { get; set; }
+    public long PlanShareCentavos { get; set; }
+
     /// <summary>Cuándo se canceló (bitácora venta.cancelada). Null si no aplica.</summary>
     public string? CanceladaElIsoUtc { get; set; }
     /// <summary>Quién canceló (nombre resuelto desde bitácora). Null si no aplica.</summary>

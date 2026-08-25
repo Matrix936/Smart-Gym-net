@@ -172,6 +172,18 @@ public sealed class PromocionesRepository : RepositoryBase, IPromocionesReposito
             new CommandDefinition(sql, new { idProducto, hoy }, cancellationToken: ct));
     }
 
+    /// <summary>True si la venta incluyó algún combo_membresia (no cancelable: la membresía se gestiona aparte).</summary>
+    public async Task<bool> VentaTieneComboMembresiaAsync(string idVenta, CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        return await conn.ExecuteScalarAsync<int>(
+            new CommandDefinition(
+                "SELECT COUNT(1) FROM detalle_ventas dv " +
+                "JOIN promociones p ON p.id_promocion = dv.id_promocion " +
+                "WHERE dv.id_venta = @idVenta AND p.tipo = 'combo_membresia' AND dv.deleted_at IS NULL",
+                new { idVenta }, cancellationToken: ct)) > 0;
+    }
+
     private static async Task InsertarComponentesCoreAsync(
         Microsoft.Data.Sqlite.SqliteConnection conn,
         Microsoft.Data.Sqlite.SqliteTransaction tx,

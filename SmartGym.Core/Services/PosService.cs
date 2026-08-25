@@ -26,6 +26,7 @@ public sealed class PosService : IPosService
     private readonly IBitacoraAuditoriaRepository _bitacora;
     private readonly ISedeResolutionService _sedeResolution;
     private readonly IPromocionesRepository _promociones;
+    private readonly IPlanesMembresiaRepository _planes;
 
     public PosService(
         IAuthService auth,
@@ -39,7 +40,8 @@ public sealed class PosService : IPosService
         IConfiguracionRepository configuracion,
         IBitacoraAuditoriaRepository bitacora,
         ISedeResolutionService sedeResolution,
-        IPromocionesRepository promociones)
+        IPromocionesRepository promociones,
+        IPlanesMembresiaRepository planes)
     {
         _auth = auth;
         _authz = authz;
@@ -53,6 +55,7 @@ public sealed class PosService : IPosService
         _bitacora = bitacora;
         _sedeResolution = sedeResolution;
         _promociones = promociones;
+        _planes = planes;
     }
 
     public async Task<VentaInfo> RegistrarVentaAsync(
@@ -95,6 +98,8 @@ public sealed class PosService : IPosService
         }
 
         long totalCentavos = 0;
+        long? idPlanComboMembresia = null;
+        long planShareCentavos = 0;
         var validated = new List<(long idProducto, long cantidad, long precio, bool requiereInventario, string? idPromocion)>();
         foreach (var item in input.Items)
         {
@@ -117,9 +122,40 @@ public sealed class PosService : IPosService
                 {
                     throw BusinessException.Conflict("La promoción no está vigente", "promocion_no_vigente");
                 }
-                if (promo.Tipo != PromocionTipos.Combo)
+                if (promo.Tipo is not (PromocionTipos.Combo or PromocionTipos.ComboMembresia))
                 {
                     throw BusinessException.Validation("Solo los combos se venden como promoción", "tipo_promocion_invalido");
+                }
+
+                // combo_membresia: el share del plan se separa primero (la UI
+                // crea la membresía con ese monto en segunda llamada); el resto
+                // del precio cerrado se prorratea entre los productos.
+                var esComboMembresia = promo.Tipo == PromocionTipos.ComboMembresia;
+                long planSharePorUnidad = 0;
+                if (esComboMembresia)
+                {
+                    var plan = await _planes.GetByIdAsync(promo.IdPlan!.Value, ct)
+                        ?? throw BusinessException.NotFound("Plan no encontrado", "plan_no_encontrado");
+                    if (!plan.EsActivo)
+                    {
+                        throw BusinessException.Conflict("El plan del combo no está activo", "plan_inactivo");
+                    }
+
+                    var listaProductos = await _promociones.GetComponentesAsync(promo.IdPromocion, ct);
+                    long listaProductosCentavos = 0;
+                    foreach (var c in listaProductos)
+                    {
+                        var pLista = await _productos.GetByIdAsync(c.IdProducto, ct);
+                        if (pLista is not null)
+                        {
+                            listaProductosCentavos += pLista.PrecioVentaCentavos * c.Cantidad;
+                        }
+                    }
+
+                    var listaTotal = plan.PrecioCentavos + listaProductosCentavos;
+                    planSharePorUnidad = listaTotal > 0
+                        ? (promo.PrecioComboCentavos ?? 0) * plan.PrecioCentavos / listaTotal
+                        : 0;
                 }
 
                 var componentesRaw = await _promociones.GetComponentesAsync(promo.IdPromocion, ct);
@@ -149,8 +185,12 @@ public sealed class PosService : IPosService
 
                 // Prorrateo del precio cerrado entre componentes proporcional a su
                 // precio de venta; el último absorbe el redondeo para que la suma
-                // de la línea sea exactamente precioCombo * cantidad.
+                // de la línea sea exactamente precioCombo * cantidad. En
+                // combo_membresia, el share del plan se separa ANTES y el resto
+                // se reparte entre los productos.
                 var precioComboTotal = (promo.PrecioComboCentavos ?? 0) * item.Cantidad;
+                var planShareTotal = planSharePorUnidad * item.Cantidad;
+                var precioProductos = precioComboTotal - planShareTotal;
                 var asignado = 0L;
                 for (var i = 0; i < preciosComponentes.Count; i++)
                 {
@@ -158,11 +198,11 @@ public sealed class PosService : IPosService
                     long precioLinea;
                     if (sumaPesos == 0 || i == preciosComponentes.Count - 1)
                     {
-                        precioLinea = precioComboTotal - asignado;
+                        precioLinea = precioProductos - asignado;
                     }
                     else
                     {
-                        precioLinea = precioComboTotal * (comp.precioVenta * comp.cantidad) / sumaPesos;
+                        precioLinea = precioProductos * (comp.precioVenta * comp.cantidad) / sumaPesos;
                     }
                     asignado += precioLinea;
 
@@ -170,6 +210,15 @@ public sealed class PosService : IPosService
                     totalCentavos += precioLinea;
                     validated.Add((comp.idProducto, comp.cantidad, precioUnitario,
                         comp.requiereInventario, promo.IdPromocion));
+                }
+
+                if (esComboMembresia)
+                {
+                    idPlanComboMembresia = promo.IdPlan;
+                    planShareCentavos = planShareTotal;
+                    // El share del plan también se cobra: sin esto el total de la
+                    // venta sería solo la parte de productos.
+                    totalCentavos += planShareTotal;
                 }
 
                 continue;
@@ -310,6 +359,8 @@ public sealed class PosService : IPosService
             MetodoPago = metodoPago,
             Estado = VentaEstados.Completada,
             IdVendedor = info.IdUsuario,
+            IdPlanComboMembresia = idPlanComboMembresia,
+            PlanShareCentavos = planShareCentavos,
             Items = detalles.Select(d => new DetalleVentaInfo
             {
                 IdDetalle = d.IdDetalle,
@@ -337,6 +388,16 @@ public sealed class PosService : IPosService
         if (venta.Estado == VentaEstados.Cancelada)
         {
             throw BusinessException.Conflict("La venta ya esta cancelada", "venta_ya_cancelada");
+        }
+
+        // combo_membresia: la membresía incluida se gestiona aparte (congelar/
+        // cancelar desde /membresías) — cancelar aquí dejaría membresía activa
+        // con dinero devuelto solo de productos.
+        if (await _promociones.VentaTieneComboMembresiaAsync(venta.IdVenta, ct))
+        {
+            throw BusinessException.Conflict(
+                "No se puede cancelar: esta venta incluyó una membresía. Gestiónala desde /membresías.",
+                "venta_mixta_no_cancelable");
         }
 
         var idSede = await _sedeResolution.ResolverIdSedeAsync(info, idSedeFrontend, ct);

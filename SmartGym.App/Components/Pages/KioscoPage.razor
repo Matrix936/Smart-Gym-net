@@ -428,6 +428,7 @@ else if (_promocionesVigentes.Count > 0)
         try
         {
             vigentes = (await Promos.ObtenerVigentesParaKioscoAsync()).ToList();
+            vigentes = vigentes.Where(p => p.Tipo != PromocionTipos.ComboMembresia).ToList();
         }
         catch
         {

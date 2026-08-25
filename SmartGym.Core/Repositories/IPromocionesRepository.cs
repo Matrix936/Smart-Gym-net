@@ -30,4 +30,7 @@ public interface IPromocionesRepository
 
     /// <summary>Descuento activo vigente hoy sobre un producto (para aplicar precio en POS).</summary>
     Task<Promocion?> GetDescuentoVigentePorProductoAsync(long idProducto, string hoy, CancellationToken ct = default);
+
+/// <summary>True si la venta incluyó algún combo_membresia (no cancelable: la membresía se gestiona aparte).</summary>
+Task<bool> VentaTieneComboMembresiaAsync(string idVenta, CancellationToken ct = default);
 }
