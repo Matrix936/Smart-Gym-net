@@ -86,9 +86,11 @@
         <div class="pantalla-bloqueo-card" role="dialog" aria-modal="true" aria-label="Pantalla bloqueada">
             <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Large" Class="mb-2" />
             <h5>Pantalla bloqueada</h5>
-            <p class="muted">Sesión inactiva — ingresa tu contraseña para continuar</p>
+            <p class="muted">Sesión inactiva</p>
+            <p><strong>@(Session.Current?.Nombre ?? "usuario")</strong></p>
+            <p class="muted">Ingresa tu contraseña para continuar</p>
             <div class="form-fields" style="max-width: 280px; margin: 0 auto;" @onkeydown="HandleDesbloqueoKeyDown">
-                <PasswordField Label="@EtiquetaPassword"
+                <PasswordField Label="Contraseña"
                                Autocomplete="current-password"
                                @bind-Value="_passwordDesbloqueo" />
                 <AsyncButton Text="Desbloquear"
@@ -118,7 +120,6 @@
     private bool _desbloqueando;
     private DotNetObjectReference<MainLayout>? _idleRef;
 
-    private string EtiquetaPassword => $"Contraseña de {Session.Current?.Nombre ?? "usuario"}";
 
     protected override async Task OnInitializedAsync()
     {
