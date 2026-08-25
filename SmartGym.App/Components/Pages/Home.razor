@@ -79,18 +79,48 @@
 @if (_verAfluencia)
 {
     <div class="glass-panel" style="margin-top: 1rem;">
-        <p class="form-section">Afluencia por hora — últimos 30 días (accesos concedidos)</p>
+        <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+            <p class="form-section" style="margin: 0;">Afluencia (accesos concedidos)</p>
+            <MudSelect T="string"
+                       Label="Periodo"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Style="max-width: 180px;"
+                       Value="@_rangoAfluencia"
+                       ValueChanged="OnRangoAfluenciaChanged">
+                <MudSelectItem Value="@RangoHoy">Hoy</MudSelectItem>
+                <MudSelectItem Value="@RangoSemana">Esta semana</MudSelectItem>
+                <MudSelectItem Value="@RangoMes">Este mes</MudSelectItem>
+            </MudSelect>
+        </div>
         @if (_cargandoAfluencia)
         {
             <p class="muted">Cargando...</p>
         }
+        else if (_serieAfluencia.Count == 0 && _serieDias.Count == 0)
+        {
+            <p class="muted">Sin datos para el periodo seleccionado.</p>
+        }
         else
         {
-            <MudChart ChartType="ChartType.Bar"
-                      ChartSeries="@_serieAfluencia"
-                      ChartLabels="@_etiquetasHoras"
-                      Width="100%"
-                      Height="300px" />
+            <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 280px;">
+                    <MudText Typo="Typo.subtitle2">Por hora</MudText>
+                    <MudChart ChartType="ChartType.Bar"
+                              ChartSeries="@_serieAfluencia"
+                              ChartLabels="@_etiquetasHoras"
+                              Width="100%"
+                              Height="300px" />
+                </div>
+                <div style="flex: 1; min-width: 280px;">
+                    <MudText Typo="Typo.subtitle2">Por dia de la semana</MudText>
+                    <MudChart ChartType="ChartType.Bar"
+                              ChartSeries="@_serieDias"
+                              ChartLabels="@_etiquetasDias"
+                              Width="100%"
+                              Height="300px" />
+                </div>
+            </div>
         }
     </div>
 }
@@ -296,6 +326,10 @@
     private decimal? _deltaPorcentaje;
 
     // Afluencia.
+    private string _rangoAfluencia = "mes";
+    private List<ChartSeries<decimal>> _serieDias = [];
+    private string[] _etiquetasDias = [];
+
     private bool _verAfluencia;
     private bool _cargandoAfluencia = true;
     private List<ChartSeries<decimal>> _serieAfluencia = [];
@@ -403,7 +437,8 @@
         StateHasChanged();
         try
         {
-            var afluencia = await Dashboard.ObtenerAfluenciaAsync(_token);
+            var afluencia = await Dashboard.ObtenerAfluenciaAsync(_token, rango: _rangoAfluencia);
+            var porDia = await Dashboard.ObtenerAfluenciaPorDiaAsync(_token, rango: _rangoAfluencia);
             _serieAfluencia =
             [
                 new ChartSeries<decimal>
@@ -413,6 +448,15 @@
                 },
             ];
             _etiquetasHoras = Enumerable.Range(0, 24).Select(h => $"{h}h").ToArray();
+            _serieDias =
+            [
+                new ChartSeries<decimal>
+                {
+                    Name = "Accesos",
+                    Data = porDia.Select(d => (decimal)d.Total).ToArray(),
+                },
+            ];
+            _etiquetasDias = porDia.Select(d => d.Etiqueta).ToArray();
         }
         catch (BusinessException ex)
         {
@@ -458,6 +502,12 @@
         _paginaCobranza = 1;
         await CargarCobranzaVencidaAsync();
     }
+    private async Task OnRangoAfluenciaChanged(string rango)
+    {
+        _rangoAfluencia = rango ?? RangoMes;
+        await CargarAfluenciaAsync();
+    }
+
     private async Task CargarRecordatoriosAsync()
     {
         if (_token is null)
