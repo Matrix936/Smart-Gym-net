@@ -100,31 +100,41 @@
                                 <span class="status-badge @ClaseEstado(c.Estado)">@EtiquetaEstado(c.Estado)</span>
                             </td>
                             <td class="col-accion">
-                                <MudMenu Open="@EsMenuAbierto(c.IdCuenta)" OpenChanged="@(v => MenuOpenChanged(c.IdCuenta, v))" AnchorOrigin="Origin.BottomRight"
-                                         TransformOrigin="Origin.TopRight"
-                                         Class="row-menu">
-                                    <ActivatorContent>
-                                        @* MudBlazor v9: ActivatorContent recibe MenuContext; el clic ya no
-                                           abre el menu implicitamente (breaking change v9), hay que llamar
-                                           context.ToggleAsync explicito. Ver
-                                           https://github.com/MudBlazor/MudBlazor/issues/12666 *@<span class="morph-toggle @(EsMenuAbierto(c.IdCuenta) ? "abierto" : "")"
+                                @if (c.Estado == CuentaCobrarEstados.Incobrable)
+                                {
+                                    @* Estado terminal: sin acciones posibles — guion en
+                                       vez de un menú vacío (mismo estilo que otros
+                                       "sin datos" del sistema). *@
+                                    <span class="muted">—</span>
+                                }
+                                else
+                                {
+                                    <MudMenu Open="@EsMenuAbierto(c.IdCuenta)" OpenChanged="@(v => MenuOpenChanged(c.IdCuenta, v))" AnchorOrigin="Origin.BottomRight"
+                                             TransformOrigin="Origin.TopRight"
+                                             Class="row-menu">
+                                        <ActivatorContent>
+                                            @* MudBlazor v9: ActivatorContent recibe MenuContext; el clic ya no
+                                               abre el menu implicitamente (breaking change v9), hay que llamar
+                                               context.ToggleAsync explicito. Ver
+                                               https://github.com/MudBlazor/MudBlazor/issues/12666 *@<span class="morph-toggle @(EsMenuAbierto(c.IdCuenta) ? "abierto" : "")"
 
-                                        @onclick="@context.ToggleAsync"
+                                            @onclick="@context.ToggleAsync"
 
-                                        role="button" tabindex="0" aria-label="Acciones"><svg class="morph-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="12" cy="19" r="2.2"/></svg><svg class="morph-close" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.41 13.41 12z"/></svg></span>
-                                    </ActivatorContent>
-                                    <ChildContent>
-                                        @if (c.Estado != CuentaCobrarEstados.Cobrada && c.Estado != CuentaCobrarEstados.Incobrable)
-                                        {
-                                            <MudMenuItem OnClick='() => AbrirAbono(c)'>
-                                                <MudIcon Icon="@Icons.Material.Filled.Payment" Size="Size.Small" /> Registrar abono
-                                            </MudMenuItem>
-                                            <MudMenuItem OnClick='() => PedirMarcarIncobrable(c)'>
-                                                <MudIcon Icon="@Icons.Material.Filled.Block" Size="Size.Small" /> Marcar incobrable
-                                            </MudMenuItem>
-                                        }
-                                    </ChildContent>
-                                </MudMenu>
+                                            role="button" tabindex="0" aria-label="Acciones"><svg class="morph-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="12" cy="19" r="2.2"/></svg><svg class="morph-close" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.41 13.41 12z"/></svg></span>
+                                        </ActivatorContent>
+                                        <ChildContent>
+                                            @if (c.Estado != CuentaCobrarEstados.Cobrada)
+                                            {
+                                                <MudMenuItem OnClick='() => AbrirAbono(c)'>
+                                                    <MudIcon Icon="@Icons.Material.Filled.Payment" Size="Size.Small" /> Registrar abono
+                                                </MudMenuItem>
+                                                <MudMenuItem OnClick='() => PedirMarcarIncobrable(c)'>
+                                                    <MudIcon Icon="@Icons.Material.Filled.Block" Size="Size.Small" /> Marcar incobrable
+                                                </MudMenuItem>
+                                            }
+                                        </ChildContent>
+                                    </MudMenu>
+                                }
                             </td>
                         </tr>
                     }
