@@ -20,7 +20,8 @@ public sealed class AccesosRepository : RepositoryBase, IAccesosRepository
         long? idDispositivo,
         string? modoRegistro = null,
         CancellationToken ct = default) =>
-        RegistrarAsync(idSocio, idSede, idDispositivo, AccesoMetodos.Huella, modoRegistro, ct);
+        RegistrarAsync(idSocio, idSede, idDispositivo, AccesoMetodos.Huella,
+            AccesoModosRegistro.Normalizar(modoRegistro), ct);
 
     public Task<AccesoResult> RegistrarManualAsync(
         string idSocio,
@@ -28,7 +29,8 @@ public sealed class AccesosRepository : RepositoryBase, IAccesosRepository
         long? idDispositivo,
         string? modoRegistro = null,
         CancellationToken ct = default) =>
-        RegistrarAsync(idSocio, idSede, idDispositivo, AccesoMetodos.Manual, modoRegistro, ct);
+        RegistrarAsync(idSocio, idSede, idDispositivo, AccesoMetodos.Manual,
+            AccesoModosRegistro.Normalizar(modoRegistro), ct);
 
     public async Task<AccesoBitacora?> GetByIdAsync(string idAcceso, CancellationToken ct = default)
     {
@@ -180,7 +182,9 @@ public sealed class AccesosRepository : RepositoryBase, IAccesosRepository
                         IdSocio = idSocio,
                         IdSede = idSede,
                         Timestamp = now,
-                        Tipo = tipo,
+                        // tipo solo queda null en doble-toque, y este INSERT no
+                        // corre en ese caso — no-null garantizado por flujo.
+                        Tipo = tipo!,
                         Metodo = metodo,
                         IdDispositivo = idDispositivo,
                         Estado = estadoAcceso,
