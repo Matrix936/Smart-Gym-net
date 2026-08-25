@@ -655,11 +655,13 @@ else
     {
         _debounce?.Cancel();
         _atajosRef?.Dispose();
-        // Libera el listener global de atajos (try/catch: el JSRuntime puede no
-        // estar disponible al desmontar, misma regla que localStorage).
+        // Libera los listeners globales de atajos y escáner (try/catch: el
+        // JSRuntime puede no estar disponible al desmontar, misma regla que
+        // localStorage).
         try
         {
             _ = JS.InvokeVoidAsync("sgUi.posAtajos", null);
+            _ = JS.InvokeVoidAsync("sgUi.scanner", null);
         }
         catch
         {
@@ -692,6 +694,7 @@ else
         {
             _atajosRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("sgUi.posAtajos", _atajosRef);
+            await JS.InvokeVoidAsync("sgUi.scanner", _atajosRef);
         }
         catch (JSDisconnectedException)
         {
@@ -745,6 +748,57 @@ else
         }
 
         StateHasChanged();
+    }
+
+    /// <summary>Código capturado por el lector físico (sgUi.scanner en
+    /// index.html): búsqueda exacta por código de barras y agregar al carrito.
+    /// Nunca silencio: código inexistente o caja cerrada avisan con toast.
+    /// Con el recibo o la confirmación de cobro abiertos se ignora el escaneo
+    /// (agregar detrás de un diálogo modal sería confuso).</summary>
+    [JSInvokable]
+    public async Task OnCodigoEscaneado(string codigo)
+    {
+        if (!_tienePermiso || _cobrando || _reciboAbierto || _confirmacionAbierta)
+        {
+            return;
+        }
+
+        var sesion = Sesion.Current;
+        if (sesion is null)
+        {
+            return;
+        }
+
+        if (_cajaAbierta is null)
+        {
+            Feedback.ShowWarning("Abre la caja para vender (escaneo ignorado)");
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            var producto = await Productos.BuscarPorCodigoBarrasAsync(sesion.Token, codigo);
+            if (producto is null)
+            {
+                Feedback.ShowWarning($"Código \"{codigo}\" no encontrado en el catálogo");
+                StateHasChanged();
+                return;
+            }
+
+            await AgregarAlCarritoAsync(producto);
+            StateHasChanged();
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+            StateHasChanged();
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo buscar el código escaneado");
+            StateHasChanged();
+        }
     }
 
     private void AjustarUltimaLinea(long delta)
@@ -971,18 +1025,7 @@ else
     /// tarjeta para que Enter después signifique "cobrar", no re-agregar.</summary>
     private async Task AgregarAlCarritoAsync(Producto p, MouseEventArgs e)
     {
-        if (_cajaAbierta is null)
-        {
-            return;
-        }
-
-        var cantidadActual = _carrito.TryGetValue(p.IdProducto, out var linea) ? linea.Cantidad : 0;
-        if (p.RequiereInventario && cantidadActual >= (StockDe(p) ?? 0))
-        {
-            return;
-        }
-
-        _carrito[p.IdProducto] = new CarritoLinea(p, cantidadActual + 1);
+        await AgregarAlCarritoAsync(p);
 
         if (e.Detail > 0)
         {
@@ -995,6 +1038,27 @@ else
                 // Sin blur el atajo de Enter simplemente re-agrega: degradación aceptable.
             }
         }
+    }
+
+    /// <summary>Núcleo compartido: valida caja/stock e incrementa cantidad si
+    /// el producto ya está en el carrito (re-escanear = +1). Sin lógica de
+    /// foco: el escaneo del lector no es un clic de tarjeta.</summary>
+    private Task AgregarAlCarritoAsync(Producto p)
+    {
+        if (_cajaAbierta is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var cantidadActual = _carrito.TryGetValue(p.IdProducto, out var linea) ? linea.Cantidad : 0;
+        if (p.RequiereInventario && cantidadActual >= (StockDe(p) ?? 0))
+        {
+            return Task.CompletedTask;
+        }
+
+        _carrito[p.IdProducto] = new CarritoLinea(p, cantidadActual + 1);
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 
     private void CambiarCantidad(CarritoLinea linea, long delta)

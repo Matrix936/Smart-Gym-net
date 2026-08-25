@@ -11,6 +11,9 @@ public interface IProductosRepository
     /// <summary>Producto sin importar es_activo (para editar/desactivar/activar).</summary>
     Task<Producto?> GetByIdCualquierEstadoAsync(long idProducto, CancellationToken ct = default);
 
+    /// <summary>Producto ACTIVO por código de barras exacto (usa el índice único), o null.</summary>
+    Task<Producto?> GetByCodigoBarrasAsync(string codigoBarras, CancellationToken ct = default);
+
     Task<long> InsertAsync(Producto producto, CancellationToken ct = default);
 
     /// <summary>Búsqueda paginada por descripción o código de barras.</summary>

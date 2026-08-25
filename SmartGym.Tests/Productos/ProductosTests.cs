@@ -108,6 +108,57 @@ public sealed class ProductosTests
         Assert.NotNull(await ctx.Productos.GetByIdAsync(producto.IdProducto));
     }
 
+    // ------------------------------------------- escáner POS (cód. de barras)
+
+    [Fact]
+    public async Task buscar_por_codigo_barras_es_exacto_y_sin_matching_parcial()
+    {
+        var (ctx, token, sedeId, _) = await Fase6Helper.BaseAsync();
+        var producto = await ctx.ProductosService.CrearAsync(
+            token, "Guantes", 25000, codigoBarras: "7501234567890", true, 8, sedeId);
+
+        // Coincidencia exacta encuentra.
+        var encontrado = await ctx.ProductosService.BuscarPorCodigoBarrasAsync(token, "7501234567890");
+        Assert.NotNull(encontrado);
+        Assert.Equal(producto.IdProducto, encontrado!.IdProducto);
+
+        // Trim: el escáner puede llegar con espacios accidentales.
+        Assert.NotNull(await ctx.ProductosService.BuscarPorCodigoBarrasAsync(token, "  7501234567890  "));
+
+        // Prefijo/subcadena NO matchea (el LIKE parcial de SearchAsync no aplica aquí).
+        Assert.Null(await ctx.ProductosService.BuscarPorCodigoBarrasAsync(token, "750123"));
+        Assert.Null(await ctx.ProductosService.BuscarPorCodigoBarrasAsync(token, "7501234567891"));
+
+        // Código inexistente y vacío → null (el POS avisa con toast).
+        Assert.Null(await ctx.ProductosService.BuscarPorCodigoBarrasAsync(token, "0000000000000"));
+        Assert.Null(await ctx.ProductosService.BuscarPorCodigoBarrasAsync(token, "  "));
+    }
+
+    [Fact]
+    public async Task buscar_por_codigo_barras_ignora_inactivos_y_eliminados()
+    {
+        var (ctx, token, sedeId, _) = await Fase6Helper.BaseAsync();
+        var producto = await ctx.ProductosService.CrearAsync(
+            token, "Descontinuado", 5000, codigoBarras: "7509876543210", true, 4, sedeId);
+
+        await ctx.ProductosService.DesactivarAsync(token, producto.IdProducto);
+        Assert.Null(await ctx.ProductosService.BuscarPorCodigoBarrasAsync(token, "7509876543210"));
+
+        await ctx.ProductosService.ActivarAsync(token, producto.IdProducto);
+        Assert.NotNull(await ctx.ProductosService.BuscarPorCodigoBarrasAsync(token, "7509876543210"));
+    }
+
+    [Fact]
+    public async Task buscar_por_codigo_barras_sin_sesion_falla()
+    {
+        var (ctx, token, sedeId) = await Fase4Helper.SuperadminAsync();
+        await ctx.ProductosService.CrearAsync(
+            token, "X", 100, codigoBarras: "7501111111111", false, 0, sedeId);
+
+        await Assert.ThrowsAsync<BusinessException>(
+            () => ctx.ProductosService.BuscarPorCodigoBarrasAsync("token-invalido", "7501111111111"));
+    }
+
     [Fact]
     public async Task ajuste_stock_entrada_salida_y_stock_insuficiente()
     {

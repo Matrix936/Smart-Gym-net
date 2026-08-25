@@ -65,6 +65,82 @@
                     window.removeEventListener('keydown', handler);
                     window.__sgPosDispose = null;
                 };
+            },
+            // POS: lector de código de barras USB (keyboard wedge). El lector
+            // "teclea" los caracteres del código muy rápido (10-30 ms entre
+            // teclas) y termina con Enter (o Tab, según configuración). Este
+            // listener observa en FASE DE CAPTURA — sin el filtro de inputs de
+            // posAtajos — porque el escaneo debe funcionar sin importar qué
+            // campo tenga el foco (buscador, socio, cualquier otro).
+            //
+            // Detección: bufferiza imprimibles con timestamp; si hay una pausa
+            // humana (> MAX_GAP_MS) resetea. Al llegar Enter/Tab evalúa: si
+            // califica (longitud mínima + terminador inmediato), es escáner →
+            // preventDefault (que ese Enter no dispare "Cobrar" ni un submit),
+            // limpia lo que el escaneo haya dejado escrito en el campo con
+            // foco, y entrega el código a .NET. Si no califica, no toca nada:
+            // la escritura humana y los atajos existentes fluyen igual.
+            scanner: function (dotnetRef) {
+                if (window.__sgScannerDispose) window.__sgScannerDispose();
+                if (!dotnetRef) return;
+                // --- Constantes de detección (ajustables) ---
+                var MAX_GAP_MS = 65;   // máx intervalo entre teclas del escaneo
+                var MIN_CHARS = 6;     // mínima longitud del código
+                var MAX_TERM_MS = 100; // terminador <= 100 ms tras la última tecla
+
+                var buffer = [];
+                var lastTs = 0;
+
+                var handler = function (e) {
+                    var ahora = performance.now();
+
+                    // Atajos con modificador: jamás forman parte de un escaneo.
+                    if (e.ctrlKey || e.metaKey || e.altKey) {
+                        buffer = [];
+                        lastTs = 0;
+                        return;
+                    }
+
+                    if (e.key === 'Enter' || e.key === 'Tab') {
+                        if (buffer.length >= MIN_CHARS && lastTs > 0 && (ahora - lastTs) <= MAX_TERM_MS) {
+                            var codigo = buffer.join('');
+                            buffer = [];
+                            lastTs = 0;
+                            // Consume el terminador: ni "Cobrar", ni submit
+                            // de formulario, ni salto de foco por Tab.
+                            e.preventDefault();
+                            e.stopPropagation();
+                            // El escaneo dejó caracteres en el campo con foco:
+                            // límpialos y avisa a Blazor (el bind escucha input).
+                            var activo = document.activeElement;
+                            if (activo && 'value' in activo && activo.value) {
+                                activo.value = '';
+                                activo.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                            dotnetRef.invokeMethodAsync('OnCodigoEscaneado', codigo);
+                            return;
+                        }
+                        buffer = [];
+                        lastTs = 0;
+                        return;
+                    }
+
+                    if (e.key.length === 1) {
+                        if (lastTs > 0 && (ahora - lastTs) > MAX_GAP_MS) {
+                            buffer = []; // pausa humana: lo anterior no es escaneo
+                        }
+                        buffer.push(e.key);
+                        lastTs = ahora;
+                    }
+                    // Teclas no imprimibles (Shift, flechas, F1-F12...) no
+                    // rompen un escaneo en curso ni se bufferizan.
+                };
+
+                window.addEventListener('keydown', handler, true);
+                window.__sgScannerDispose = function () {
+                    window.removeEventListener('keydown', handler, true);
+                    window.__sgScannerDispose = null;
+                };
             }
         };
 

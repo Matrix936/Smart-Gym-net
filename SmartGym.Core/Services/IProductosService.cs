@@ -14,6 +14,12 @@ public interface IProductosService
         CancellationToken ct = default);
 
     /// <summary>
+    /// Búsqueda EXACTA por código de barras (lectura, solo sesión): la usa el
+    /// escáner del POS para agregar al carrito. Null si no existe o inactivo.
+    /// </summary>
+    Task<Producto?> BuscarPorCodigoBarrasAsync(string token, string codigoBarras, CancellationToken ct = default);
+
+    /// <summary>
     /// Alta de producto. Si stockInicial > 0 y requiereInventario, crea la fila
     /// de inventario con ese stock para la sede resuelta.
     /// </summary>

@@ -51,6 +51,24 @@ public sealed class ProductosService : IProductosService
         return await _productos.SearchAsync(query, pagina, tamanoPagina, esActivo, ct);
     }
 
+    /// <summary>
+    /// Solo sesión, SIN permiso productos.gestionar a propósito: el escaneo es
+    /// operación de VENTA del cajero, no administración de catálogo (el cajero
+    /// del POS puede no tener ese permiso). Devuelve null si no existe.
+    /// </summary>
+    public async Task<Producto?> BuscarPorCodigoBarrasAsync(
+        string token, string codigoBarras, CancellationToken ct = default)
+    {
+        await _auth.ValidarSesionAsync(token, ct);
+
+        if (string.IsNullOrWhiteSpace(codigoBarras))
+        {
+            return null;
+        }
+
+        return await _productos.GetByCodigoBarrasAsync(codigoBarras.Trim(), ct);
+    }
+
     public async Task<Producto> CrearAsync(
         string token,
         string descripcion,

@@ -34,8 +34,19 @@ public sealed class ProductosRepository : RepositoryBase, IProductosRepository
                 new { idProducto }, cancellationToken: ct));
     }
 
-    public async Task<long> InsertAsync(Producto producto, CancellationToken ct = default)
+    public async Task<Producto?> GetByCodigoBarrasAsync(string codigoBarras, CancellationToken ct = default)
     {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        return await conn.QuerySingleOrDefaultAsync<Producto>(
+            new CommandDefinition(
+                // Igualdad exacta contra el índice único idx_productos_codigo_barras.
+                // COLLATE BINARY: el código escaneado debe coincidencia literal
+                // (un escáner nunca cambia mayúsculas/minúsculas del código real).
+                Select + "WHERE codigo_barras = @codigo AND deleted_at IS NULL AND es_activo = 1",
+                new { codigo = codigoBarras.Trim() }, cancellationToken: ct));
+    }
+
+    public async Task<long> InsertAsync(Producto producto, CancellationToken ct = default)    {
         await using var conn = ConnectionFactory.Open(DbPath);
         await conn.ExecuteAsync(
             new CommandDefinition(
