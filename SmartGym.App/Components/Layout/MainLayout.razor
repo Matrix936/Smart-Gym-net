@@ -152,6 +152,16 @@
         {
             _idleRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("sgIdle.iniciar", _idleRef, MinutosInactividad);
+
+            // Capa 2: si el flag de bloqueo sobrevivió a una recarga/remontaje
+            // (Ctrl+R u otro mecanismo), re-bloquea la sesión restaurada.
+            var flag = await JS.InvokeAsync<string>("localStorage.getItem", "sg-bloqueado");
+            if (flag == "1" && !_bloqueado)
+            {
+                _bloqueado = true;
+                _passwordDesbloqueo = "";
+                StateHasChanged();
+            }
         }
     }
 
@@ -165,6 +175,8 @@
         }
         _bloqueado = true;
         _passwordDesbloqueo = "";
+        // Capa 2: persiste el bloqueo para sobrevivir recargas del WebView.
+        _ = JS.InvokeVoidAsync("localStorage.setItem", "sg-bloqueado", "1");
         InvokeAsync(StateHasChanged);
     }
 
@@ -198,6 +210,8 @@
             await Auth.ReautorizarAsync(sesion.Token, _passwordDesbloqueo);
             _bloqueado = false;
             _passwordDesbloqueo = "";
+            // Limpia el flag persistido al desbloquear correctamente.
+            _ = JS.InvokeVoidAsync("localStorage.removeItem", "sg-bloqueado");
             Feedback.ShowSuccess("Sesión desbloqueada");
             _ = JS.InvokeVoidAsync("sgIdle.rearmar");
         }
@@ -262,6 +276,9 @@
 
     private async Task Salir()
     {
+        // Logout: limpia también el flag de bloqueo persistido para que el
+        // próximo login no nazca bloqueado.
+        _ = JS.InvokeVoidAsync("localStorage.removeItem", "sg-bloqueado");
         await Auth.LogoutAsync(Session.Current?.Token ?? string.Empty);
         Nav.NavigateTo("/", forceLoad: true);
     }
