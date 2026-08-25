@@ -53,3 +53,6 @@ dist/
 *.db-shm
 *.db-wal
 smart_gym.db
+
+# Artefactos del instalador (Inno Setup)
+installer/output/
