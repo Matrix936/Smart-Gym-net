@@ -425,6 +425,15 @@ table.data-table {
     width: 20px;
     height: 20px;
 }
+/* Botones circulares de acción rápida (WhatsApp en Dashboard):
+   fuerza círculo perfecto — el tema global pone border-radius 16px y el
+   contenido envuelto hace al botón rectangular (contorno ovalado). */
+.mud-icon-button.btn-circular-icono {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 50%;
+}
 /* ---------- Pantalla de arranque (index.html, antes del primer render Blazor) ---------- */
 .sg-boot {
     position: fixed;
