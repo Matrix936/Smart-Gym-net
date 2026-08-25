@@ -120,6 +120,49 @@
                 DotNet.invokeMethodAsync('SmartGym.App', 'OnFileDroppedStatic', p.dataUrl, p.mime, p.size, p.name);
             },
         };
+        // Bloqueo por inactividad del sistema administrativo (MainLayout).
+        // El listener vive SOLO en la ventana admin; el Kiosco abre otra
+        // ventana con RootComponent propio y nunca lo registra.
+        window.sgIdle = {
+            _timer: null,
+            _dotnet: null,
+            _minutos: 5,
+            _eventos: ['pointerdown', 'keydown', 'wheel', 'touchstart'],
+            _handler: null,
+            iniciar: function (dotnetRef, minutos) {
+                this.dispose();
+                this._dotnet = dotnetRef;
+                this._minutos = minutos;
+                var self = this;
+                this._handler = function () { self.rearmar(); };
+                this._eventos.forEach(function (ev) {
+                    document.addEventListener(ev, self._handler, { passive: true });
+                });
+                this.rearmar();
+            },
+            // Reinicia el contador (cada actividad + cada navegación).
+            rearmar: function () {
+                if (!this._dotnet) return;
+                if (this._timer) clearTimeout(this._timer);
+                var self = this;
+                this._timer = setTimeout(function () {
+                    self._dotnet.invokeMethodAsync('OnInactividadTotal');
+                }, self._minutos * 60 * 1000);
+            },
+            dispose: function () {
+                if (this._timer) clearTimeout(this._timer);
+                this._timer = null;
+                var self = this;
+                if (this._handler) {
+                    this._eventos.forEach(function (ev) {
+                        document.removeEventListener(ev, self._handler);
+                    });
+                }
+                this._handler = null;
+                this._dotnet = null;
+            }
+        };
+
     </script>
 </head>
 

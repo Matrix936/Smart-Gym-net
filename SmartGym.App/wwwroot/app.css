@@ -456,6 +456,30 @@ table.data-table {
     40% { transform: translateY(-10px); opacity: 1; }
 }
 
+/* ---------- Pantalla de bloqueo por inactividad (MainLayout) ---------- */
+.pantalla-bloqueo {
+    position: fixed;
+    inset: 0;
+    z-index: 10000; /* por encima de todo, incluido el feedback snackbar */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg);
+}
+
+.pantalla-bloqueo-card {
+    text-align: center;
+    padding: 2rem 2.5rem;
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    border: var(--glass-border);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35);
+}
+
+.pantalla-bloqueo-card h5 {
+    margin: 0.25rem 0 0.5rem;
+}
+
 /* ---------- Miembros ---------- */
 .page-head {
     display: flex;

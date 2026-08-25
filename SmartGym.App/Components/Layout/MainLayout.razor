@@ -2,6 +2,7 @@
    con fecha/hora es-MX, badge de sincronización, cambio de tema y avatar con menú de usuario. *@
 @using System.Globalization
 @using SmartGym.Core.Repositories
+@using SmartGym.Core.Errors
 @inherits LayoutComponentBase
 @inject NavigationManager Nav
 @inject ISessionState Session
@@ -9,6 +10,8 @@
 @inject IEmpresaConfigFiscalRepository EmpresaRepo
 @inject ILogoStorage LogoStorage
 @inject SmartGym.App.Services.ILogoState LogoState
+@inject IJSRuntime JS
+@inject IFeedbackService Feedback
 @implements IDisposable
 
 <div class="sg-shell @(_collapsed ? "sg-shell-collapsed" : null)">
@@ -74,6 +77,29 @@
     </div>
 </div>
 
+@if (_bloqueado)
+{
+    @* Bloqueo por inactividad: overlay sobre la pantalla actual SIN navegar
+       (el estado de la página se conserva intacto debajo). Solo desbloqueo
+       con la contraseña del usuario logueado — sin opción de logout. *@
+    <div class="pantalla-bloqueo">
+        <div class="pantalla-bloqueo-card" role="dialog" aria-modal="true" aria-label="Pantalla bloqueada">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Large" Class="mb-2" />
+            <h5>Pantalla bloqueada</h5>
+            <p class="muted">Sesión inactiva — ingresa tu contraseña para continuar</p>
+            <div class="form-fields" style="max-width: 280px; margin: 0 auto;" @onkeydown="HandleDesbloqueoKeyDown">
+                <PasswordField Label="@EtiquetaPassword"
+                               Autocomplete="current-password"
+                               @bind-Value="_passwordDesbloqueo" />
+                <AsyncButton Text="Desbloquear"
+                             LoadingText="Verificando..."
+                             IsLoading="_desbloqueando"
+                             OnClick="DesbloquearAsync" />
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private static readonly CultureInfo EsMx = CultureInfo.GetCultureInfo("es-MX");
 
@@ -84,6 +110,15 @@
     private string _fecha = string.Empty;
     private string _hora = string.Empty;
     private Timer? _reloj;
+
+    // Bloqueo por inactividad (5 min): overlay de reautorización, no logout.
+    private const int MinutosInactividad = 5;
+    private bool _bloqueado;
+    private string _passwordDesbloqueo = string.Empty;
+    private bool _desbloqueando;
+    private DotNetObjectReference<MainLayout>? _idleRef;
+
+    private string EtiquetaPassword => $"Contraseña de {Session.Current?.Nombre ?? "usuario"}";
 
     protected override async Task OnInitializedAsync()
     {
@@ -109,10 +144,83 @@
         _reloj = new Timer(_ => InvokeAsync(ActualizarReloj), null, 0, 1000);
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Listener de inactividad solo si hay sesión (ventana administrativa).
+        if (firstRender && Session.Current is not null && _idleRef is null)
+        {
+            _idleRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("sgIdle.iniciar", _idleRef, MinutosInactividad);
+        }
+    }
+
+    /// <summary>Invocado por sgIdle tras el periodo sin actividad.</summary>
+    [JSInvokable]
+    public void OnInactividadTotal()
+    {
+        if (_bloqueado)
+        {
+            return;
+        }
+        _bloqueado = true;
+        _passwordDesbloqueo = "";
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleDesbloqueoKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_desbloqueando)
+        {
+            _ = DesbloquearAsync();
+        }
+    }
+
+    /// <summary>Misma verificación que Cancelar venta/membresía (ReautorizarAsync).</summary>
+    private async Task DesbloquearAsync()
+    {
+        var sesion = Session.Current;
+        if (sesion is null || _desbloqueando)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(_passwordDesbloqueo))
+        {
+            Feedback.ShowWarning("Ingresa tu contraseña");
+            return;
+        }
+
+        _desbloqueando = true;
+        StateHasChanged();
+        try
+        {
+            await Auth.ReautorizarAsync(sesion.Token, _passwordDesbloqueo);
+            _bloqueado = false;
+            _passwordDesbloqueo = "";
+            Feedback.ShowSuccess("Sesión desbloqueada");
+            _ = JS.InvokeVoidAsync("sgIdle.rearmar");
+        }
+        catch (BusinessException)
+        {
+            Feedback.ShowError("Contraseña incorrecta");
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo verificar la contraseña");
+        }
+        finally
+        {
+            _desbloqueando = false;
+            StateHasChanged();
+        }
+    }
+
     private void OnUbicacionCambio(object? sender, LocationChangedEventArgs e)
     {
         _collapsed = true;
         InvokeAsync(StateHasChanged);
+        // Navegar también cuenta como actividad: reinicia el contador.
+        _ = JS.InvokeVoidAsync("sgIdle.rearmar");
     }
 
     private static string InicialesDe(string nombre)
@@ -162,5 +270,7 @@
         LogoState.Changed -= OnLogoChanged;
         Nav.LocationChanged -= OnUbicacionCambio;
         _reloj?.Dispose();
+        _idleRef?.Dispose();
+        _ = JS.InvokeVoidAsync("sgIdle.dispose");
     }
 }
