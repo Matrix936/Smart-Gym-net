@@ -295,7 +295,13 @@ else
                 }
                 @if (!CarritoVacio())
                 {
-                    <p class="pos-total">Total: @FormatearMonto(TotalCarrito())</p>
+                    <p class="pos-total">
+                        @if (TotalOriginal() > TotalCarrito())
+                        {
+                            <span class="pos-precio-tachado">@FormatearMonto(TotalOriginal())</span>
+                        }
+                        <span>Total: @FormatearMonto(TotalCarrito())</span>
+                    </p>
                 }
                 <AsyncButton Text="@($"Cobrar {FormatearMonto(TotalCarrito())}")"
                              LoadingText="Cobrando..."
@@ -363,7 +369,13 @@ else
     </TitleContent>
     <DialogContent>
         <div @onkeydown="HandleConfirmacionKeyDown">
-            <p class="pos-total-confirmacion">@FormatearMonto(_totalConfirmacion)</p>
+            <div class="pos-confirmacion-totales">
+            <p class="pos-total-confirmacion" style="margin-bottom: 0.15rem;">@FormatearMonto(_totalConfirmacion)</p>
+            @if (TotalOriginal() > _totalConfirmacion)
+            {
+                <span class="pos-original-chico">antes <s>@FormatearMonto(TotalOriginal())</s></span>
+            }
+        </div>
             @if (EsMetodoEfectivo)
             {
                 @* Immediate: el valor llega en cada tecla para que el cambio
@@ -426,6 +438,14 @@ else
         font-size: 1.05rem;
         margin-top: 0.75rem;
     }
+
+    /* Total de confirmación + precio original tachado (solo con promos). */
+    .pos-confirmacion-totales { text-align: center; }
+    .pos-original-chico {
+        font-size: 0.95rem;
+        color: var(--color-text-muted);
+    }
+    .pos-original-chico s { opacity: 0.7; }
 
     /* Promociones en POS: precio original tachado + final destacado; tarjeta
        de combo con badge. Vive aquí y no en app.css para no pisar el WIP
@@ -1085,6 +1105,15 @@ else
                 return (d?.PrecioFinalCentavos ?? l.Producto.PrecioVentaCentavos) * l.Cantidad;
             })
         + _combosCarrito.Values.Sum(c => c.Promo.PrecioComboCentavos * c.Cantidad);
+
+    /// <summary>
+    /// Suma a precios de LISTA: productos sin aplicar su promo + combos
+    /// valorados por sus componentes. La diferencia con TotalCarrito() es el
+    /// ahorro de promociones — se muestra tachado junto al total cuando > 0.
+    /// </summary>
+    private long TotalOriginal() =>
+        _carrito.Values.Sum(l => l.Producto.PrecioVentaCentavos * l.Cantidad)
+        + _combosCarrito.Values.Sum(c => c.Promo.SubtotalComponentesCentavos * c.Cantidad);
 
     /// <summary>
     /// Paso 1 del cobro: valida y abre la ventana de confirmación con el total
