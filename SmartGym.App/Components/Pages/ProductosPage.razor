@@ -260,16 +260,60 @@
         <MudText Typo="Typo.h6">Ajustar stock — @(_productoAjustando?.Descripcion)</MudText>
     </TitleContent>
     <DialogContent>
-        @* Delta con signo: positivo = entrada, negativo = salida. El backend
-           rechaza dejar el stock en negativo (conteo físico nunca es negativo). *@
-        <div class="form-fields" style="max-width: 320px;" @onkeydown="HandleAjusteKeyDown">
+        @* Tres modos explícitos en vez de delta con signo (elimina el error de
+           invertir entrada/salida): Conteo físico pide el TOTAL contado y el
+           sistema calcula el ajuste implícito. Resultado y pre-validación en
+           vivo; el backend sigue recibiendo el mismo delta firmado. *@
+        <div class="form-fields" style="max-width: 340px;" @onkeydown="HandleAjusteKeyDown">
+            <div style="display: flex; gap: 0.5rem;">
+                <MudButton Style="flex: 1;"
+                           Size="Size.Small"
+                           Variant="@(_modoAjuste == "entrada" ? Variant.Filled : Variant.Outlined)"
+                           Color="Color.Success"
+                           OnClick='() => CambiarModo("entrada")'>Entrada</MudButton>
+                <MudButton Style="flex: 1;"
+                           Size="Size.Small"
+                           Variant="@(_modoAjuste == "salida" ? Variant.Filled : Variant.Outlined)"
+                           Color="Color.Error"
+                           OnClick='() => CambiarModo("salida")'>Salida</MudButton>
+                <MudButton Style="flex: 1;"
+                           Size="Size.Small"
+                           Variant="@(_modoAjuste == "conteo" ? Variant.Filled : Variant.Outlined)"
+                           Color="Color.Primary"
+                           OnClick='() => CambiarModo("conteo")'>Conteo</MudButton>
+            </div>
+
             <p class="muted">Stock actual: @_stockAjustandoActual</p>
-            <MudNumericField T="long"
-                             Label="Ajuste (+ entrada / − salida)"
-                             Variant="Variant.Outlined"
-                             Margin="Margin.Dense"
-                             HideSpinButtons="true"
-                             @bind-Value="_deltaAjuste" />
+
+            @if (_modoAjuste is "entrada" or "salida")
+            {
+                <MudNumericField T="long?"
+                                 Label="@(_modoAjuste == "entrada" ? "Cantidad que entra *" : "Cantidad que sale *")"
+                                 Variant="Variant.Outlined"
+                                 Margin="Margin.Dense"
+                                 Immediate="true"
+                                 Min="1"
+                                 HideSpinButtons="true"
+                                 @bind-Value="_cantidadAjuste" />
+            }
+            else
+            {
+                <MudNumericField T="long?"
+                                 Label="Conteo físico (total contado)"
+                                 Variant="Variant.Outlined"
+                                 Margin="Margin.Dense"
+                                 Immediate="true"
+                                 Min="0"
+                                 HideSpinButtons="true"
+                                 @bind-Value="_conteoFisico" />
+                <p class="muted">Ajuste implícito: @(DeltaCalculado() >= 0 ? "+" : "")@DeltaCalculado()</p>
+            }
+
+            <p class="muted">Resultado: <strong>@StockResultante()</strong></p>
+            @if (_modoAjuste == "salida" && _cantidadAjuste is not null && _cantidadAjuste > _stockAjustandoActual)
+            {
+                <p class="muted" style="color: var(--color-error); margin: 0;">La salida excede el stock actual.</p>
+            }
         </div>
     </DialogContent>
     <DialogActions>
@@ -277,6 +321,7 @@
         <AsyncButton Text="Aplicar"
                      LoadingText="Aplicando..."
                      IsLoading="_ajustando"
+                     Disabled="@(!PuedeAplicarAjuste())"
                      OnClick="AjustarStockAsync" />
     </DialogActions>
 </MudDialog>
@@ -343,7 +388,9 @@
     private bool _ajusteAbierto;
     private Producto? _productoAjustando;
     private long _stockAjustandoActual;
-    private long _deltaAjuste;
+    private string _modoAjuste = "entrada";
+    private long? _cantidadAjuste;
+    private long? _conteoFisico;
     private bool _ajustando;
 
     // Confirmación de desactivación (ConfirmDialog compartido, patrón Miembros).
@@ -596,9 +643,30 @@
     {
         _productoAjustando = p;
         _stockAjustandoActual = StockDe(p) ?? 0;
-        _deltaAjuste = 0;
+        _modoAjuste = "entrada";
+        _cantidadAjuste = null;
+        _conteoFisico = null;
         _ajusteAbierto = true;
     }
+
+    private void CambiarModo(string modo) => _modoAjuste = modo;
+
+    /// <summary>Delta firmado que recibe el backend, calculado según el modo:
+    /// entrada (+), salida (−) o conteo físico (total contado − stock actual).</summary>
+    private long DeltaCalculado() => _modoAjuste switch
+    {
+        "entrada" => Math.Max(0, _cantidadAjuste ?? 0),
+        "salida" => -Math.Max(0, _cantidadAjuste ?? 0),
+        _ => (_conteoFisico ?? _stockAjustandoActual) - _stockAjustandoActual,
+    };
+
+    /// <summary>Stock que quedaría tras aplicar el ajuste.</summary>
+    private long StockResultante() => _stockAjustandoActual + DeltaCalculado();
+
+    /// <summary>Pre-validación en vivo: delta distinto de cero y sin dejar el
+    /// stock en negativo. Espejo del gate del backend para feedback inmediato.</summary>
+    private bool PuedeAplicarAjuste() =>
+        !_ajustando && DeltaCalculado() != 0 && StockResultante() >= 0;
 
     /// <summary>Enter aplica el ajuste; Escape cierra sin aplicar.</summary>
     private void HandleAjusteKeyDown(KeyboardEventArgs e)
@@ -620,22 +688,17 @@
     private async Task AjustarStockAsync()
     {
         var sesion = Sesion.Current;
-        if (sesion is null || _productoAjustando is null || _ajustando)
+        if (sesion is null || _productoAjustando is null || !PuedeAplicarAjuste())
         {
             return;
         }
 
-        if (_deltaAjuste == 0)
-        {
-            Feedback.ShowWarning("El ajuste no puede ser cero");
-            return;
-        }
-
+        var delta = DeltaCalculado();
         _ajustando = true;
         try
         {
             var nuevoStock = await Productos.AjustarStockAsync(
-                sesion.Token, _productoAjustando.IdProducto, _deltaAjuste,
+                sesion.Token, _productoAjustando.IdProducto, delta,
                 _showSede ? _sedeSeleccionada : null);
             Feedback.ShowSuccess($"Nuevo stock: {nuevoStock}");
             _ajusteAbierto = false;
