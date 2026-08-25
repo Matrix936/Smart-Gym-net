@@ -30,5 +30,5 @@ public interface IDashboardRepository
     /// pasada) con nombre y teléfono del socio - materia prima para el panel
     /// de cobranza vencida del Dashboard.
     /// </summary>
-    Task<IReadOnlyList<CobranzaVencidaDto>> ObtenerCobranzaVencidaConSocioAsync(
-        long? idSede, CancellationToken ct = default);}
+    Task<PagedResult<CobranzaVencidaDto>> ObtenerCobranzaVencidaConSocioAsync(
+        long? idSede, int pagina, int tamanoPagina, CancellationToken ct = default);}

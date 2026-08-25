@@ -20,22 +20,30 @@ public interface IDashboardService
 
     /// <summary>Accesos concedidos agrupados por hora local (0-23) de los últimos 30 días.</summary>
     Task<IReadOnlyList<AfluenciaHoraDto>> ObtenerAfluenciaAsync(
-        string token, long? idSedeFrontend = null, CancellationToken ct = default);
+        string token, string rango = "mes", long? idSedeFrontend = null, CancellationToken ct = default);
+
+    /// <summary>Accesos concedidos agregados por dia de la semana dentro del periodo.</summary>
+    Task<IReadOnlyList<AfluenciaDiaDto>> ObtenerAfluenciaPorDiaAsync(
+        string token, string rango = "mes", long? idSedeFrontend = null, CancellationToken ct = default);
 
     /// <summary>
     /// Socios a contactar: por vencer en ≤ 7 días o vencida hace ≤ 30 días,
     /// una fila por socio (la más urgente). Requiere teléfono cargado.
     /// </summary>
-    Task<IReadOnlyList<RecordatorioMembresiaDto>> ObtenerRecordatoriosAsync(
-        string token, long? idSedeFrontend = null, CancellationToken ct = default);
+    Task<PagedResult<RecordatorioMembresiaDto>> ObtenerRecordatoriosAsync(
+        string token, long? idSedeFrontend = null,
+        int pagina = 1, int tamanoPagina = TamanosPagina.Default,
+        CancellationToken ct = default);
 
     /// <summary>Plantillas WhatsApp (por_vencer / vencida) desde configuración, con defaults.</summary>
     /// <summary>
     /// Cuentas por cobrar VENCIDAS (pendiente/parcial vencidas) con teléfono
     /// del socio - panel de cobranza vencida del Dashboard.
     /// </summary>
-    Task<IReadOnlyList<CobranzaVencidaDto>> ObtenerCobranzaVencidaAsync(
-        string token, long? idSedeFrontend = null, CancellationToken ct = default);
+    Task<PagedResult<CobranzaVencidaDto>> ObtenerCobranzaVencidaAsync(
+        string token, long? idSedeFrontend = null,
+        int pagina = 1, int tamanoPagina = TamanosPagina.Default,
+        CancellationToken ct = default);
     Task<(string PorVencer, string Vencida, string Cobranza)> ObtenerPlantillasWhatsAppAsync(CancellationToken ct = default);
 
     /// <summary>Guarda las plantillas (vacío/espacios = volver al default).</summary>
@@ -110,14 +118,15 @@ public sealed class DashboardService : IDashboardService
     }
 
     public async Task<IReadOnlyList<AfluenciaHoraDto>> ObtenerAfluenciaAsync(
-        string token, long? idSedeFrontend = null, CancellationToken ct = default)
+        string token, string rango = "mes", long? idSedeFrontend = null, CancellationToken ct = default)
     {
         var info = await _auth.ValidarSesionAsync(token, ct);
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.AccesoVerBitacora, ct);
         var idSede = await _sedeResolution.ResolverIdSedeOpcionalAsync(info, idSedeFrontend, ct);
 
-        var desdeUtc = DateTime.UtcNow.AddDays(-30);
-        var timestamps = await _dashboard.ObtenerAccesosConcedidosAsync(idSede, ToIso(desdeUtc), ct);
+        var (inicioLocal, _) = RangoLocal(rango);
+        var desdeIso = DateHelper.ToIsoUtc(inicioLocal.LocalDateTime);
+        var timestamps = await _dashboard.ObtenerAccesosConcedidosAsync(idSede, desdeIso, ct);
 
         // El timestamp vive en UTC; la hora que le importa al negocio es LOCAL.
         var buckets = new int[24];
@@ -136,8 +145,10 @@ public sealed class DashboardService : IDashboardService
             .ToList();
     }
 
-    public async Task<IReadOnlyList<RecordatorioMembresiaDto>> ObtenerRecordatoriosAsync(
-        string token, long? idSedeFrontend = null, CancellationToken ct = default)
+    public async Task<PagedResult<RecordatorioMembresiaDto>> ObtenerRecordatoriosAsync(
+        string token, long? idSedeFrontend = null,
+        int pagina = 1, int tamanoPagina = TamanosPagina.Default,
+        CancellationToken ct = default)
     {
         var info = await _auth.ValidarSesionAsync(token, ct);
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.MembresiasVer, ct);
@@ -188,27 +199,73 @@ public sealed class DashboardService : IDashboardService
 
         // Una fila por socio: gana la más urgente (por vencer antes que vencida;
         // dentro de la misma categoría, la más cercana a la fecha crítica).
-        return candidatos
+        var ordenados = candidatos
             .OrderBy(c => c.Prioridad)
             .ThenBy(c => c.AbsDias)
             .DistinctBy(c => c.Dto.IdSocio)
             .Select(c => c.Dto)
             .ToList();
+
+        var total = ordenados.Count;
+        return new PagedResult<RecordatorioMembresiaDto>
+        {
+            Items = ordenados.Skip((pagina - 1) * tamanoPagina).Take(tamanoPagina).ToList(),
+            TotalRegistros = total,
+            Pagina = pagina,
+            TamanoPagina = tamanoPagina,
+        };
     }
 
     /// <summary>
     /// Cuentas por cobrar VENCIDAS (pendiente/parcial con fecha_vencimiento
     /// pasada) con teléfono del socio - panel de cobranza vencida del Dashboard.
     /// </summary>
-    public async Task<IReadOnlyList<CobranzaVencidaDto>> ObtenerCobranzaVencidaAsync(
-        string token, long? idSedeFrontend = null, CancellationToken ct = default)
+    public async Task<PagedResult<CobranzaVencidaDto>> ObtenerCobranzaVencidaAsync(
+        string token, long? idSedeFrontend = null,
+        int pagina = 1, int tamanoPagina = TamanosPagina.Default,
+        CancellationToken ct = default)
     {
         var info = await _auth.ValidarSesionAsync(token, ct);
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.CobranzaRegistrarAbono, ct);
         var idSede = await _sedeResolution.ResolverIdSedeOpcionalAsync(info, idSedeFrontend, ct);
 
-        return await _dashboard.ObtenerCobranzaVencidaConSocioAsync(idSede, ct);
+        var resultado = await _dashboard.ObtenerCobranzaVencidaConSocioAsync(idSede, pagina, tamanoPagina, ct);
+        return new PagedResult<CobranzaVencidaDto>
+        {
+            Items = resultado.Items,
+            TotalRegistros = resultado.TotalRegistros,
+            Pagina = pagina,
+            TamanoPagina = tamanoPagina,
+        };
     }
+    /// <summary>Accesos concedidos agregados por dia de la semana dentro del periodo.</summary>
+    public async Task<IReadOnlyList<AfluenciaDiaDto>> ObtenerAfluenciaPorDiaAsync(
+        string token, string rango = "mes", long? idSedeFrontend = null, CancellationToken ct = default)
+    {
+        var info = await _auth.ValidarSesionAsync(token, ct);
+        await _authz.RequierePermisoAsync(token, PermisoCatalogo.AccesoVerBitacora, ct);
+        var idSede = await _sedeResolution.ResolverIdSedeOpcionalAsync(info, idSedeFrontend, ct);
+
+        var (inicioLocal, _) = RangoLocal(rango);
+        var desdeIso = DateHelper.ToIsoUtc(inicioLocal.LocalDateTime);
+
+        var timestamps = await _dashboard.ObtenerAccesosConcedidosAsync(idSede, desdeIso, ct);
+
+        var etiquetas = new[] { "Lun", "Mar", "Mi\u00e9", "Jue", "Vie", "S\u00e1b", "Dom" };
+        var buckets = new int[7];
+        foreach (var ts in timestamps)
+        {
+            if (!DateTimeOffset.TryParse(ts, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var dto))
+                continue;
+            buckets[((int)dto.ToLocalTime().DayOfWeek + 6) % 7]++;
+        }
+
+        return Enumerable.Range(0, 7)
+            .Select(d => new AfluenciaDiaDto { Etiqueta = etiquetas[d], Total = buckets[d] })
+            .ToList();
+    }
+
     public async Task<(string PorVencer, string Vencida, string Cobranza)> ObtenerPlantillasWhatsAppAsync(CancellationToken ct = default)
     {
         var porVencer = await _configuracion.GetAsync(ClavePlantillaPorVencer, ct);
@@ -230,6 +287,8 @@ public sealed class DashboardService : IDashboardService
             string.IsNullOrWhiteSpace(porVencer) ? null : porVencer.Trim(), ct);
         await _configuracion.SetAsync(ClavePlantillaVencida,
             string.IsNullOrWhiteSpace(vencida) ? null : vencida.Trim(), ct);
+        await _configuracion.SetAsync(ClavePlantillaCobranza,
+            string.IsNullOrWhiteSpace(cobranza) ? null : cobranza.Trim(), ct);
         await _configuracion.SetAsync(ClavePlantillaCobranza,
             string.IsNullOrWhiteSpace(cobranza) ? null : cobranza.Trim(), ct);
     }
