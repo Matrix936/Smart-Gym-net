@@ -298,11 +298,11 @@ else
                 @if (!CarritoVacio())
                 {
                     <p class="pos-total">
+                        <span>Total: @FormatearMonto(TotalCarrito())</span>
                         @if (TotalOriginal() > TotalCarrito())
                         {
                             <span class="pos-precio-tachado">@FormatearMonto(TotalOriginal())</span>
                         }
-                        <span>Total: @FormatearMonto(TotalCarrito())</span>
                     </p>
                 }
                 <AsyncButton Text="@($"Cobrar {FormatearMonto(TotalCarrito())}")"
