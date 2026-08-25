@@ -24,4 +24,11 @@ public interface IDashboardRepository
     /// </summary>
     Task<IReadOnlyList<(string IdSocio, string NombreSocio, string Telefono, string FechaFin)>> ObtenerActivasConSocioAsync(
         long? idSede, CancellationToken ct = default);
-}
+
+    /// <summary>
+    /// Cuentas por cobrar VENCIDAS (pendiente/parcial con fecha_vencimiento
+    /// pasada) con nombre y teléfono del socio - materia prima para el panel
+    /// de cobranza vencida del Dashboard.
+    /// </summary>
+    Task<IReadOnlyList<CobranzaVencidaDto>> ObtenerCobranzaVencidaConSocioAsync(
+        long? idSede, CancellationToken ct = default);}

@@ -30,11 +30,17 @@ public interface IDashboardService
         string token, long? idSedeFrontend = null, CancellationToken ct = default);
 
     /// <summary>Plantillas WhatsApp (por_vencer / vencida) desde configuración, con defaults.</summary>
-    Task<(string PorVencer, string Vencida)> ObtenerPlantillasWhatsAppAsync(CancellationToken ct = default);
+    /// <summary>
+    /// Cuentas por cobrar VENCIDAS (pendiente/parcial vencidas) con teléfono
+    /// del socio - panel de cobranza vencida del Dashboard.
+    /// </summary>
+    Task<IReadOnlyList<CobranzaVencidaDto>> ObtenerCobranzaVencidaAsync(
+        string token, long? idSedeFrontend = null, CancellationToken ct = default);
+    Task<(string PorVencer, string Vencida, string Cobranza)> ObtenerPlantillasWhatsAppAsync(CancellationToken ct = default);
 
     /// <summary>Guarda las plantillas (vacío/espacios = volver al default).</summary>
     Task GuardarPlantillasWhatsAppAsync(
-        string token, string porVencer, string vencida, CancellationToken ct = default);
+        string token, string porVencer, string vencida, string? cobranza = null, CancellationToken ct = default);
 }
 
 public sealed class DashboardService : IDashboardService
@@ -44,11 +50,14 @@ public sealed class DashboardService : IDashboardService
 
     public const string ClavePlantillaPorVencer = "whatsapp.plantilla.por_vencer";
     public const string ClavePlantillaVencida = "whatsapp.plantilla.vencida";
+    public const string ClavePlantillaCobranza = "whatsapp.plantilla.cobranza_vencida";
 
     public const string PlantillaPorVencerDefault =
         "Hola {nombre}, te recordamos que tu membres\u00eda de Smart Gym vence en {dias} d\u00eda(s). \u00a1Renueva y no pierdas tu entrenamiento!";
     public const string PlantillaVencidaDefault =
         "Hola {nombre}, tu membres\u00eda venci\u00f3 hace {dias} d\u00eda(s). \u00a1Ven a reactivarla y sigue entrenando con nosotros!";
+    public const string PlantillaCobranzaDefault =
+        "Hola {nombre}, tienes un saldo pendiente de {monto} en Smart Gym. Te esperamos en recepción para ponerte al día. ¡Gracias!";
 
     private readonly IAuthService _auth;
     private readonly IAuthorizationService _authz;
@@ -187,17 +196,32 @@ public sealed class DashboardService : IDashboardService
             .ToList();
     }
 
-    public async Task<(string PorVencer, string Vencida)> ObtenerPlantillasWhatsAppAsync(CancellationToken ct = default)
+    /// <summary>
+    /// Cuentas por cobrar VENCIDAS (pendiente/parcial con fecha_vencimiento
+    /// pasada) con teléfono del socio - panel de cobranza vencida del Dashboard.
+    /// </summary>
+    public async Task<IReadOnlyList<CobranzaVencidaDto>> ObtenerCobranzaVencidaAsync(
+        string token, long? idSedeFrontend = null, CancellationToken ct = default)
+    {
+        var info = await _auth.ValidarSesionAsync(token, ct);
+        await _authz.RequierePermisoAsync(token, PermisoCatalogo.CobranzaRegistrarAbono, ct);
+        var idSede = await _sedeResolution.ResolverIdSedeOpcionalAsync(info, idSedeFrontend, ct);
+
+        return await _dashboard.ObtenerCobranzaVencidaConSocioAsync(idSede, ct);
+    }
+    public async Task<(string PorVencer, string Vencida, string Cobranza)> ObtenerPlantillasWhatsAppAsync(CancellationToken ct = default)
     {
         var porVencer = await _configuracion.GetAsync(ClavePlantillaPorVencer, ct);
         var vencida = await _configuracion.GetAsync(ClavePlantillaVencida, ct);
+        var cobranza = await _configuracion.GetAsync(ClavePlantillaCobranza, ct);
         return (
             string.IsNullOrWhiteSpace(porVencer) ? PlantillaPorVencerDefault : porVencer,
-            string.IsNullOrWhiteSpace(vencida) ? PlantillaVencidaDefault : vencida);
+            string.IsNullOrWhiteSpace(vencida) ? PlantillaVencidaDefault : vencida,
+            string.IsNullOrWhiteSpace(cobranza) ? PlantillaCobranzaDefault : cobranza);
     }
 
     public async Task GuardarPlantillasWhatsAppAsync(
-        string token, string porVencer, string vencida, CancellationToken ct = default)
+        string token, string porVencer, string vencida, string? cobranza = null, CancellationToken ct = default)
     {
         await _auth.ValidarSesionAsync(token, ct);
         await _authz.RequierePermisoAsync(token, PermisoCatalogo.ConfiguracionEditar, ct);
@@ -206,6 +230,8 @@ public sealed class DashboardService : IDashboardService
             string.IsNullOrWhiteSpace(porVencer) ? null : porVencer.Trim(), ct);
         await _configuracion.SetAsync(ClavePlantillaVencida,
             string.IsNullOrWhiteSpace(vencida) ? null : vencida.Trim(), ct);
+        await _configuracion.SetAsync(ClavePlantillaCobranza,
+            string.IsNullOrWhiteSpace(cobranza) ? null : cobranza.Trim(), ct);
     }
 
     /// <summary>Rango [inicio, fin_exclusivo) en UTC según el día LOCAL del negocio.</summary>

@@ -139,11 +139,81 @@
                                                    Variant="Variant.Outlined"
                                                    aria-label="Enviar WhatsApp"
                                                    title="Enviar WhatsApp"
-                                                   OnClick='() => EnviarWhatsAppAsync(r)'>
+                                                   OnClick='() => EnviarWhatsAppRecordatorioAsync(r)'>
                                         <span class="icono-boton-contenido">
                                             <IconifyIcon Icon="simple-icons:whatsapp" />
                                         </span>
                                     </MudIconButton>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@if (_verCobranzaVencida)
+{
+    <div class="glass-panel" style="margin-top: 1rem; position: relative;">
+        <AyudaModulo Style="position: absolute; top: 0.6rem; right: 0.6rem;">
+            <p>Cuentas por cobrar con fecha de vencimiento pasada (pendientes o con pago parcial) y teléfono cargado.</p>
+        </AyudaModulo>
+        <p class="form-section">Cobranza vencida (WhatsApp)</p>
+        @if (_cargandoCobranza)
+        {
+            <p class="muted">Cargando...</p>
+        }
+        else if (_cobranzaVencida.Count == 0)
+        {
+            <p class="muted">Ninguna cuenta vencida en este momento.</p>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th class="col-socio">Socio</th>
+                            <th>Teléfono</th>
+                            <th class="col-numero">Saldo</th>
+                            <th>Vencida hace</th>
+                            <th class="col-accion" style="width: 180px;">Contactar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cv in _cobranzaVencida)
+                        {
+                            var telefono = new string(cv.Telefono.Where(char.IsDigit).ToArray());
+                            var monto = Formatear(cv.SaldoPendienteCentavos);
+                            var mensaje = PlantillaCobranza
+                                .Replace("{nombre}", cv.NombreSocio)
+                                .Replace("{monto}", monto);
+                            <tr>
+                                <td class="col-socio"><strong>@cv.NombreSocio</strong></td>
+                                <td class="muted-cell">@cv.Telefono</td>
+                                <td class="col-numero">@monto</td>
+                                <td class="col-accion">
+                                    <span class="status-badge status-danger">@($"Vencida hace {cv.DiasVencido} día(s)")</span>
+                                </td>
+                                <td class="col-accion">
+                                    @if (telefono.Length == 0)
+                                    {
+                                        <span class="muted">Sin teléfono</span>
+                                    }
+                                    else
+                                    {
+                                        <MudIconButton Color="Color.Success"
+                                                       Variant="Variant.Outlined"
+                                                       aria-label="Enviar WhatsApp"
+                                                       title="Enviar WhatsApp"
+                                                       OnClick='() => EnviarWhatsAppAsync(telefono, mensaje)'>
+                                            <span class="icono-boton-contenido">
+                                                <IconifyIcon Icon="simple-icons:whatsapp" />
+                                            </span>
+                                        </MudIconButton>
+                                    }
                                 </td>
                             </tr>
                         }
@@ -179,6 +249,12 @@
     private List<ChartSeries<decimal>> _serieAfluencia = [];
     private string[] _etiquetasHoras = [];
 
+    // Cobranza vencida.
+    private bool _verCobranzaVencida;
+    private bool _cargandoCobranza = true;
+    private List<CobranzaVencidaDto> _cobranzaVencida = [];
+    private string PlantillaCobranza { get; set; } = "";
+
     // Recordatorios.
     private bool _verRecordatorios;
     private bool _cargandoRecordatorios = true;
@@ -199,10 +275,12 @@
         _verResumen = await TienePermisoAsync(t, PermisoCatalogo.FinanzasVer);
         _verAfluencia = await TienePermisoAsync(t, PermisoCatalogo.AccesoVerBitacora);
         _verRecordatorios = await TienePermisoAsync(t, PermisoCatalogo.MembresiasVer);
+        _verCobranzaVencida = await TienePermisoAsync(t, PermisoCatalogo.CobranzaRegistrarAbono);
 
         if (_verResumen) { await CargarResumenAsync(); }
         if (_verAfluencia) { await CargarAfluenciaAsync(); }
         if (_verRecordatorios) { await CargarRecordatoriosAsync(); }
+        if (_verCobranzaVencida) { await CargarCobranzaVencidaAsync(); }
     }
 
     /// <summary>RequierePermiso en forma de predicado: sin permiso la sección se oculta.</summary>
@@ -320,19 +398,44 @@
         }
     }
 
+    private async Task CargarCobranzaVencidaAsync()
+    {
+        if (_token is null)
+        {
+            return;
+        }
+        _cargandoCobranza = true;
+        StateHasChanged();
+        try
+        {
+            _cobranzaVencida = (await Dashboard.ObtenerCobranzaVencidaAsync(_token)).ToList();
+            var (_, _, plantilla) = await Dashboard.ObtenerPlantillasWhatsAppAsync();
+            PlantillaCobranza = plantilla;
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo cargar la cobranza vencida");
+        }
+        finally
+        {
+            _cargandoCobranza = false;
+            StateHasChanged();
+        }
+    }
     /// <summary>wa.me abre WhatsApp ya precargado con el mensaje (edición dentro
     /// de WhatsApp, comportamiento nativo del enlace).</summary>
-    private async Task EnviarWhatsAppAsync(RecordatorioMembresiaDto r)
+  /// <summary>wa.me abre WhatsApp ya precargado con el mensaje (edición dentro
+    /// de WhatsApp, comportamiento nativo del enlace). Compartido por
+    /// recordatorios de membresía y cobranza vencida.</summary>
+    private async Task EnviarWhatsAppAsync(string telefonoDestino, string mensaje)
     {
         try
         {
-            var (porVencer, vencida) = await Dashboard.ObtenerPlantillasWhatsAppAsync();
-            var plantilla = r.Categoria == RecordatorioCategorias.PorVencer ? porVencer : vencida;
-            var mensaje = plantilla
-                .Replace("{nombre}", r.NombreSocio)
-                .Replace("{dias}", r.Dias.ToString());
-
-            var telefono = new string(r.Telefono.Where(char.IsDigit).ToArray());
+            var telefono = new string(telefonoDestino.Where(char.IsDigit).ToArray());
             if (telefono.Length == 0)
             {
                 Feedback.ShowWarning("El socio no tiene un teléfono válido");
@@ -340,6 +443,42 @@
             }
 
             await Launcher.OpenAsync(new Uri($"https://wa.me/{telefono}?text={Uri.EscapeDataString(mensaje)}"));
+        }
+        catch (Exception ex)
+        {
+            Feedback.ShowError($"No se pudo abrir WhatsApp: {ex.Message}");
+        }
+    }
+
+    private async Task EnviarWhatsAppRecordatorioAsync(RecordatorioMembresiaDto r)
+    {
+        try
+        {
+            var (porVencer, vencida, _) = await Dashboard.ObtenerPlantillasWhatsAppAsync();
+            var plantilla = r.Categoria == RecordatorioCategorias.PorVencer ? porVencer : vencida;
+            var mensaje = plantilla
+                .Replace("{nombre}", r.NombreSocio)
+                .Replace("{dias}", r.Dias.ToString());
+
+            await EnviarWhatsAppAsync(r.Telefono, mensaje);
+        }
+        catch (Exception ex)
+        {
+            Feedback.ShowError($"No se pudo abrir WhatsApp: {ex.Message}");
+        }
+    }
+
+    private async Task EnviarWhatsAppCobranzaAsync(CobranzaVencidaDto cv)
+    {
+        try
+        {
+            var (_, _, cobranza) = await Dashboard.ObtenerPlantillasWhatsAppAsync();
+            var monto = Formatear(cv.SaldoPendienteCentavos);
+            var mensaje = cobranza
+                .Replace("{nombre}", cv.NombreSocio)
+                .Replace("{monto}", monto);
+
+            await EnviarWhatsAppAsync(cv.Telefono, mensaje);
         }
         catch (Exception ex)
         {

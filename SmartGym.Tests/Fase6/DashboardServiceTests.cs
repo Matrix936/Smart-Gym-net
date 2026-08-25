@@ -210,13 +210,13 @@ private static async Task SetTelefonoAsync(SecurityTestContext ctx, string idSoc
     {
         var (ctx, token, _, _, _) = await BaseDosSedesAsync();
 
-        var (porVencerDefault, vencidaDefault) = await ctx.DashboardService.ObtenerPlantillasWhatsAppAsync();
+        var (porVencerDefault, vencidaDefault, _) = await ctx.DashboardService.ObtenerPlantillasWhatsAppAsync();
         Assert.Contains("{nombre}", porVencerDefault);
         Assert.Contains("{dias}", vencidaDefault);
 
         await ctx.DashboardService.GuardarPlantillasWhatsAppAsync(
             token, "Hola {nombre}, vence en {dias}.", "");
-        var (porVencer, vencida) = await ctx.DashboardService.ObtenerPlantillasWhatsAppAsync();
+        var (porVencer, vencida, _) = await ctx.DashboardService.ObtenerPlantillasWhatsAppAsync();
         Assert.Equal("Hola {nombre}, vence en {dias}.", porVencer);
         Assert.Equal(vencidaDefault, vencida); // vacío vuelve al default
 
