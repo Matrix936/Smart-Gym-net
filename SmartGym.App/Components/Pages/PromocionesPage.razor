@@ -405,6 +405,7 @@
     private long? _formIdProducto;
     private Producto? _productoDescSeleccionado;
     private Producto? _comboBusqueda;
+    private MudBlazor.MudAutocomplete<Producto>? _comboSearchRef;
     private string _formTipoDescuento = "porcentaje";
     private long _formValorEntero = 10;
     private decimal _formValorMonto;
@@ -631,7 +632,7 @@
         }
     }
 
-    private void AgregarComponenteDesdeBusqueda(Producto? producto)
+    private async Task AgregarComponenteDesdeBusqueda(Producto? producto)
     {
         if (producto is null)
         {
@@ -652,6 +653,10 @@
         }
 
         _comboBusqueda = null;
+        if (_comboSearchRef is not null)
+        {
+            await _comboSearchRef.ClearAsync();
+        }
         StateHasChanged();
     }
 
