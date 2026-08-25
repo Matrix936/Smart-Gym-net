@@ -303,6 +303,7 @@
                                  ValueChanged="AgregarComponenteDesdeBusqueda" />
 
                 <MudText Typo="Typo.subtitle2">Componentes</MudText>
+                <div style="max-height: 280px; overflow-y: auto;">
                 @foreach (var (componente, idx) in _componentesForm.Select((c, i) => (c, i)))
                 {
                     var index = idx;
@@ -324,6 +325,7 @@
                                        OnClick="() => QuitarComponente(index)" />
                     </div>
                 }
+                </div>
             }
 
             <div style="display: flex; gap: 0.75rem;">
