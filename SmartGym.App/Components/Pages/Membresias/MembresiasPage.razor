@@ -18,10 +18,8 @@
         <h4>Membresías</h4>
         <p class="page-sub">Suscripciones de los socios y su estado actual.</p>
     </div>
-    <MudButton Variant="Variant.Filled"
-               Color="Color.Primary"
-               StartIcon="@Icons.Material.Filled.Add"
-               OnClick="AbrirVenta">Nueva venta</MudButton>
+    @* La venta/afiliación de membresías nuevas vive en /pos. Este módulo es
+       exclusivamente de gestión: buscar, ver estado, congelar y cancelar. *@
 </div>
 
 <div class="glass-panel">
@@ -191,12 +189,6 @@
     }
 </div>
 
-@if (_ventaAbierta)
-{
-    <VenderMembresiaDialog Open="true"
-                           OnClose="CerrarVenta"
-                           OnSaved="RecargarDespuesDeGuardar" />
-}
 
 @if (_detalleAbierto && _socioDetalle is not null)
 {
@@ -283,8 +275,6 @@
     private int _tamanoPagina = TamanosPagina.Default;
     private int _totalRegistros;
     private int _totalPaginas;
-
-    private bool _ventaAbierta;
 
     // Detalle: abre el historial/gestión de TODAS las membresías del socio
     // de esa fila (congelar/cancelar viven allí con su reautorización).
@@ -424,10 +414,6 @@
         _sedeSeleccionada = value;
         await CargarAsync();
     }
-
-    private void AbrirVenta() => _ventaAbierta = true;
-
-    private void CerrarVenta() => _ventaAbierta = false;
 
     private void AbrirDetalle(MembresiaListadoDto fila)
     {

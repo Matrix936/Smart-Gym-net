@@ -85,6 +85,10 @@ else
                               Value="@_query"
                               ValueChanged="OnBusquedaChanged"
                               @onkeydown="HandleBusquedaKeyDown" />
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.CardMembership"
+                           OnClick="AbrirDialogoMembresia">Membresía</MudButton>
             </div>
 
             @if (_cargando)
@@ -238,7 +242,24 @@ else
                             <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
                                            aria-label="Eliminar combo"
                                            title="Eliminar combo"
-                                           OnClick="() => EliminarLineaCombo(linea)" />
+                                            OnClick="() => EliminarLineaCombo(linea)" />
+                        </div>
+                    }
+                    @* Membresía en el carrito: línea especial de contado, exige socio titular al cobrar. *@
+                    @if (_membresiaCarrito is not null)
+                    {
+                        <div class="pos-linea pos-linea-combo">
+                            <div class="pos-linea-info">
+                                <strong>Membresía @(_membresiaCarrito.NombrePlan)</strong>
+                                <span class="muted">Se asignará al socio seleccionado — contado</span>
+                            </div>
+                            <div class="pos-linea-cantidad">
+                                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                               aria-label="Quitar membresía"
+                                               title="Quitar membresía"
+                                               OnClick="QuitarMembresiaDelCarrito" />
+                            </div>
+                            <span class="pos-linea-subtotal">@FormatearMonto(_membresiaCarrito.PrecioCentavos)</span>
                         </div>
                     }
                 </div>
@@ -419,8 +440,48 @@ else
                    OnClick="@(() => _confirmacionAbierta = false)">Cancelar</MudButton>
     </DialogActions>
 </MudDialog>
+
+@* Mini-form de membresía (diseño reducido de VenderMembresiaDialog):
+   solo plan — el socio es el del carrito y SIEMPRE es de contado
+   (sin plazo ni crédito). Requiere caja abierta. *@
+<MudDialog Visible="_membresiaDialogoAbierto"
+           VisibleChanged="v => _membresiaDialogoAbierto = v"
+           Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Agregar membresía</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_planesActivos.Count == 0)
+        {
+            <MudAlert Severity="Severity.Warning" Dense>No hay planes activos — da de alta un plan en /planes.</MudAlert>
+        }
+        else
+        {
+            <div class="form-fields">
+                <MudSelect T="long?" Label="Plan *" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           Value="_planDialogoId" ValueChanged="OnPlanDialogoChanged">
+                    <MudSelectItem T="long?" Value="null">Selecciona un plan…</MudSelectItem>
+                    @foreach (var plan in _planesActivos)
+                    {
+                        <MudSelectItem Value="@((long?)plan.IdPlan)">@($"{plan.Nombre} — {FormatearMonto(plan.PrecioCentavos)}")</MudSelectItem>
+                    }
+                </MudSelect>
+                @if (_planDialogoMembresia is not null)
+                {
+                    <p class="muted">Se agregará al carrito como línea de contado — el socio titular se selecciona abajo.</p>
+                }
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="CerrarDialogoMembresia">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(_planDialogoMembresia is null)"
+                   OnClick="AgregarMembresiaAlCarrito">Agregar</MudButton>
+    </DialogActions>
+</MudDialog>
 <ConfirmDialog IsOpen="_vaciarConfirmacion"
-              Titulo="Vaciar carrito"
+               Titulo="Vaciar carrito"
               Mensaje="@_vaciarMensaje"
               TextoConfirmar="Vaciar"
               OnConfirm="VaciarCarritoConfirmadoAsync"
@@ -488,6 +549,8 @@ else
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
     [Inject] private IEmpresaConfigService EmpresaConfig { get; set; } = default!;
     [Inject] private IPromocionesService Promos { get; set; } = default!;
+    [Inject] private IMembresiasService Membresias { get; set; } = default!;
+    [Inject] private IPlanesMembresiaRepository PlanesRepo { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private DotNetObjectReference<PosPage>? _atajosRef;
@@ -518,6 +581,14 @@ else
     // Carrito de combos: idPromocion → línea (el precio cerrado manda).
     private sealed record CarritoComboLinea(PosPromocionInfo Promo, long Cantidad);
     private Dictionary<string, CarritoComboLinea> _combosCarrito = new();
+
+    // Membresía vendida junto a la venta (una sola por cobro, siempre contado).
+    private sealed record MembresiaCarritoLinea(long IdPlan, string NombrePlan, long PrecioCentavos);
+    private MembresiaCarritoLinea? _membresiaCarrito;
+    private bool _membresiaDialogoAbierto;
+    private List<PlanMembresia> _planesActivos = [];
+    private long? _planDialogoId;
+    private PlanMembresia? _planDialogoMembresia;
 
     private Socio? _socioSeleccionado;
     private string _metodoPago = MetodosPago.Efectivo;
@@ -907,6 +978,61 @@ else
         }
     }
 
+    /// <summary>Abre el mini-form de membresía (requiere caja abierta).</summary>
+    private async Task AbrirDialogoMembresia()
+    {
+        if (_cajaAbierta is null)
+        {
+            Feedback.ShowWarning("Abre la caja antes de vender membresías");
+            return;
+        }
+
+        try
+        {
+            _planesActivos = (await PlanesRepo.GetActivosAsync()).ToList();
+        }
+        catch
+        {
+            _planesActivos = [];
+        }
+
+        _planDialogoId = null;
+        _planDialogoMembresia = null;
+        _membresiaDialogoAbierto = true;
+        StateHasChanged();
+    }
+
+    private void OnPlanDialogoChanged(long? id)
+    {
+        _planDialogoId = id;
+        _planDialogoMembresia = _planesActivos.FirstOrDefault(p => p.IdPlan == id);
+    }
+
+    /// <summary>Una sola membresía por cobro — agregar otra reemplaza la pendiente con aviso.</summary>
+    private void AgregarMembresiaAlCarrito()
+    {
+        if (_planDialogoMembresia is null)
+        {
+            return;
+        }
+
+        if (_membresiaCarrito is not null)
+        {
+            Feedback.ShowWarning("Ya había una membresía en el carrito — se reemplazó por la nueva");
+        }
+
+        _membresiaCarrito = new MembresiaCarritoLinea(
+            _planDialogoMembresia.IdPlan,
+            _planDialogoMembresia.Nombre,
+            _planDialogoMembresia.PrecioCentavos);
+        _membresiaDialogoAbierto = false;
+        StateHasChanged();
+    }
+
+    private void QuitarMembresiaDelCarrito() => _membresiaCarrito = null;
+
+    private void CerrarDialogoMembresia() => _membresiaDialogoAbierto = false;
+
     /// <summary>Carga caja abierta + catálogo + stock snapshot de la sede.</summary>
     private async Task CargarAsync()
     {
@@ -992,7 +1118,8 @@ else
     /// El botón Cobrar, su guard y el atajo de Enter deben usar esto — mirar
     /// solo _carrito bloqueaba ventas de solo-combos.
     /// </summary>
-    private bool CarritoVacio() => _carrito.Count == 0 && _combosCarrito.Count == 0;
+    private bool CarritoVacio() =>
+        _carrito.Count == 0 && _combosCarrito.Count == 0 && _membresiaCarrito is null;
 
     /// <summary>Combos de la grilla, filtrados por la búsqueda activa (por nombre o componentes).</summary>
     private IEnumerable<PosPromocionInfo> CombosFiltrados()
@@ -1136,7 +1263,8 @@ else
                 var d = DescuentoDe(l.Producto);
                 return (d?.PrecioFinalCentavos ?? l.Producto.PrecioVentaCentavos) * l.Cantidad;
             })
-        + _combosCarrito.Values.Sum(c => c.Promo.PrecioComboCentavos * c.Cantidad);
+        + _combosCarrito.Values.Sum(c => c.Promo.PrecioComboCentavos * c.Cantidad)
+        + (_membresiaCarrito?.PrecioCentavos ?? 0);
 
     /// <summary>
     /// Suma a precios de LISTA: productos sin aplicar su promo + combos
@@ -1145,7 +1273,8 @@ else
     /// </summary>
     private long TotalOriginal() =>
         _carrito.Values.Sum(l => l.Producto.PrecioVentaCentavos * l.Cantidad)
-        + _combosCarrito.Values.Sum(c => c.Promo.SubtotalComponentesCentavos * c.Cantidad);
+        + _combosCarrito.Values.Sum(c => c.Promo.SubtotalComponentesCentavos * c.Cantidad)
+        + (_membresiaCarrito?.PrecioCentavos ?? 0);
 
     /// <summary>
     /// Paso 1 del cobro: valida y abre la ventana de confirmación con el total
@@ -1166,6 +1295,19 @@ else
         if (_cajaAbierta is null)
         {
             Feedback.ShowError("No hay caja abierta — abre caja antes de vender");
+            return;
+        }
+
+        // Membresía en carrito: exige socio titular y bloquea el método Crédito
+        // (siempre de contado — sin pago parcial ni cuenta por cobrar).
+        if (_membresiaCarrito is not null && _socioSeleccionado is null)
+        {
+            Feedback.ShowWarning("La membresía requiere un socio titular — selecciónalo arriba");
+            return;
+        }
+        if (_membresiaCarrito is not null && _metodoPago == MetodosPago.Credito)
+        {
+            Feedback.ShowWarning("La membresía se vende solo de contado — elige otro método de pago");
             return;
         }
 
@@ -1276,6 +1418,33 @@ else
             var venta = await Pos.RegistrarVentaAsync(
                 sesion.Token, input, _showSede ? _idSedeTerminal : null);
 
+            // Membresía del carrito: segunda llamada de servicio DESPUÉS de la
+            // venta de productos (dos transacciones — tradeoff documentado).
+            // Si falla, los productos ya están vendidos y se informa con
+            // éxito-parcial; la membresía puede reintentarse desde /membresías.
+            string? errorMembresia = null;
+            if (_membresiaCarrito is not null && _socioSeleccionado is not null)
+            {
+                try
+                {
+                    await Membresias.VenderAsync(
+                        sesion.Token,
+                        _socioSeleccionado.IdSocio,
+                        _membresiaCarrito.IdPlan,
+                        _metodoPago,
+                        _membresiaCarrito.PrecioCentavos,
+                        _showSede ? _idSedeTerminal : null);
+                }
+                catch (BusinessException ex)
+                {
+                    errorMembresia = ex.Message;
+                }
+                catch
+                {
+                    errorMembresia = "No se pudo registrar la membresía";
+                }
+            }
+
             // Recibo en pantalla (reemplaza al snackbar de "Venta registrada"):
             // snapshot ANTES de limpiar, porque el carrito ya no estará.
             _recibo = new ReciboVenta(
@@ -1301,6 +1470,13 @@ else
                         c.Cantidad,
                         c.Promo.PrecioComboCentavos,
                         c.Promo.PrecioComboCentavos * c.Cantidad)))
+                    .Concat(errorMembresia is null && _membresiaCarrito is not null
+                        ? [new ReciboLinea(
+                            $"Membresía {_membresiaCarrito.NombrePlan}",
+                            1,
+                            _membresiaCarrito.PrecioCentavos,
+                            _membresiaCarrito.PrecioCentavos)]
+                        : Array.Empty<ReciboLinea>())
                     .ToList(),
                 TotalCentavos: venta.TotalCentavos,
                 SaldoPendienteCentavos: venta.SaldoPendienteCentavos,
@@ -1316,6 +1492,7 @@ else
             // refresca snapshot y limpia el carrito para la siguiente venta.
             _carrito = new Dictionary<long, CarritoLinea>();
             _combosCarrito = new Dictionary<string, CarritoComboLinea>();
+            _membresiaCarrito = null;
             _socioSeleccionado = null;
             _montoPagado = null;
             _efectivoRecibido = null;
@@ -1336,6 +1513,13 @@ else
             _reciboAbierto = true;
             _enfocarReciboAlAbrir = true;
             StateHasChanged();
+
+            if (errorMembresia is not null)
+            {
+                // Éxito-parcial: los productos ya están vendidos; la membresía
+                // puede reintentarse desde /pos o /membresías.
+                Feedback.ShowError($"Productos vendidos, pero la membresía falló: {errorMembresia}");
+            }
 
             if (_imprimirAutoAlCobrar)
             {
