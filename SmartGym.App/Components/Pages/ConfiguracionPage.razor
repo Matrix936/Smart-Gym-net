@@ -352,6 +352,13 @@ else
                           Lines="3"
                           Margin="Margin.Dense"
                           @bind-Value="_plantillaVencida" />
+            <MudTextField T="string"
+                          Label="Plantilla: cobranza vencida"
+                          Variant="Variant.Outlined"
+                          Lines="3"
+                          Margin="Margin.Dense"
+                          @bind-Value="_plantillaCobranza" />
+            <p class="muted" style="margin: 0;">Deja vacío un campo para usar el texto por defecto. Placeholders: <strong>{nombre}</strong> y <strong>{monto}</strong> (solo cobranza).</p>
             <div style="margin-top: 0.75rem;">
                 <AsyncButton Text="Guardar plantillas"
                              LoadingText="Guardando..."
@@ -418,6 +425,7 @@ else
 
     private string _plantillaPorVencer = "";
     private string _plantillaVencida = "";
+    private string _plantillaCobranza = "";
     private bool _guardandoPlantillas;
 
     protected override async Task OnInitializedAsync()
@@ -522,7 +530,7 @@ else
 
         try
         {
-            (_plantillaPorVencer, _plantillaVencida) = await Dashboard.ObtenerPlantillasWhatsAppAsync();
+            (_plantillaPorVencer, _plantillaVencida, _plantillaCobranza) = await Dashboard.ObtenerPlantillasWhatsAppAsync();
         }
         catch (BusinessException)
         {
@@ -545,7 +553,7 @@ else
         try
         {
             await Dashboard.GuardarPlantillasWhatsAppAsync(
-                sesion.Token, _plantillaPorVencer, _plantillaVencida);
+                sesion.Token, _plantillaPorVencer, _plantillaVencida, _plantillaCobranza);
             Feedback.ShowSuccess("Plantillas de WhatsApp actualizadas");
         }
         catch (BusinessException ex)
