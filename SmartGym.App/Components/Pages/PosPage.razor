@@ -81,8 +81,10 @@ else
                               AdornmentIcon="@Icons.Material.Filled.Search"
                               Margin="Margin.Dense"
                               Immediate="true"
+                              Clearable="true"
                               Value="@_query"
-                              ValueChanged="OnBusquedaChanged" />
+                              ValueChanged="OnBusquedaChanged"
+                              @onkeydown="HandleBusquedaKeyDown" />
             </div>
 
             @if (_cargando)
@@ -872,6 +874,36 @@ else
         }
         catch (TaskCanceledException)
         {
+        }
+    }
+
+    /// <summary>
+    /// Enter en el buscador: agrega al carrito el PRIMER resultado enlistado
+    /// (mismo orden real de despliegue — productos filtrados, luego combos) y
+    /// limpia el campo, flujo continuo tipo escáner. Sin resultados no hace
+    /// nada. Implementa lo anunciado en bed0a80 pero nunca materializado.
+    /// </summary>
+    private void HandleBusquedaKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key != "Enter" || _cobrando || _confirmacionAbierta || _reciboAbierto)
+        {
+            return;
+        }
+
+        var producto = _productos.FirstOrDefault();
+        if (producto is not null)
+        {
+            // Detail=0: sin blur interop (el campo se limpiará abajo).
+            _ = AgregarAlCarritoAsync(producto, new MouseEventArgs());
+            _ = OnBusquedaChanged("");
+            return;
+        }
+
+        var combo = CombosFiltrados().FirstOrDefault();
+        if (combo is not null)
+        {
+            AgregarComboAlCarrito(combo);
+            _ = OnBusquedaChanged("");
         }
     }
 
