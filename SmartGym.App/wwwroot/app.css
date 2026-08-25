@@ -1047,13 +1047,14 @@ table.data-table {
     pointer-events: none;
     transition: opacity 0.25s ease, transform 0.25s ease;
     box-shadow: none;
-    /* Debe quedar siempre por encima de cualquier MudDialog/MudPopover abierto.
-       MudBlazor calcula el overlay del dialogo como
+    /* Debe quedar siempre por encima de cualquier MudDialog/MudPopover/overlay
+       de bloqueo. MudBlazor calcula el overlay del dialogo como
        z-index: calc(var(--mud-zindex-dialog) + 1) en tiempo de ejecucion; un
        valor fijo igual (1300) quedaba empatado y perdia por orden de DOM,
-       viendose "detras"/oscurecido del dialogo. Mismo criterio "siempre
-       encima" que usa el propio Blazor para #blazor-error-ui (9999). */
-    z-index: 9999;
+       viendose "detras"/oscurecido del dialogo. .pantalla-bloqueo usa 10000,
+       asi que este valor (10001) lo supera para que el snackbar de error sea
+       visible incluso con la pantalla bloqueada. */
+    z-index: 10001;
 }
 
 .feedback-snackbar.is-visible {
