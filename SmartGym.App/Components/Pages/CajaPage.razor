@@ -83,7 +83,7 @@
            registrar ingresos/egresos manuales de caja. *@
         <div style="margin-top: 1.25rem; display: flex; gap: 0.75rem;">
             <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick='() => AbrirMovimiento(MovimientoTipos.Ingreso)'>Registrar ingreso</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick='() => AbrirMovimiento(MovimientoTipos.Egreso)'>Registrar egreso</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick='() => AbrirMovimiento(MovimientoTipos.Egreso)'>Registrar egreso</MudButton>
             <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="AbrirCierre">Cerrar caja</MudButton>
         </div>
     }
