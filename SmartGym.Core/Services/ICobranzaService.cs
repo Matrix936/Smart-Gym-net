@@ -25,6 +25,9 @@ public interface ICobranzaService
         string tipo,
         CancellationToken ct = default);
 
+    /// <summary>Marca una cuenta como incobrable (solo pendiente/parcial). Bitácora cobranza.marcada_incobrable.</summary>
+    Task MarcarIncobrableAsync(string token, string idCuenta, CancellationToken ct = default);
+
     /// <summary>Listado paginado de cuentas por cobrar de la sede con socio resuelto.</summary>
     Task<PagedResult<CuentaCobrarDto>> BuscarAsync(
         string token,

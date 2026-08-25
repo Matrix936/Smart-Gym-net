@@ -1,4 +1,4 @@
-﻿using SmartGym.Core.Biometrics;
+using SmartGym.Core.Biometrics;
 using SmartGym.Core.Repositories;
 using SmartGym.Core.Services;
 using SmartGym.Data.Db;

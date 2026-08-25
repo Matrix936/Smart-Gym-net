@@ -7,6 +7,7 @@ public sealed class Sede
     public string Nombre { get; set; } = string.Empty;
     public string? Direccion { get; set; }
     public string? Telefono { get; set; }
+    public string? CodigoPostal { get; set; }
     public string? HorarioApertura { get; set; }
     public string? HorarioCierre { get; set; }
     public bool EsActiva { get; set; }

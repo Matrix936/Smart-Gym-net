@@ -2,10 +2,20 @@
 
 <div class="auth-shell">
     <AuthCard>
-        <h5 style="text-align: center; margin-bottom: 0.25rem;">Smart Gym</h5>
+        <div class="auth-logo-wrap">
+            @if (!string.IsNullOrEmpty(_logoUrl))
+            {
+                <img class="sg-sidebar-logo auth-logo" src="@_logoUrl" alt="@_nombreEmpresa" />
+            }
+            else
+            {
+                <span class="sg-sidebar-logo sg-sidebar-logo-fallback auth-logo">SG</span>
+            }
+        </div>
+        <h5 style="text-align: center; margin-bottom: 0.25rem;">@_nombreEmpresa</h5>
         <p class="auth-subtitle">Panel de administración</p>
 
-        <form class="form-fields" @onsubmit="HandleSubmit">
+        <form class="form-fields login-form" @onsubmit="HandleSubmit">
             <MudAutocomplete T="string"
                              Label="Email"
                              Margin="Margin.Dense"
@@ -18,10 +28,11 @@
                              MaxHeight="240" />
 
             <PasswordField Label="Contraseña"
+                           Variant="Variant.Text"
                            Autocomplete="current-password"
                            @bind-Value="_password" />
 
-            <div style="margin-top: 1.5rem;">
+            <div class="login-submit">
                 <AsyncButton Text="Iniciar sesión"
                              LoadingText="Ingresando..."
                              ButtonType="submit"
@@ -29,9 +40,14 @@
             </div>
         </form>
 
-        <button type="button" class="login-kiosco-link" @onclick="() => KioscoWindow.Abrir()">
-            Modo Kiosco
-        </button>
+        <div class="login-divider"></div>
+
+        <div class="login-kiosco-wrap">
+            <button type="button" class="login-kiosco-link" @onclick="() => KioscoWindow.Abrir()">
+                <MudIcon Icon="@Icons.Material.Filled.TabletMac" Size="Size.Small" />
+                Modo Kiosco
+            </button>
+        </div>
     </AuthCard>
     <ThemeToggle Floating="true" />
 </div>
@@ -41,17 +57,29 @@
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private IKioscoWindowService KioscoWindow { get; set; } = default!;
+    [Inject] private ILogoStorage LogoStorage { get; set; } = default!;
+    [Inject] private IEmpresaConfigFiscalRepository EmpresaRepo { get; set; } = default!;
 
     [Parameter] public EventCallback OnAuthenticated { get; set; }
 
     private string _email = "";
     private string _password = "";
+    private string _logoUrl = "";
+    private string _nombreEmpresa = "Smart Gym";
     private bool _loading;
 
     private List<CuentaRecordadaLocal> _cuentas = [];
 
     protected override async Task OnInitializedAsync()
     {
+        _logoUrl = LogoStorage.LeerDataUrl() ?? "";
+
+        var empresa = await EmpresaRepo.GetAsync();
+        if (empresa is not null && !string.IsNullOrWhiteSpace(empresa.NombreComercial))
+        {
+            _nombreEmpresa = empresa.NombreComercial;
+        }
+
         try
         {
             var cuentas = await Auth.ListarCuentasRecordadasAsync();

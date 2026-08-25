@@ -72,6 +72,16 @@ public sealed class SetupService : ISetupService
             await _sedes.RenombrarAsync(sede.IdSede, nombreSede, ct);
         }
 
+        // Dirección/teléfono/CP son datos de LA SEDE, no de la empresa
+        // (separación empresa/sede). El setup los captura juntos por UX pero
+        // cada campo va a su tabla correcta.
+        await _sedes.ActualizarContactoAsync(
+            sede.IdSede,
+            datos.Direccion.Trim(),
+            datos.Telefono.Trim(),
+            datos.CodigoPostal.Trim(),
+            Core.Common.DateHelper.NowIsoUtc(), ct);
+
         var ahora = Core.Common.DateHelper.NowIsoUtc();
         await _usuarios.InsertAsync(new Usuario
         {
@@ -94,9 +104,6 @@ public sealed class SetupService : ISetupService
         await _empresa.SaveAsync(new EmpresaConfigFiscal
         {
             NombreComercial = datos.NombreComercial.Trim(),
-            Telefono = datos.Telefono.Trim(),
-            Direccion = datos.Direccion.Trim(),
-            CodigoPostal = datos.CodigoPostal.Trim(),
             RazonSocial = datos.RazonSocial,
             Rfc = datos.Rfc,
             RegimenFiscal = datos.RegimenFiscal,
