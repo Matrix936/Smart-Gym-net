@@ -13,6 +13,8 @@ public sealed class VentasService : IVentasService
     private readonly ICajaMovimientosRepository _movimientos;
     private readonly IVentasRepository _ventas;
     private readonly IProductosRepository _productos;
+    private readonly IPromocionesRepository _promociones;
+    private readonly IPlanesMembresiaRepository _planes;
     private readonly ISedeResolutionService _sedeResolution;
     private readonly IBitacoraAuditoriaRepository _bitacora;
 
@@ -22,6 +24,8 @@ public sealed class VentasService : IVentasService
         ICajaMovimientosRepository movimientos,
         IVentasRepository ventas,
         IProductosRepository productos,
+        IPromocionesRepository promociones,
+        IPlanesMembresiaRepository planes,
         ISedeResolutionService sedeResolution,
         IBitacoraAuditoriaRepository bitacora)
     {
@@ -30,6 +34,8 @@ public sealed class VentasService : IVentasService
         _movimientos = movimientos;
         _ventas = ventas;
         _productos = productos;
+        _promociones = promociones;
+        _planes = planes;
         _sedeResolution = sedeResolution;
         _bitacora = bitacora;
     }
@@ -99,6 +105,37 @@ public sealed class VentasService : IVentasService
             IdVendedor = venta.IdVendedor,
             Items = items,
         };
+
+        // Derivar combo_membresía: si alguna línea tiene id_promocion apuntando
+        // a un promo tipo combo_membresia, calculamos el plan share como la
+        // diferencia entre el total de la venta y la suma de subtotales de
+        // detalle_ventas (que solo contiene los componentes de productos).
+        if (detalles.Count > 0)
+        {
+            var idPromos = detalles
+                .Where(d => d.IdPromocion is not null)
+                .Select(d => d.IdPromocion!)
+                .Distinct()
+                .ToList();
+
+            foreach (var idPromo in idPromos)
+            {
+                var promo = await _promociones.GetByIdAsync(idPromo, ct);
+                if (promo?.Tipo == PromocionTipos.ComboMembresia && promo.IdPlan is not null)
+                {
+                    var plan = await _planes.GetByIdAsync(promo.IdPlan.Value, ct);
+                    var sumaDetalles = detalles.Sum(d => d.SubtotalCentavos);
+                    var planShare = venta.TotalCentavos - sumaDetalles;
+                    if (planShare > 0)
+                    {
+                        detalle.IdPlanComboMembresia = promo.IdPlan.Value;
+                        detalle.PlanShareCentavos = planShare;
+                        detalle.NombrePlanComboMembresia = plan?.Nombre;
+                    }
+                    break;
+                }
+            }
+        }
 
         // Quién y cuándo canceló (bitácora) — solo si aplica; el listado ya no
         // muestra la fila de la cancelación como entrada propia.

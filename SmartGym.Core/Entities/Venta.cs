@@ -93,6 +93,7 @@ public sealed class VentaInfo
     /// </summary>
     public long? IdPlanComboMembresia { get; set; }
     public long PlanShareCentavos { get; set; }
+    public string? NombrePlanComboMembresia { get; set; }
 
     /// <summary>Cuándo se canceló (bitácora venta.cancelada). Null si no aplica.</summary>
     public string? CanceladaElIsoUtc { get; set; }

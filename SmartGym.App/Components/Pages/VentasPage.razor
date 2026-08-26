@@ -891,10 +891,22 @@
     }
 
     /// <summary>Detalle de la venta → items del preview/ticket.</summary>
-    private IReadOnlyList<SmartGym.Core.Printing.TicketItemInput> ItemsDeDetalle() =>
-        _detalleVenta!.Items.Select(i => new SmartGym.Core.Printing.TicketItemInput(
+    private IReadOnlyList<SmartGym.Core.Printing.TicketItemInput> ItemsDeDetalle()
+    {
+        var items = _detalleVenta!.Items.Select(i => new SmartGym.Core.Printing.TicketItemInput(
             i.DescripcionProducto ?? $"#{i.IdProducto}", i.Cantidad,
             i.PrecioUnitarioCentavos, i.SubtotalCentavos)).ToList();
+
+        if (_detalleVenta.IdPlanComboMembresia is not null && _detalleVenta.PlanShareCentavos > 0)
+        {
+            var nombrePlan = _detalleVenta.NombrePlanComboMembresia ?? "Plan";
+            items.Add(new SmartGym.Core.Printing.TicketItemInput(
+                $"Membresía {nombrePlan}", 1,
+                _detalleVenta.PlanShareCentavos, _detalleVenta.PlanShareCentavos));
+        }
+
+        return items;
+    }
 
     private void AbrirCancelacion(MovimientoHistorialDto fila)
     {
