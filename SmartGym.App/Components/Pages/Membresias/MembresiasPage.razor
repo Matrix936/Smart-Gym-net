@@ -213,6 +213,7 @@
     [Inject] private ISessionState Sesion { get; set; } = default!;
     [Inject] private IMembresiasService Membresias { get; set; } = default!;
     [Inject] private IPlanesMembresiaService Planes { get; set; } = default!;
+    [Inject] private IPlanesMembresiaRepository PlanesRepo { get; set; } = default!;
     [Inject] private IAuthorizationService Authz { get; set; } = default!;
     [Inject] private ISedesRepository Sedes { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
@@ -319,6 +320,8 @@
                 ? idSedeTerminal.Value
                 : SedeFiltroTodas;
         }
+
+        try { _planes = (await PlanesRepo.GetActivosAsync()).ToList(); } catch { _planes = []; }
 
         await CargarAsync();
     }
