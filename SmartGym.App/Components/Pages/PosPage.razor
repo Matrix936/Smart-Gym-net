@@ -88,8 +88,14 @@ else
                 <div class="pos-pestanas">
                     <button type="button" class="pos-pestana @(_pestanaActiva == "todos" ? "active" : "")"
                             @onclick='() => OnPestanaChangedAsync("todos")'>Todos</button>
-                    <button type="button" class="pos-pestana @(_pestanaActiva == "promociones" ? "active" : "") @(HayBusquedaActiva && TotalPromocionesContextuales > 0 ? "pos-pestana-highlight" : "") @(HayBusquedaActiva && TotalPromocionesContextuales == 0 ? "pos-pestana-dim" : "")"
-                            @onclick='() => OnPestanaChangedAsync("promociones")'>Promociones (@TotalPromocionesContextuales)</button>
+                    <button type="button" class="pos-pestana @(_pestanaActiva == "promociones" ? "active" : "")"
+                            @onclick='() => OnPestanaChangedAsync("promociones")'>
+                        Promociones (@TotalPromocionesContextuales)
+                        @if (HayBusquedaActiva && TotalPromocionesContextuales > 0)
+                        {
+                            <span class="pos-pestana-dot"></span>
+                        }
+                    </button>
                 </div>
                 <MudButton Variant="Variant.Outlined"
                            Color="Color.Primary"

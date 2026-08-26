@@ -2049,6 +2049,7 @@ table.data-table {
 }
 
 .pos-pestana {
+    position: relative;
     padding: 0.25rem 0.75rem;
     border-radius: 1rem;
     border: var(--glass-border);
@@ -2071,15 +2072,14 @@ table.data-table {
     border-color: var(--color-primary);
 }
 
-.pos-pestana-highlight {
-    background: var(--color-secondary, #ff9800);
-    color: #fff;
-    border-color: var(--color-secondary, #ff9800);
-    font-weight: 600;
-}
-
-.pos-pestana-dim {
-    opacity: 0.45;
+.pos-pestana-dot {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-success);
 }
 
 .pos-card {
