@@ -137,6 +137,8 @@ else
                         var esComboMembresia = combo.Tipo == PromocionTipos.ComboMembresia;
                         var descComponentes = string.Join(" + ", combo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"));
                         var descCompleta = esComboMembresia ? $"Plan: {combo.NombrePlan} + {descComponentes}" : descComponentes;
+                        var precioListaCombo = combo.PrecioListaTotalCentavos > 0 ? combo.PrecioListaTotalCentavos : combo.SubtotalComponentesCentavos;
+                        var comboConAhorro = precioListaCombo > combo.PrecioComboCentavos;
                         <button type="button"
                                 class="pos-card pos-card-combo @(agotadoCombo ? "pos-card-agotado" : "")"
                                 disabled="@agotadoCombo"
@@ -146,7 +148,10 @@ else
                             <span class="pos-combo-badge">@(esComboMembresia ? "COMBO + PLAN" : "COMBO")</span>
                             <span class="pos-card-desc">@combo.Nombre</span>
                             <span class="pos-precios">
-                                <span class="pos-precio-tachado">@FormatearMonto(combo.PrecioListaTotalCentavos > 0 ? combo.PrecioListaTotalCentavos : combo.SubtotalComponentesCentavos)</span>
+                                @if (comboConAhorro)
+                                {
+                                    <span class="pos-precio-tachado">@FormatearMonto(precioListaCombo)</span>
+                                }
                                 <span class="pos-card-precio pos-precio-final">@FormatearMonto(combo.PrecioComboCentavos)</span>
                             </span>
                             <span class="muted pos-card-componentes" title="@string.Join(" + ", combo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))">
@@ -222,11 +227,15 @@ else
                     }
                     @foreach (var linea in _combosCarrito.Values)
                     {
+                        var precioListaLinea = linea.Promo.PrecioListaTotalCentavos > 0 ? linea.Promo.PrecioListaTotalCentavos : linea.Promo.SubtotalComponentesCentavos;
                         <div class="pos-linea pos-linea-combo">
                             <div class="pos-linea-info">
                                 <strong>@linea.Promo.Nombre</strong>
                                 <span class="muted">
-                                    <span class="pos-precio-tachado">@FormatearMonto(linea.Promo.PrecioListaTotalCentavos > 0 ? linea.Promo.PrecioListaTotalCentavos : linea.Promo.SubtotalComponentesCentavos)</span>
+                                    @if (precioListaLinea > linea.Promo.PrecioComboCentavos)
+                                    {
+                                        <span class="pos-precio-tachado">@FormatearMonto(precioListaLinea)</span>
+                                    }
                                     @($"{FormatearMonto(linea.Promo.PrecioComboCentavos)} el combo")
                                 </span>
                                 <span class="muted">@string.Join(" + ", linea.Promo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))</span>
@@ -399,7 +408,9 @@ else
             <p class="pos-total-confirmacion" style="margin-bottom: 0.15rem;">@FormatearMonto(_totalConfirmacion)</p>
             @if (TotalOriginal() > _totalConfirmacion)
             {
-                <span class="pos-original-chico">antes <s>@FormatearMonto(TotalOriginal())</s></span>
+                <p class="pos-precio-anterior-confirmacion">
+                    <span class="pos-precio-tachado">@FormatearMonto(TotalOriginal())</span>
+                </p>
             }
         </div>
             @if (EsMetodoEfectivo)
@@ -506,13 +517,10 @@ else
         margin-top: 0.75rem;
     }
 
-    /* Total de confirmación + precio original tachado (solo con promos). */
+    /* Total de confirmación + precio original tachado (solo con promos),
+       mismo patrón que el total del carrito. */
     .pos-confirmacion-totales { text-align: center; }
-    .pos-original-chico {
-        font-size: 0.95rem;
-        color: var(--color-text-muted);
-    }
-    .pos-original-chico s { opacity: 0.7; }
+    .pos-precio-anterior-confirmacion { margin: 0 0 0.5rem; }
 
     /* Promociones en POS: precio original tachado + final destacado; tarjeta
        de combo con badge. Vive aquí y no en app.css para no pisar el WIP
@@ -522,6 +530,12 @@ else
         opacity: .55;
         font-size: .8em;
         margin-right: .35rem;
+    }
+    /* Junto al total del carrito el tachado va DESPUÉS del monto: separación
+       a la izquierda (y sin la derecha, que ya no aplica). */
+    .pos-total .pos-precio-tachado {
+        margin-left: .5rem;
+        margin-right: 0;
     }
     .pos-precio-final { color: var(--mud-palette-success, #2e7d32); font-weight: 700; }
     .pos-card-combo { border: 2px dashed var(--mud-palette-primary, #1976d2); position: relative; }
