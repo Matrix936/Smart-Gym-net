@@ -222,9 +222,9 @@
             {
                 <p class="form-section" style="margin-top: 1rem;">Valor anterior</p>
                 <ul class="bitacora-valores">
-                    @foreach (var par in ParesDe(_detalle.ValorAnterior))
+                    @foreach (var par in ParesDe(_detalle.ValorAnterior, _detalle.Accion))
                     {
-                        <li><strong>@par.Key:</strong> @par.Value</li>
+                        <li><strong>@par.Key:</strong> @(par.IsMoney ? FormatearMonto(long.Parse(par.Value)) : par.Value)</li>
                     }
                 </ul>
             }
@@ -232,9 +232,9 @@
             {
                 <p class="form-section">Valor nuevo</p>
                 <ul class="bitacora-valores">
-                    @foreach (var par in ParesDe(_detalle.ValorNuevo))
+                    @foreach (var par in ParesDe(_detalle.ValorNuevo, _detalle.Accion))
                     {
-                        <li><strong>@par.Key:</strong> @par.Value</li>
+                        <li><strong>@par.Key:</strong> @(par.IsMoney ? FormatearMonto(long.Parse(par.Value)) : par.Value)</li>
                     }
                 </ul>
             }
@@ -522,29 +522,47 @@
     }
 
     /// <summary>Los valores se escriben como pares clave:valor separados por '|'
-    /// (convención de RegistrarBitacora). Si no parsean, se muestra crudo.</summary>
-    private static List<KeyValuePair<string, string>> ParesDe(string? valor)
+    /// (convención de RegistrarBitacora). Si no parsean, se muestra crudo.
+    /// Las keys monetarias conocidas (precio, inicial, final) y los valores
+    /// de caja (ingreso/egreso manual) se marcan IsMoney para formateo.</summary>
+    private static readonly HashSet<string> MoneyKeys = new(StringComparer.OrdinalIgnoreCase)
     {
-        var pares = new List<KeyValuePair<string, string>>();
+        "precio", "inicial", "final"
+    };
+
+    private static bool EsAccionCaja(string? accion) =>
+        accion is "caja.ingreso_manual" or "caja.egreso_manual";
+
+    private static List<(string Key, string Value, bool IsMoney)> ParesDe(string? valor, string? accion)
+    {
+        var pares = new List<(string Key, string Value, bool IsMoney)>();
         if (string.IsNullOrEmpty(valor))
         {
             return pares;
         }
 
+        var esCaja = EsAccionCaja(accion);
         foreach (var parte in valor.Split('|'))
         {
             var idx = parte.IndexOf(':');
             if (idx > 0)
             {
-                pares.Add(new KeyValuePair<string, string>(parte[..idx], parte[(idx + 1)..]));
+                var key = parte[..idx];
+                var val = parte[(idx + 1)..];
+                var isMoney = MoneyKeys.Contains(key)
+                    || (esCaja && long.TryParse(val, out _));
+                pares.Add((key, val, isMoney));
             }
             else
             {
-                pares.Add(new KeyValuePair<string, string>("detalle", parte));
+                pares.Add(("detalle", parte, false));
             }
         }
         return pares;
     }
+
+    private static string FormatearMonto(long centavos) =>
+        (centavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("es-MX"));
 
     private static string FormatearFecha(string iso)
     {
