@@ -252,7 +252,9 @@ else
                                 <span class="muted">
                                     @if (descuentoLinea is not null)
                                     {
-                                        <span class="pos-precio-tachado" title="@descuentoLinea.Nombre">@FormatearMonto(descuentoLinea.PrecioOriginalCentavos)</span>
+                                        <MudTooltip Text="@descuentoLinea.Nombre" tooltipclass="pos-tooltip" Placement="Placement.Top" Arrow>
+                                            <span class="pos-precio-tachado">@FormatearMonto(descuentoLinea.PrecioOriginalCentavos)</span>
+                                        </MudTooltip>
                                         @($"{FormatearMonto(precioFinalLinea)} c/u")
                                     }
                                     else
@@ -281,9 +283,12 @@ else
                     @foreach (var linea in _combosCarrito.Values)
                     {
                         var precioListaLinea = linea.Promo.PrecioListaTotalCentavos > 0 ? linea.Promo.PrecioListaTotalCentavos : linea.Promo.SubtotalComponentesCentavos;
+                        var descComponentes = (linea.Promo.Tipo == PromocionTipos.ComboMembresia ? $"Plan: {linea.Promo.NombrePlan} + " : "") + string.Join(" + ", linea.Promo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"));
                         <div class="pos-linea pos-linea-promo">
                             <div class="pos-linea-info">
-                                <strong>@linea.Promo.Nombre</strong>
+                                <MudTooltip Text="@descComponentes" tooltipclass="pos-tooltip" Placement="Placement.Top" Arrow>
+                                    <strong style="cursor: help;">@linea.Promo.Nombre</strong>
+                                </MudTooltip>
                                 <span class="muted">
                                     @if (precioListaLinea > linea.Promo.PrecioComboCentavos)
                                     {
@@ -291,7 +296,6 @@ else
                                     }
                                     @($"{FormatearMonto(linea.Promo.PrecioComboCentavos)} el combo")
                                 </span>
-                                <span class="muted">@(linea.Promo.Tipo == PromocionTipos.ComboMembresia ? $"Plan: {linea.Promo.NombrePlan} + " : "")@string.Join(" + ", linea.Promo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))</span>
                             </div>
                             <div class="pos-linea-cantidad">
                                 <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
@@ -317,11 +321,6 @@ else
                         <div class="pos-linea pos-linea-promo">
                             <div class="pos-linea-info">
                                 <strong>Membresía @(_membresiaCarrito.NombrePlan)</strong>
-                                <MudIconButton Icon="@Icons.Material.Filled.Info" Size="Size.Small"
-                                               Variant="Variant.Text" Color="Color.Default"
-                                               title="Se asignará al socio seleccionado — contado"
-                                               aria-label="Información sobre la membresía"
-                                               Style="padding: 0; min-width: 20px;" />
                             </div>
                             <div class="pos-linea-cantidad">
                                 <span class="pos-cantidad">1</span>
