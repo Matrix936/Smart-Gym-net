@@ -89,7 +89,7 @@ else
                     <button type="button" class="pos-pestana @(_pestanaActiva == "todos" ? "active" : "")"
                             @onclick='() => OnPestanaChangedAsync("todos")'>
                         Todos
-                        @if (HayBusquedaActiva && _totalProductosBusqueda > 0)
+                        @if (HayBusquedaActiva && _pestanaActiva != "todos" && _totalProductosBusqueda > 0)
                         {
                             <span class="pos-pestana-dot"></span>
                         }
@@ -97,7 +97,7 @@ else
                     <button type="button" class="pos-pestana @(_pestanaActiva == "promociones" ? "active" : "")"
                             @onclick='() => OnPestanaChangedAsync("promociones")'>
                         Promociones (@TotalPromocionesContextuales)
-                        @if (HayBusquedaActiva && TotalPromocionesContextuales > 0)
+                        @if (HayBusquedaActiva && _pestanaActiva != "promociones" && TotalPromocionesContextuales > 0)
                         {
                             <span class="pos-pestana-dot"></span>
                         }
