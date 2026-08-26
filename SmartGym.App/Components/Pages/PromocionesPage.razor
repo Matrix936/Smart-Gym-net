@@ -211,6 +211,7 @@
                        @bind-Value="_formTipo">
                 <MudSelectItem Value="@("descuento")">Descuento sobre un producto</MudSelectItem>
                 <MudSelectItem Value="@("combo")">Combo (productos a precio cerrado)</MudSelectItem>
+                <MudSelectItem Value="@("combo_membresia")">Combo + Membresía (plan y productos)</MudSelectItem>
             </MudSelect>
             <MudTextField T="string"
                           Label="Nombre"
@@ -276,6 +277,24 @@
             }
             else
             {
+                @* combo y combo_membresia comparten componentes; este último
+                   añade el plan incluido (buscador, mismo patrón que productos). *@
+                @if (_formTipo == "combo_membresia")
+                {
+                    <MudAutocomplete T="PlanMembresia"
+                                     Label="Plan de membresía *"
+                                     Variant="Variant.Outlined"
+                                     Margin="Margin.Dense"
+                                     SearchFunc="@BuscarPlanesAsync"
+                                     ToStringFunc="@(p => p is null ? "" : $"{p.Nombre} — {FormatearMonto(p.PrecioCentavos)}")"
+                                     MaxItems="10"
+                                     MinCharacters="0"
+                                     ResetValueOnEmptyText="true"
+                                     Clearable="true"
+                                     Value="_formPlanSeleccionado"
+                                     ValueChanged="OnPlanSeleccionadoChanged" />
+                }
+
                 <MudNumericField T="decimal"
                                  Label="Precio del combo"
                                  Variant="Variant.Outlined"
@@ -379,10 +398,12 @@
     [Inject] private ISessionState Sesion { get; set; } = default!;
     [Inject] private IPromocionesService Promociones { get; set; } = default!;
     [Inject] private IProductosService Productos { get; set; } = default!;
+    [Inject] private IPlanesMembresiaRepository PlanesRepo { get; set; } = default!;
     [Inject] private IFeedbackService Feedback { get; set; } = default!;
 
     private List<PromocionInfo> _promos = [];
     private List<Producto> _productosDisponibles = [];
+    private List<PlanMembresia> _planesDisponibles = [];
     private bool _cargando;
     private string _query = "";
     private string _filtroTipo = "";
@@ -407,6 +428,8 @@
     private string _formDescripcion = "";
     private long? _formIdProducto;
     private Producto? _productoDescSeleccionado;
+    private long? _formIdPlan;
+    private PlanMembresia? _formPlanSeleccionado;
     private Producto? _comboBusqueda;
     private MudBlazor.MudAutocomplete<Producto>? _comboSearchRef;
     private string _formTipoDescuento = "porcentaje";
@@ -452,6 +475,31 @@
         {
             _productosDisponibles = [];
         }
+
+        // Planes activos para el buscador de combo_membresia (catálogo pequeño).
+        try
+        {
+            _planesDisponibles = (await PlanesRepo.GetActivosAsync()).ToList();
+        }
+        catch
+        {
+            _planesDisponibles = [];
+        }
+    }
+
+    /// <summary>Búsqueda en vivo sobre planes activos — mismo patrón que productos.</summary>
+    private async Task<IEnumerable<PlanMembresia?>> BuscarPlanesAsync(string arg, CancellationToken ct)
+    {
+        var texto = arg?.Trim() ?? "";
+        return _planesDisponibles
+            .Where(p => texto.Length == 0 || p.Nombre.Contains(texto, StringComparison.OrdinalIgnoreCase))
+            .Cast<PlanMembresia?>();
+    }
+
+    private void OnPlanSeleccionadoChanged(PlanMembresia? plan)
+    {
+        _formPlanSeleccionado = plan;
+        _formIdPlan = plan?.IdPlan;
     }
 
     private async Task OnBusquedaChanged(string value)
@@ -564,6 +612,8 @@
         _formDescripcion = "";
         _formIdProducto = null;
         _productoDescSeleccionado = null;
+        _formIdPlan = null;
+        _formPlanSeleccionado = null;
         _comboBusqueda = null;
         _formTipoDescuento = "porcentaje";
         _formValorEntero = 10;
@@ -588,6 +638,17 @@
         _formNombre = p.Nombre;
         _formDescripcion = p.Descripcion ?? "";
         _formIdProducto = p.IdProducto;
+        _formIdPlan = p.IdPlan;
+        // Prefill del autocomplete de plan con stub (nombre viene del servicio).
+        _formPlanSeleccionado = p.IdPlan is null
+            ? null
+            : new PlanMembresia
+            {
+                IdPlan = p.IdPlan.Value,
+                Nombre = info.NombrePlan ?? "",
+                PrecioCentavos = 0,
+                EsActivo = true,
+            };
         _formTipoDescuento = p.TipoDescuento ?? "porcentaje";
         _formValorEntero = p.Valor ?? 0;
         _formValorMonto = (p.Valor ?? 0) / 100m;
@@ -753,6 +814,23 @@
                     await CrearDescuentoAsync(sesion);
                     Feedback.ShowSuccess("Descuento creado");
                 }
+                else if (_formTipo == "combo_membresia")
+                {
+                    if (_formIdPlan is null)
+                    {
+                        Feedback.ShowWarning("Selecciona el plan");
+                        return;
+                    }
+                    if (_componentesForm.Count == 0)
+                    {
+                        Feedback.ShowWarning("Agrega al menos un producto al combo");
+                        return;
+                    }
+                    await Promociones.CrearComboMembresiaAsync(sesion.Token,
+                        _formNombre.Trim(), NullSiVacio(_formDescripcion), _formIdPlan.Value,
+                        PrecioComboCentavos, ComponentesDeForm(), _formFechaInicio, _formFechaFin);
+                    Feedback.ShowSuccess("Combo + Membresía creado");
+                }
                 else
                 {
                     if (_componentesForm.Count == 0)
@@ -769,6 +847,13 @@
             else if (_formTipo == "descuento")
             {
                 await EditarDescuentoAsync(sesion);
+                Feedback.ShowSuccess("Promoción actualizada");
+            }
+            else if (_formTipo == "combo_membresia")
+            {
+                await Promociones.EditarComboMembresiaAsync(sesion.Token, _editandoId,
+                    _formNombre.Trim(), NullSiVacio(_formDescripcion), _formIdPlan!.Value,
+                    PrecioComboCentavos, ComponentesDeForm(), _formFechaInicio, _formFechaFin);
                 Feedback.ShowSuccess("Promoción actualizada");
             }
             else
