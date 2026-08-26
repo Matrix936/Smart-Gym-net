@@ -526,6 +526,11 @@ table.data-table {
     gap: 0.75rem;
     flex-wrap: wrap;
     margin-bottom: 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    flex-shrink: 0;
+    background: inherit;
 }
 
 /* flex: 0 0 auto explícito: MudBlazor le pone flex:1 1 auto a todo
@@ -2020,6 +2025,10 @@ table.data-table {
 .pos-panel-productos {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
 }
 
 .pos-grid {
@@ -2028,6 +2037,8 @@ table.data-table {
     grid-auto-rows: 1fr;
     gap: 0.75rem;
     margin-top: 1rem;
+    flex: 1;
+    min-height: 0;
 }
 
 .pos-card {
@@ -2091,7 +2102,8 @@ table.data-table {
 }
 
 .pos-carrito {
-    width: 340px;
+    width: 35%;
+    max-width: 420px;
     min-width: 300px;
     position: sticky;
     top: 1rem;
@@ -2241,8 +2253,15 @@ table.data-table {
         flex-direction: column;
     }
 
+    .pos-panel-productos {
+        max-height: none;
+        overflow-y: visible;
+    }
+
     .pos-carrito {
         width: 100%;
+        min-width: 0;
+        max-width: none;
         position: static;
         max-height: none;
         padding-bottom: 1rem;
