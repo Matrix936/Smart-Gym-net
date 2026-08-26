@@ -155,8 +155,10 @@ else if (_promocionesVigentes.Count > 0)
     var promo = _promocionesVigentes[_indiceCarrusel];
     <div class="kiosco-promos" aria-hidden="true">
         <div class="kiosco-promo-card" @key="promo.IdPromocion">
-            <span class="kiosco-promo-badge @(promo.Tipo == PromocionTipos.Combo ? "kiosco-promo-badge-combo" : "")">
-                @(promo.Tipo == PromocionTipos.Combo ? "Combo" : "Descuento")
+            <span class="kiosco-promo-badge @(promo.Tipo == PromocionTipos.Combo || promo.Tipo == PromocionTipos.ComboMembresia ? "kiosco-promo-badge-combo" : "")">
+                @(promo.Tipo == PromocionTipos.Combo ? "Combo"
+                  : promo.Tipo == PromocionTipos.ComboMembresia ? "Combo + Plan"
+                  : "Descuento")
             </span>
             <span class="kiosco-promo-nombre">@promo.Nombre</span>
             <span class="kiosco-promo-precio">
@@ -428,7 +430,6 @@ else if (_promocionesVigentes.Count > 0)
         try
         {
             vigentes = (await Promos.ObtenerVigentesParaKioscoAsync()).ToList();
-            vigentes = vigentes.Where(p => p.Tipo != PromocionTipos.ComboMembresia).ToList();
         }
         catch
         {
@@ -488,11 +489,13 @@ else if (_promocionesVigentes.Count > 0)
     }
 
     private static string TipoTexto(PosPromocionInfo p) =>
-        p.Tipo == PromocionTipos.Combo ? "COMBO" : "DESCUENTO";
+        p.Tipo == PromocionTipos.Combo ? "COMBO"
+        : p.Tipo == PromocionTipos.ComboMembresia ? "COMBO + PLAN"
+        : "DESCUENTO";
 
     /// <summary>Largo estimado de una copia de la cinta, para duración del loop.</summary>
     private int CaracteresCinta => _promocionesVigentes.Sum(p =>
-        (p.Tipo == PromocionTipos.Combo ? "COMBO: " : "DESCUENTO: ").Length + p.Nombre.Length + 14);
+        (TipoTexto(p) + ": ").Length + p.Nombre.Length + 14);
 
     /// <summary>Duración del loop proporcional al texto: velocidad de lectura constante (~6 chars/s).</summary>
     private double DuracionCinta => Math.Max(18, Math.Round(CaracteresCinta / 6.0));
