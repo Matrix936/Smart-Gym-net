@@ -1414,7 +1414,6 @@ else
 
         var esCredito = _metodoPago == MetodosPago.Credito;
         var esEfectivo = EsMetodoEfectivo;
-        var esContadoForzado = _membresiaCarrito is not null;
 
         // Guard: membresía requiere socio titular.
         if (_membresiaCarrito is not null && _socioSeleccionado is null)
@@ -1431,7 +1430,7 @@ else
             // CASO 1: SOLO membresía (sin productos ni combos) → VenderAsync directo.
             // El backend rechaza items vacíos, así que no se llama RegistrarVentaAsync.
             // ------------------------------------------------------------------
-            if (esContadoForzado && CarritoVacio())
+            if (_membresiaCarrito is not null && _carrito.Count == 0 && _combosCarrito.Count == 0)
             {
                 await VenderMembresiaSoloAsync(sesion);
                 return;
