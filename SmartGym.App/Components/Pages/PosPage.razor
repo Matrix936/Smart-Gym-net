@@ -674,6 +674,11 @@ else
             Feedback.ShowError("No tienes permiso para vender en el punto de venta");
             return;
         }
+        catch
+        {
+            Feedback.ShowError("No se pudo validar el permiso de venta");
+            return;
+        }
 
         _showSede = sesion.IdSede is null;
         if (_showSede)
@@ -704,6 +709,10 @@ else
         {
             // Sin sesión válida: el interruptor queda apagado (comportamiento por defecto).
         }
+        catch
+        {
+            // Error de infraestructura: crédito deshabilitado por defecto.
+        }
 
         try
         {
@@ -717,6 +726,10 @@ else
         catch (BusinessException)
         {
             // Sin configuración: impresión manual y sin impresora (defaults).
+        }
+        catch
+        {
+            // Error de infraestructura: impresión manual y sin impresora (defaults).
         }
 
         await CargarAsync();
