@@ -2041,6 +2041,23 @@ table.data-table {
     min-height: 0;
 }
 
+.pos-combos-scroll {
+    max-height: 18rem;
+    overflow-y: auto;
+    margin-top: 0.75rem;
+    border-top: var(--glass-border);
+    padding-top: 0.25rem;
+}
+
+.pos-combos-header {
+    position: sticky;
+    top: 0;
+    background: var(--color-surface);
+    z-index: 1;
+    margin: 0 0 0.375rem;
+    padding: 0.375rem 0;
+}
+
 .pos-card {
     display: flex;
     flex-direction: column;

@@ -134,36 +134,38 @@ else
                 </div>
                 @if (CombosFiltrados().Any())
                 {
-                    <p class="form-section" style="margin: 0.75rem 0 0.375rem;">Promociones y combos</p>
-                    <div class="pos-grid">
-                    @foreach (var combo in CombosFiltrados())
-                    {
-                        var agotadoCombo = ComboAgotado(combo);
-                        var esComboMembresia = combo.Tipo == PromocionTipos.ComboMembresia;
-                        var descComponentes = string.Join(" + ", combo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"));
-                        var descCompleta = esComboMembresia ? $"Plan: {combo.NombrePlan} + {descComponentes}" : descComponentes;
-                        var precioListaCombo = combo.PrecioListaTotalCentavos > 0 ? combo.PrecioListaTotalCentavos : combo.SubtotalComponentesCentavos;
-                        var comboConAhorro = precioListaCombo > combo.PrecioComboCentavos;
-                        <button type="button"
-                                class="pos-card pos-card-combo"
-                                disabled="@agotadoCombo"
-                                title="@(agotadoCombo ? "Sin stock de algún componente" : $"Agregar combo al carrito — {descCompleta}")"
-                                data-sg-pos-captura
-                                @onclick='() => AgregarComboAlCarrito(combo)'>
-                            <span class="pos-combo-badge">@(esComboMembresia ? "COMBO + PLAN" : "COMBO")</span>
-                            <span class="pos-card-desc">@combo.Nombre</span>
-                            <span class="pos-precios">
-                                @if (comboConAhorro)
-                                {
-                                    <span class="pos-precio-tachado">@FormatearMonto(precioListaCombo)</span>
-                                }
-                                <span class="pos-card-precio pos-precio-final">@FormatearMonto(combo.PrecioComboCentavos)</span>
-                            </span>
-                            <span class="muted pos-card-componentes" title="@string.Join(" + ", combo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))">
-                                Componentes: @string.Join(" + ", combo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))
-                            </span>
-                        </button>
-                    }
+                    <div class="pos-combos-scroll">
+                        <p class="form-section pos-combos-header">Promociones y combos</p>
+                        <div class="pos-grid">
+                        @foreach (var combo in CombosFiltrados())
+                        {
+                            var agotadoCombo = ComboAgotado(combo);
+                            var esComboMembresia = combo.Tipo == PromocionTipos.ComboMembresia;
+                            var descComponentes = string.Join(" + ", combo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"));
+                            var descCompleta = esComboMembresia ? $"Plan: {combo.NombrePlan} + {descComponentes}" : descComponentes;
+                            var precioListaCombo = combo.PrecioListaTotalCentavos > 0 ? combo.PrecioListaTotalCentavos : combo.SubtotalComponentesCentavos;
+                            var comboConAhorro = precioListaCombo > combo.PrecioComboCentavos;
+                            <button type="button"
+                                    class="pos-card pos-card-combo"
+                                    disabled="@agotadoCombo"
+                                    title="@(agotadoCombo ? "Sin stock de algún componente" : $"Agregar combo al carrito — {descCompleta}")"
+                                    data-sg-pos-captura
+                                    @onclick='() => AgregarComboAlCarrito(combo)'>
+                                <span class="pos-combo-badge">@(esComboMembresia ? "COMBO + PLAN" : "COMBO")</span>
+                                <span class="pos-card-desc">@combo.Nombre</span>
+                                <span class="pos-precios">
+                                    @if (comboConAhorro)
+                                    {
+                                        <span class="pos-precio-tachado">@FormatearMonto(precioListaCombo)</span>
+                                    }
+                                    <span class="pos-card-precio pos-precio-final">@FormatearMonto(combo.PrecioComboCentavos)</span>
+                                </span>
+                                <span class="muted pos-card-componentes" title="@string.Join(" + ", combo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))">
+                                    Componentes: @string.Join(" + ", combo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))
+                                </span>
+                            </button>
+                        }
+                        </div>
                     </div>
                 }
                 @if (_productos.Count > 0)
