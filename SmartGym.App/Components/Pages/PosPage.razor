@@ -1210,7 +1210,7 @@ else
             // chip "Todos" — el cajero ve cuántos productos hay sin cambiar de pestaña).
             try
             {
-                var conteo = await Productos.BuscarAsync(sesion.Token, query, 1, 1, esActivo: true);
+                var conteo = await Productos.BuscarAsync(sesion.Token, query, 1, TamanosPagina.Diez, esActivo: true);
                 _totalProductosBusqueda = conteo.TotalRegistros;
             }
             catch
