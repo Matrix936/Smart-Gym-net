@@ -40,7 +40,7 @@
 
     @if (!_cargando && _cajaAbierta is null)
     {
-        <div class="form-fields" style="max-width: 360px;" @onkeydown="HandleAperturaKeyDown">
+        <div class="form-fields" style="max-width: 360px;" @onkeyup="HandleAperturaKeyDown">
             <p class="form-section">Abrir caja</p>
             <MudNumericField T="decimal"
                               Label="Monto inicial"
@@ -101,7 +101,7 @@
            MembresiasService.CancelarAsync y la salida del Kiosco. Dos pasos
            separados (monto, luego contraseña) en vez de un solo formulario —
            pedirlos juntos confundía qué se estaba confirmando. *@
-        <div @onkeydown="HandleCierreKeyDown">
+        <div @onkeyup="HandleCierreKeyDown">
             <p class="form-section">Total esperado: @FormatearMonto((_cajaAbierta?.MontoInicialCentavos ?? 0) + _netoMovimientos)</p>
 
             @if (_cierrePaso == 1)
@@ -147,7 +147,7 @@
         @* Un solo paso (a diferencia del cierre): no hay reautorización de por
             medio, solo un asiento manual en la caja abierta. Solo efectivo
             afecta el conteo físico — misma regla que las ventas. *@
-        <div @onkeydown="HandleMovimientoKeyDown">
+        <div @onkeyup="HandleMovimientoKeyDown">
             <MudTextField T="string"
                           Label="Concepto"
                           Variant="Variant.Outlined"

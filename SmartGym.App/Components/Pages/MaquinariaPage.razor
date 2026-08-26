@@ -208,7 +208,7 @@
         <MudText Typo="Typo.h6">@(_editandoId is null ? "Nueva máquina" : "Editar máquina")</MudText>
     </TitleContent>
     <DialogContent>
-        <div class="form-fields" @onkeydown="HandleFormKeyDown">
+        <div class="form-fields" @onkeyup="HandleFormKeyDown">
             <MudTextField T="string"
                           Label="Nombre *"
                           Variant="Variant.Outlined"

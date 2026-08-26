@@ -16,7 +16,7 @@
         @* Enter = submit vía @onkeydown de contenedor — un <form> aquí no aplica,
            el MudDialog inline se teletransporta al MudDialogProvider (ver
            docs/migracion-dotnet/08-problemas-resueltos-blazor.md §6). *@
-        <div @onkeydown="HandleKeyDown">
+        <div @onkeyup="HandleKeyDown">
             <p class="form-section">Datos del plan</p>
             <div class="form-row">
                 <MudTextField T="string" Label="Nombre *" Margin="Margin.Dense" Variant="Variant.Outlined"

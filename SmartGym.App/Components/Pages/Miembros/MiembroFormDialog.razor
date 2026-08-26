@@ -19,7 +19,7 @@
            queda dentro del <form> del padre — ver
            docs/migracion-dotnet/08-problemas-resueltos-blazor.md §6). Se
            captura Enter a nivel de contenedor en su lugar. *@
-        <div style="margin-top: 0.5rem;" @onkeydown="HandleKeyDown">
+        <div style="margin-top: 0.5rem;" @onkeyup="HandleKeyDown">
             <p class="form-section">Datos generales</p>
 
             @* Immediate="true": el binding por defecto de MudBlazor solo actualiza
