@@ -109,7 +109,7 @@ else
                         var agotado = Agotado(p);
                         var descuento = DescuentoDe(p);
                         <button type="button"
-                                class="pos-card @(agotado ? "pos-card-agotado" : "")"
+                                class="pos-card"
                                 disabled="@agotado"
                                 title="@(agotado ? "Sin stock" : "Agregar al carrito")"
                                 data-sg-pos-captura
@@ -140,7 +140,7 @@ else
                         var precioListaCombo = combo.PrecioListaTotalCentavos > 0 ? combo.PrecioListaTotalCentavos : combo.SubtotalComponentesCentavos;
                         var comboConAhorro = precioListaCombo > combo.PrecioComboCentavos;
                         <button type="button"
-                                class="pos-card pos-card-combo @(agotadoCombo ? "pos-card-agotado" : "")"
+                                class="pos-card pos-card-combo"
                                 disabled="@agotadoCombo"
                                 title="@(agotadoCombo ? "Sin stock de algún componente" : $"Agregar combo al carrito — {descCompleta}")"
                                 data-sg-pos-captura
