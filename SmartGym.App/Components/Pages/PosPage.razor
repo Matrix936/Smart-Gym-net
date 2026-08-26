@@ -478,7 +478,7 @@ else
         }
         else
         {
-            <div class="form-fields">
+            <div class="form-fields" @onkeyup="HandleMembresiaDialogoKeyDown">
                 <MudAutocomplete T="PlanMembresia" Label="Plan *" Variant="Variant.Outlined" Margin="Margin.Dense"
                                  SearchFunc="@BuscarPlanesDialogoAsync"
                                  ToStringFunc="@(p => p is null ? "" : $"{p.Nombre} - {FormatearMonto(p.PrecioCentavos)}")"
@@ -1406,6 +1406,14 @@ else
         if (e.Key == "Enter" && PuedeConfirmarCobro())
         {
             _ = ConfirmarCobroAsync();
+        }
+    }
+
+    private void HandleMembresiaDialogoKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && _planDialogoMembresia is not null)
+        {
+            AgregarMembresiaAlCarrito();
         }
     }
 
