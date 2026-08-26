@@ -85,6 +85,12 @@ else
                               Value="@_query"
                               ValueChanged="OnBusquedaChanged"
                               @onkeydown="HandleBusquedaKeyDown" />
+                <div class="pos-pestanas">
+                    <button type="button" class="pos-pestana @(_pestanaActiva == "todos" ? "active" : "")"
+                            @onclick='() => OnPestanaChangedAsync("todos")'>Todos</button>
+                    <button type="button" class="pos-pestana @(_pestanaActiva == "promociones" ? "active" : "")"
+                            @onclick='() => OnPestanaChangedAsync("promociones")'>Promociones (@_combosPos.Count)</button>
+                </div>
                 <MudButton Variant="Variant.Outlined"
                            Color="Color.Primary"
                            StartIcon="@Icons.Material.Filled.CardMembership"
@@ -95,49 +101,52 @@ else
             {
                 <p class="muted">Cargando productos...</p>
             }
-            else if (_productos.Count == 0)
+            else if (GrillaVacia())
             {
                 <p class="muted">
-                    @(_query.Trim().Length > 0 ? "Sin resultados para tu búsqueda" : "No hay productos activos en el catálogo — da de alta en Productos")
+                    @(_query.Trim().Length > 0
+                        ? "Sin resultados para tu búsqueda"
+                        : (_pestanaActiva == "todos"
+                            ? "No hay productos activos en el catálogo — da de alta en Productos"
+                            : "No hay promociones vigentes"))
                 </p>
             }
             else
             {
                 <div class="pos-grid">
-                    @foreach (var p in _productos)
+                    @if (_pestanaActiva == "todos")
                     {
-                        var agotado = Agotado(p);
-                        var descuento = DescuentoDe(p);
-                        <button type="button"
-                                class="pos-card"
-                                disabled="@agotado"
-                                title="@(agotado ? "Sin stock" : "Agregar al carrito")"
-                                data-sg-pos-captura
-                                @onclick='e => AgregarAlCarritoAsync(p, e)'>
-                            <span class="pos-card-desc">@p.Descripcion</span>
-                            @if (descuento is not null)
-                            {
-                                <span class="pos-precios">
-                                    <span class="pos-precio-tachado">@FormatearMonto(descuento.PrecioOriginalCentavos)</span>
-                                    <span class="pos-card-precio pos-precio-final">@FormatearMonto(descuento.PrecioFinalCentavos)</span>
+                        @foreach (var p in _productos)
+                        {
+                            var agotado = Agotado(p);
+                            var descuento = DescuentoDe(p);
+                            <button type="button"
+                                    class="pos-card"
+                                    disabled="@agotado"
+                                    title="@(agotado ? "Sin stock" : "Agregar al carrito")"
+                                    data-sg-pos-captura
+                                    @onclick='e => AgregarAlCarritoAsync(p, e)'>
+                                <span class="pos-card-desc">@p.Descripcion</span>
+                                @if (descuento is not null)
+                                {
+                                    <span class="pos-precios">
+                                        <span class="pos-precio-tachado">@FormatearMonto(descuento.PrecioOriginalCentavos)</span>
+                                        <span class="pos-card-precio pos-precio-final">@FormatearMonto(descuento.PrecioFinalCentavos)</span>
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="pos-card-precio">@FormatearMonto(p.PrecioVentaCentavos)</span>
+                                }
+                                <span class="muted pos-card-stock">
+                                    @(p.RequiereInventario ? $"Stock: {(StockDe(p)?.ToString() ?? "0")}" : "Servicio")
                                 </span>
-                            }
-                            else
-                            {
-                                <span class="pos-card-precio">@FormatearMonto(p.PrecioVentaCentavos)</span>
-                            }
-                            <span class="muted pos-card-stock">
-                                @(p.RequiereInventario ? $"Stock: {(StockDe(p)?.ToString() ?? "0")}" : "Servicio")
-                            </span>
-                        </button>
+                            </button>
+                        }
                     }
-                </div>
-                @if (CombosFiltrados().Any())
-                {
-                    <div class="pos-combos-scroll">
-                        <p class="form-section pos-combos-header">Promociones y combos</p>
-                        <div class="pos-grid">
-                        @foreach (var combo in CombosFiltrados())
+                    else
+                    {
+                        @foreach (var combo in CombosFiltradosPaginados())
                         {
                             var agotadoCombo = ComboAgotado(combo);
                             var esComboMembresia = combo.Tipo == PromocionTipos.ComboMembresia;
@@ -165,13 +174,12 @@ else
                                 </span>
                             </button>
                         }
-                        </div>
-                    </div>
-                }
-                @if (_productos.Count > 0)
+                    }
+                </div>
+                @if (_totalRegistros > 0)
                 {
                     <div class="table-footer">
-                        <span class="muted">Mostrando @_productos.Count de @_totalRegistros producto(s)</span>
+                        <span class="muted">Mostrando @(ItemsVisibles()) de @_totalRegistros @(_pestanaActiva == "todos" ? "producto(s)" : "promoción(es)")</span>
                         <div class="pagination-controls">
                             <MudSelect T="int"
                                        Label="Ver"
@@ -579,6 +587,7 @@ else
     private int _tamanoPagina = TamanosPagina.Default;
     private int _totalRegistros;
     private int _totalPaginas;
+    private string _pestanaActiva = "todos";
 
     // Carrito: idProducto → línea (orden de inserción preservado).
     private sealed record CarritoLinea(Producto Producto, long Cantidad);
@@ -586,6 +595,7 @@ else
 
     // Promociones vigentes de la sede (descuentos por producto + combos).
     private List<PosPromocionInfo> _combosPos = [];
+    private List<PosPromocionInfo> _combosPaginados = [];
     private Dictionary<long, PosPromocionInfo> _descuentoPorProducto = [];
 
     // Carrito de combos: idPromocion → línea (el precio cerrado manda).
@@ -1010,7 +1020,7 @@ else
             return;
         }
 
-        var producto = _productos.FirstOrDefault();
+        var producto = _pestanaActiva == "todos" ? _productos.FirstOrDefault() : null;
         if (producto is not null)
         {
             // Detail=0: sin blur interop (el campo se limpiará abajo).
@@ -1019,7 +1029,7 @@ else
             return;
         }
 
-        var combo = CombosFiltrados().FirstOrDefault();
+        var combo = _pestanaActiva == "promociones" ? CombosFiltrados().FirstOrDefault() : null;
         if (combo is not null)
         {
             AgregarComboAlCarrito(combo);
@@ -1135,24 +1145,8 @@ else
             return;
         }
 
-        var query = string.IsNullOrWhiteSpace(_query) ? null : _query.Trim();
-        var resultado = await Productos.BuscarAsync(sesion.Token, query, _pagina, _tamanoPagina, esActivo: true);
-        _productos = resultado.Items.ToList();
-        _totalRegistros = resultado.TotalRegistros;
-        _totalPaginas = resultado.TotalPaginas;
-
-        if (_productos.Count > 0)
-        {
-            var sedeStock = IdSedeEfectivo(sesion);
-            _stockPorProducto = (await Inventario.GetBySedeAsync(sedeStock)).ToDictionary(i => i.IdProducto, i => i.Stock);
-        }
-        else
-        {
-            _stockPorProducto = [];
-        }
-
-        // Promociones vigentes: descuentos indexados por producto y combos para
-        // la grilla. Una promoción no vigente simplemente no aparece.
+        // Promociones vigentes: siempre se cargan (necesarias para
+        // _descuentoPorProducto en pestaña "todos" y para la grilla de combos).
         try
         {
             var promos = await Promos.ObtenerParaPosAsync(sesion.Token);
@@ -1166,6 +1160,37 @@ else
         {
             _descuentoPorProducto = [];
             _combosPos = [];
+        }
+
+        var query = string.IsNullOrWhiteSpace(_query) ? null : _query.Trim();
+
+        if (_pestanaActiva == "todos")
+        {
+            var resultado = await Productos.BuscarAsync(sesion.Token, query, _pagina, _tamanoPagina, esActivo: true);
+            _productos = resultado.Items.ToList();
+            _totalRegistros = resultado.TotalRegistros;
+            _totalPaginas = resultado.TotalPaginas;
+
+            if (_productos.Count > 0)
+            {
+                var sedeStock = IdSedeEfectivo(sesion);
+                _stockPorProducto = (await Inventario.GetBySedeAsync(sedeStock)).ToDictionary(i => i.IdProducto, i => i.Stock);
+            }
+            else
+            {
+                _stockPorProducto = [];
+            }
+        }
+        else
+        {
+            // Pestaña "promociones": paginación client-side sobre _combosPos.
+            var filtrados = CombosFiltrados().ToList();
+            _totalRegistros = filtrados.Count;
+            _totalPaginas = _tamanoPagina <= 0 ? 0 : (int)Math.Ceiling(_totalRegistros / (double)_tamanoPagina);
+            _combosPaginados = filtrados
+                .Skip((_pagina - 1) * _tamanoPagina)
+                .Take(_tamanoPagina)
+                .ToList();
         }
     }
 
@@ -1197,6 +1222,24 @@ else
         return _combosPos.Where(c =>
             c.Nombre.Contains(q, StringComparison.OrdinalIgnoreCase) ||
             c.Componentes.Any(x => x.DescripcionProducto.Contains(q, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private IReadOnlyList<PosPromocionInfo> CombosFiltradosPaginados() => _combosPaginados;
+
+    private bool GrillaVacia() => _pestanaActiva == "todos" ? _productos.Count == 0 : _combosPaginados.Count == 0;
+
+    private int ItemsVisibles() => _pestanaActiva == "todos" ? _productos.Count : _combosPaginados.Count;
+
+    private async Task OnPestanaChangedAsync(string pestana)
+    {
+        if (_pestanaActiva == pestana)
+        {
+            return;
+        }
+        _pestanaActiva = pestana;
+        _pagina = 1;
+        await CargarProductosAsync();
+        StateHasChanged();
     }
 
     /// <summary>Combo agotado: algún componente con inventario no alcanza para una unidad más.</summary>
