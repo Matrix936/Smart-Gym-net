@@ -228,7 +228,7 @@ else
                     @foreach (var linea in _combosCarrito.Values)
                     {
                         var precioListaLinea = linea.Promo.PrecioListaTotalCentavos > 0 ? linea.Promo.PrecioListaTotalCentavos : linea.Promo.SubtotalComponentesCentavos;
-                        <div class="pos-linea pos-linea-combo">
+                        <div class="pos-linea pos-linea-promo">
                             <div class="pos-linea-info">
                                 <strong>@linea.Promo.Nombre</strong>
                                 <span class="muted">
@@ -257,10 +257,11 @@ else
                                             OnClick="() => EliminarLineaCombo(linea)" />
                         </div>
                     }
-                    @* Membresía en el carrito: línea especial de contado, exige socio titular al cobrar. *@
+                    @* Membresía en el carrito: línea especial de contado, exige socio titular al cobrar.
+                       Sin cantidad variable: muestra "1" fijo (misma plantilla de columnas que producto/combo). *@
                     @if (_membresiaCarrito is not null)
                     {
-                        <div class="pos-linea pos-linea-combo">
+                        <div class="pos-linea pos-linea-promo">
                             <div class="pos-linea-info">
                                 <strong>Membresía @(_membresiaCarrito.NombrePlan)</strong>
                                 <MudIconButton Icon="@Icons.Material.Filled.Info" Size="Size.Small"
@@ -270,12 +271,13 @@ else
                                                Style="padding: 0; min-width: 20px;" />
                             </div>
                             <div class="pos-linea-cantidad">
-                                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
-                                               aria-label="Quitar membresía"
-                                               title="Quitar membresía"
-                                               OnClick="QuitarMembresiaDelCarrito" />
+                                <span class="pos-cantidad">1</span>
                             </div>
                             <span class="pos-linea-subtotal">@FormatearMonto(_membresiaCarrito.PrecioCentavos)</span>
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                           aria-label="Quitar membresía"
+                                           title="Quitar membresía"
+                                           OnClick="QuitarMembresiaDelCarrito" />
                         </div>
                     }
                 </div>

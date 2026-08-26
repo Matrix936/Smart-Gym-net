@@ -2096,8 +2096,11 @@ table.data-table {
     position: sticky;
     top: 1rem;
     /* El panel nunca excede el viewport: la lista absorbe el espacio restante
-       y el bloque de total + botón Cobrar queda SIEMPRE visible. */
+       y el bloque de total + botón Cobrar queda SIEMPRE visible. Si aun así el
+       bloque fijo (socio + método + campos de crédito + total + Cobrar) excede
+       la altura disponible, el panel mismo scrollea — Cobrar siempre alcanzable. */
     max-height: calc(100vh - 2rem);
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
 }
@@ -2133,16 +2136,28 @@ table.data-table {
     margin: 0.5rem 0 0.75rem;
 }
 
+/* Fila de línea del carrito: grid de 4 columnas FIJAS (info | cantidad |
+   subtotal | eliminar) compartida por los 3 tipos de línea (producto, combo,
+   membresía) — así las columnas alinean entre líneas aunque el texto varíe.
+   Los anchos fijos son el mínimo que necesita cada control (stepper ~80px,
+   "$3,710.00" a .9rem ~62px, icono ~28px) para dejarle el resto a la info. */
 .pos-linea {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 80px 68px 32px;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
+}
+
+/* Líneas con promoción (combos y combo_membresia) o membresía suelta:
+   acento sutil coherente con el borde dashed azul de las tarjetas de combo. */
+.pos-linea-promo {
+    border-left: 3px solid var(--color-primary);
+    padding-left: 0.6rem;
 }
 
 .pos-linea-info {
     display: flex;
     flex-direction: column;
-    flex: 1;
     min-width: 0;
 }
 
@@ -2160,6 +2175,13 @@ table.data-table {
     min-width: 2ch;
     text-align: center;
     font-weight: 700;
+}
+
+/* Subtotal de línea: columna fija alineada a la derecha en los 3 tipos. */
+.pos-linea-subtotal {
+    text-align: right;
+    font-weight: 600;
+    font-size: 0.9rem;
 }
 
 @media (max-width: 900px) {
