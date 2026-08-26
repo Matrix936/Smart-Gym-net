@@ -131,6 +131,11 @@ else
                             </span>
                         </button>
                     }
+                </div>
+                @if (CombosFiltrados().Any())
+                {
+                    <p class="form-section" style="margin: 0.75rem 0 0.375rem;">Promociones y combos</p>
+                    <div class="pos-grid">
                     @foreach (var combo in CombosFiltrados())
                     {
                         var agotadoCombo = ComboAgotado(combo);
@@ -159,7 +164,8 @@ else
                             </span>
                         </button>
                     }
-                </div>
+                    </div>
+                }
                 @if (_productos.Count > 0)
                 {
                     <div class="table-footer">
