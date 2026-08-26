@@ -252,8 +252,8 @@ else
                                 <span class="muted">
                                     @if (descuentoLinea is not null)
                                     {
-                                        <span class="pos-precio-tachado">@FormatearMonto(descuentoLinea.PrecioOriginalCentavos)</span>
-                                        @($"{FormatearMonto(precioFinalLinea)} c/u · {descuentoLinea.Nombre}")
+                                        <span class="pos-precio-tachado" title="@descuentoLinea.Nombre">@FormatearMonto(descuentoLinea.PrecioOriginalCentavos)</span>
+                                        @($"{FormatearMonto(precioFinalLinea)} c/u")
                                     }
                                     else
                                     {
@@ -291,7 +291,7 @@ else
                                     }
                                     @($"{FormatearMonto(linea.Promo.PrecioComboCentavos)} el combo")
                                 </span>
-                                <span class="muted">@string.Join(" + ", linea.Promo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))</span>
+                                <span class="muted">@(linea.Promo.Tipo == PromocionTipos.ComboMembresia ? $"Plan: {linea.Promo.NombrePlan} + " : "")@string.Join(" + ", linea.Promo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))</span>
                             </div>
                             <div class="pos-linea-cantidad">
                                 <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
