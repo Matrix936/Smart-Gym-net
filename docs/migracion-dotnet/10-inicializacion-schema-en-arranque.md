@@ -53,6 +53,28 @@ Nota sobre el caso 2: el crash es **silencioso por diseño de WinUI** — las st
 ### Nota de proceso
 
 Antes de commitear cualquier cambio de schema que agregue columnas a una tabla existente, correr la app localmente contra una base de datos real (no solo la suite de tests) para confirmar que el arranque no falla — la suite de tests **no detecta este tipo de error** porque usa bases de datos frescas en cada test (el `CREATE TABLE` nuevo sí incluye las columnas).
-## Referencia cruzada
+
+---
+
+## Caso 3 (producción real, 2026-08-25): promociones.id_plan
+
+**Primer incidente con datos reales de un cliente.** Commit `03e9a7c` (combo_membresia) agregó `promociones.id_plan` + índice; la BD de producción no tenía la columna → mismo crash silencioso al arrancar (0xc000027B en Visor de Eventos, 3 intentos). Confirmado leyendo la BD directamente con Microsoft.Data.Sqlite.
+
+**Resuelto en dos capas (commit `f5c70c0`):**
+
+1. **DbInitializer resiliente (defensa genérica):**
+   - Pre-chequeo: todo `CREATE INDEX` del script se valida contra `PRAGMA table_info` de la BD destino; si falta alguna columna, el índice se omite con log (nunca tumba el arranque).
+   - Fallback sentencia-por-sentencia: si el batch completo falla por cualquier otro motivo, se aplica individualmente lo que se pueda, registrando cada fallo vía `DbInitializer.LogWarning` (cableado a `sg_diag_render.log`).
+2. **Migración puntual:** `docs/migracion-dotnet/scripts/migrar-produccion-combo-membresia.ps1` — backup automático + ALTER condicional + verificación de filas intactas.
+
+## Decisión: migraciones versionadas NO se construyen por ahora
+
+Con producción activa, el gatillo documentado arriba quedó técnicamente activado. Sin embargo, tras el caso 3 se decide **no construir aún** el sistema completo de migraciones versionadas (`schema_migrations`), porque:
+
+- El hardening del inicializador es una **defensa genérica**: ante cualquier delta futuro (columna/índice nuevo sobre tabla existente), el arranque ya no crashea — omite lo que no puede aplicar y lo registra.
+- Los deltas hasta hoy son solo "columna nueva nullable + índice", aplicables con scripts puntuales como este.
+- Un sistema versionado completo es inversión considerable que se justificará cuando haga falta algo que los scripts puntuales no cubren bien: **migrar datos** (transformar valores, partir columnas, backfills), no solo agregar estructura aditiva nullable.
+
+**Re-gatillo para reconsiderarlo:** la primera vez que un cambio requiera transformar o mover datos existentes (no solo estructura aditiva nullable).## Referencia cruzada
 
 Consideración análoga de rendimiento: la función SQL `sin_acentos()` (búsqueda insensible a acentos, ver commit `1cf9dd0`) aplicada dentro de un `LIKE` impide el uso de índices sobre la columna (no sargable). Aceptable para catálogos de bajo volumen; no replicarla en tablas de alto volumen (`bitacora_auditoria`, `ventas`) sin una columna normalizada persistida.
