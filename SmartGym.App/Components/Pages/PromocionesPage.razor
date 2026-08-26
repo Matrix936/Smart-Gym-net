@@ -431,7 +431,6 @@
     private long? _formIdPlan;
     private PlanMembresia? _formPlanSeleccionado;
     private Producto? _comboBusqueda;
-    private MudBlazor.MudAutocomplete<Producto>? _comboSearchRef;
     private string _formTipoDescuento = "porcentaje";
     private long _formValorEntero = 10;
     private decimal _formValorMonto;
@@ -717,10 +716,6 @@
         }
 
         _comboBusqueda = null;
-        if (_comboSearchRef is not null)
-        {
-            await _comboSearchRef.ClearAsync();
-        }
         StateHasChanged();
     }
 
