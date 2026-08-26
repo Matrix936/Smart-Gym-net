@@ -509,57 +509,6 @@ else
               OnConfirm="VaciarCarritoConfirmadoAsync"
               OnCancel="@(() => _vaciarConfirmacion = false)" />
 
-<style>
-    /* Confirmación de cobro: total protagonista + cambio calculado en vivo. */
-    .pos-total-confirmacion {
-        text-align: center;
-        font-size: 2.1rem;
-        font-weight: 800;
-        color: var(--color-primary);
-        margin: 0.25rem 0 1rem;
-    }
-
-    .pos-cambio {
-        font-size: 1.05rem;
-        margin-top: 0.75rem;
-    }
-
-    /* Total de confirmación + precio original tachado (solo con promos),
-       mismo patrón que el total del carrito. */
-    .pos-confirmacion-totales { text-align: center; }
-    .pos-precio-anterior-confirmacion { margin: 0 0 0.5rem; }
-
-    /* Promociones en POS: precio original tachado + final destacado; tarjeta
-       de combo con badge. Vive aquí y no en app.css para no pisar el WIP
-       compartido de estilos globales. */
-    .pos-precio-tachado {
-        text-decoration: line-through;
-        opacity: 0.55;
-        font-size: 0.8em;
-        margin-right: 0.35rem;
-    }
-    /* Junto al total del carrito el tachado va DESPUÉS del monto: separación
-       a la izquierda (y sin la derecha, que ya no aplica). */
-    .pos-total .pos-precio-tachado {
-        margin-left: 0.5rem;
-        margin-right: 0;
-    }
-    .pos-precio-final { color: var(--mud-palette-success, #2e7d32); font-weight: 700; }
-    .pos-card-combo { border: 2px dashed var(--mud-palette-primary, #1976d2); position: relative; }
-    .pos-combo-badge {
-        position: absolute;
-        top: 0.4rem;
-        right: 0.4rem;
-        background: var(--mud-palette-primary, #1976d2);
-        color: #fff;
-        font-size: 0.65rem;
-        font-weight: 800;
-        letter-spacing: 0.06em;
-        padding: 0.1rem 0.45rem;
-        border-radius: 999px;
-    }
-</style>
-
 @code {
     [Inject] private ISessionState Sesion { get; set; } = default!;
     [Inject] private IPosService Pos { get; set; } = default!;
