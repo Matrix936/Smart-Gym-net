@@ -2079,7 +2079,7 @@ table.data-table {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--color-success);
+    background: var(--color-primary);
 }
 
 .pos-card {
