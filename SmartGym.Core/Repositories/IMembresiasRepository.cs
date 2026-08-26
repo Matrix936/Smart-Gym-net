@@ -15,11 +15,16 @@ public interface IMembresiasRepository
     /// <summary>Máxima fecha_fin de las membresías del socio (renovar sin perder días).</summary>
     Task<string?> GetUltimaFechaFinAsync(string idSocio, CancellationToken ct = default);
 
-    /// <summary>Venta atómica: membresía + pago + movimiento de caja (+ cuenta por cobrar si pago parcial) + bitácora.</summary>
+    /// <summary>
+    /// Venta atómica: membresía + pago + movimiento de caja (+ cuenta por cobrar
+    /// si pago parcial) + bitácora. `movimiento` es null cuando el dinero ya
+    /// entró con la venta POS que originó la membresía (combo_membresia) — en
+    /// ese caso NO se inserta movimiento de caja ni cuenta por cobrar.
+    /// </summary>
     Task VenderAsync(
         Membresia membresia,
         MembresiaPago pago,
-        CajaMovimiento movimiento,
+        CajaMovimiento? movimiento,
         CuentaCobrar? cuenta,
         BitacoraAuditoria bitacora,
         CancellationToken ct = default);

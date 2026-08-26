@@ -48,7 +48,7 @@ public sealed class MembresiasRepository : RepositoryBase, IMembresiasRepository
     public async Task VenderAsync(
         Membresia membresia,
         MembresiaPago pago,
-        CajaMovimiento movimiento,
+        CajaMovimiento? movimiento,
         CuentaCobrar? cuenta,
         BitacoraAuditoria bitacora,
         CancellationToken ct = default)
@@ -76,27 +76,30 @@ public sealed class MembresiasRepository : RepositoryBase, IMembresiasRepository
                     },
                     tx, cancellationToken: ct));
 
-            await conn.ExecuteAsync(
-                new CommandDefinition(
-                    "INSERT INTO caja_movimientos (id_movimiento, id_sesion, tipo, concepto, monto_centavos, " +
-                    "metodo_pago, afecta_efectivo, referencia_tipo, referencia_id, created_at, updated_at, sincronizado) " +
-                    "VALUES (@IdMovimiento, @IdSesion, @Tipo, @Concepto, @MontoCentavos, @MetodoPago, " +
-                    "@AfectaEfectivo, @ReferenciaTipo, @ReferenciaId, @CreatedAt, @UpdatedAt, 0);",
-                    new
-                    {
-                        movimiento.IdMovimiento,
-                        movimiento.IdSesion,
-                        movimiento.Tipo,
-                        movimiento.Concepto,
-                        movimiento.MontoCentavos,
-                        movimiento.MetodoPago,
-                        movimiento.AfectaEfectivo,
-                        movimiento.ReferenciaTipo,
-                        movimiento.ReferenciaId,
-                        movimiento.CreatedAt,
-                        movimiento.UpdatedAt,
-                    },
-                    tx, cancellationToken: ct));
+            if (movimiento is not null)
+            {
+                await conn.ExecuteAsync(
+                    new CommandDefinition(
+                        "INSERT INTO caja_movimientos (id_movimiento, id_sesion, tipo, concepto, monto_centavos, " +
+                        "metodo_pago, afecta_efectivo, referencia_tipo, referencia_id, created_at, updated_at, sincronizado) " +
+                        "VALUES (@IdMovimiento, @IdSesion, @Tipo, @Concepto, @MontoCentavos, @MetodoPago, " +
+                        "@AfectaEfectivo, @ReferenciaTipo, @ReferenciaId, @CreatedAt, @UpdatedAt, 0);",
+                        new
+                        {
+                            movimiento.IdMovimiento,
+                            movimiento.IdSesion,
+                            movimiento.Tipo,
+                            movimiento.Concepto,
+                            movimiento.MontoCentavos,
+                            movimiento.MetodoPago,
+                            movimiento.AfectaEfectivo,
+                            movimiento.ReferenciaTipo,
+                            movimiento.ReferenciaId,
+                            movimiento.CreatedAt,
+                            movimiento.UpdatedAt,
+                        },
+                        tx, cancellationToken: ct));
+            }
 
             await InsertPagoCoreAsync(conn, tx, pago, ct);
 

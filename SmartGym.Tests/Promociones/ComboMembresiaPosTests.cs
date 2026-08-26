@@ -82,6 +82,74 @@ public sealed class ComboMembresiaPosTests
     }
 
     [Fact]
+    public async Task vender_combo_membresia_crea_membresia_sin_duplicar_caja_ni_cuenta()
+    {
+        var (ctx, token, _) = await Fase4Helper.SuperadminAsync();
+        var sedeId = 1L;
+        var (idPlan, idProducto, idPromo) = await CrearComboAsync(ctx, token);
+        var idSocio = UuidHelper.NewV4();
+        await Fase6Helper.InsertarSocioAsync(ctx, idSocio, sedeId);
+        await Fase6Helper.InsertarInventarioAsync(ctx, idProducto, sedeId, 10);
+        await ctx.CajaService.AbrirCajaAsync(token, 1000000, sedeId);
+
+        // Flujo completo de UI (PosPage.ConfirmarCobroConProductosAsync):
+        // 1) RegistrarVentaAsync cobra el precio cerrado completo.
+        var venta = await ctx.PosService.RegistrarVentaAsync(token, new RegistrarVentaInput
+        {
+            Items = [new VentaItem { IdPromocion = idPromo, Cantidad = 1 }],
+            IdSocio = idSocio,
+            MetodoPago = "efectivo",
+        }, sedeId);
+
+        // 2) Segunda llamada: crea la membresía con el share, marcada como
+        // originada en la venta POS — SIN movimiento de caja ni cuenta.
+        var membresia = await ctx.MembresiasService.VenderAsync(
+            token,
+            idSocio,
+            venta.IdPlanComboMembresia!.Value,
+            "efectivo",
+            venta.PlanShareCentavos,
+            sedeId,
+            idVentaPosOrigen: venta.IdVenta);
+
+        Assert.Equal(idPlan, membresia.IdPlan);
+        Assert.Equal(idSocio, membresia.IdSocio);
+        Assert.Equal("activa", membresia.Estado);
+
+        await using var conn = ConnectionFactory.Open(ctx.DbPath);
+
+        // La membresía quedó en la tabla (visible para /membresías).
+        var filas = await conn.QuerySingleAsync<long>(
+            new CommandDefinition(
+                "SELECT COUNT(1) FROM membresias WHERE id_socio = @idSocio AND deleted_at IS NULL",
+                new { idSocio }));
+        Assert.Equal(1, filas);
+
+        // UN solo ingreso por la venta completa; NINGUNO duplicado por la
+        // membresía (referencia pago_membresia no debe existir).
+        var movsMembresia = await conn.QuerySingleAsync<long>(
+            new CommandDefinition(
+                "SELECT COUNT(1) FROM caja_movimientos WHERE referencia_tipo = 'pago_membresia'"));
+        Assert.Equal(0, movsMembresia);
+
+        // Sin cuenta fantasma: el precio del combo ya cubre el plan aunque el
+        // share prorrateado sea menor a su precio de lista.
+        var cuentas = await conn.QuerySingleAsync<long>(
+            new CommandDefinition(
+                "SELECT COUNT(1) FROM cuentas_cobrar WHERE id_socio = @idSocio",
+                new { idSocio }));
+        Assert.Equal(0, cuentas);
+
+        // Pago registrado por el share, sin movimiento de caja propio.
+        var pagos = await conn.QueryAsync<(long monto, string? idCajaMovimiento)>(
+            new CommandDefinition(
+                "SELECT monto_centavos, id_caja_movimiento FROM membresias_pagos WHERE id_membresia = @id",
+                new { id = membresia.IdMembresia }));
+        var pago = Assert.Single(pagos);
+        Assert.Equal((venta.PlanShareCentavos, null), (pago.monto, pago.idCajaMovimiento));
+    }
+
+    [Fact]
     public async Task cancelar_venta_con_combo_membresia_es_bloqueado()
     {
         var (ctx, token, _) = await Fase4Helper.SuperadminAsync();

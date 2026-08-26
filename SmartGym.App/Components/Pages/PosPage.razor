@@ -600,6 +600,11 @@ else
     private sealed record CarritoComboLinea(PosPromocionInfo Promo, long Cantidad);
     private Dictionary<string, CarritoComboLinea> _combosCarrito = new();
 
+    /// <summary>El backend solo soporta UN combo_membresia por venta
+    /// (VentaInfo expone un único idPlan/share): línea única del carrito.</summary>
+    private CarritoComboLinea? ComboMembresiaDelCarrito =>
+        _combosCarrito.Values.FirstOrDefault(c => c.Promo.Tipo == PromocionTipos.ComboMembresia);
+
     // Membresía vendida junto a la venta (una sola por cobro, siempre contado).
     private sealed record MembresiaCarritoLinea(long IdPlan, string NombrePlan, long PrecioCentavos);
     private MembresiaCarritoLinea? _membresiaCarrito;
@@ -1199,7 +1204,21 @@ else
             return;
         }
 
+        // Un solo combo_membresia por venta y con cantidad 1: el backend crea
+        // una única membresía (VentaInfo expone un solo idPlan/share).
+        if (promo.Tipo == PromocionTipos.ComboMembresia && ComboMembresiaDelCarrito is not null)
+        {
+            Feedback.ShowWarning("Solo se puede vender un combo con membresía por venta");
+            return;
+        }
+
+        var esComboMembresiaNuevo = promo.Tipo == PromocionTipos.ComboMembresia;
         var cantidadActual = _combosCarrito.TryGetValue(promo.IdPromocion, out var linea) ? linea.Cantidad : 0;
+        if (esComboMembresiaNuevo && cantidadActual >= 1)
+        {
+            Feedback.ShowWarning("Solo se puede vender un combo con membresía por venta");
+            return;
+        }
         _combosCarrito[promo.IdPromocion] = new CarritoComboLinea(promo, cantidadActual + 1);
     }
 
@@ -1209,6 +1228,12 @@ else
         if (nueva <= 0)
         {
             _combosCarrito.Remove(linea.Promo.IdPromocion);
+            return;
+        }
+        // El backend crea UNA sola membresía por venta: no permitir >1 unidad.
+        if (linea.Promo.Tipo == PromocionTipos.ComboMembresia && nueva > 1)
+        {
+            Feedback.ShowWarning("Solo se puede vender un combo con membresía por venta");
             return;
         }
         _combosCarrito[linea.Promo.IdPromocion] = linea with { Cantidad = nueva };
@@ -1429,8 +1454,9 @@ else
         var esCredito = _metodoPago == MetodosPago.Credito;
         var esEfectivo = EsMetodoEfectivo;
 
-        // Guard: membresía requiere socio titular.
-        if (_membresiaCarrito is not null && _socioSeleccionado is null)
+        // Guard: membresía (suelta o dentro de combo_membresia) requiere socio.
+        if ((_membresiaCarrito is not null || ComboMembresiaDelCarrito is not null)
+            && _socioSeleccionado is null)
         {
             Feedback.ShowWarning("La membresía requiere un socio titular");
             return;
@@ -1559,6 +1585,42 @@ else
                 }
             }
 
+            // Membresía incluida en un combo_membresia: el backend la separó del
+            // precio cerrado en VentaInfo (IdPlanComboMembresia/PlanShare) — el
+            // dinero ya entró con la venta, así que la segunda llamada NO genera
+            // otro movimiento de caja ni cuenta por cobrar.
+            ReciboLinea? lineaMembresiaCombo = null;
+            string? errorMembresiaCombo = null;
+            var comboMembresia = ComboMembresiaDelCarrito;
+            if (comboMembresia is not null && venta.IdPlanComboMembresia is not null && _socioSeleccionado is not null)
+            {
+                try
+                {
+                    await Membresias.VenderAsync(
+                        sesion.Token,
+                        _socioSeleccionado.IdSocio,
+                        venta.IdPlanComboMembresia.Value,
+                        _metodoPago,
+                        venta.PlanShareCentavos,
+                        _showSede ? _idSedeTerminal : null,
+                        idVentaPosOrigen: venta.IdVenta);
+
+                    lineaMembresiaCombo = new ReciboLinea(
+                        $"Membresía {comboMembresia.Promo.NombrePlan}",
+                        1,
+                        venta.PlanShareCentavos,
+                        venta.PlanShareCentavos);
+                }
+                catch (BusinessException ex)
+                {
+                    errorMembresiaCombo = ex.Message;
+                }
+                catch
+                {
+                    errorMembresiaCombo = "No se pudo registrar la membresía";
+                }
+            }
+
             // Recibo en pantalla (reemplaza al snackbar de "Venta registrada"):
             // snapshot ANTES de limpiar, porque el carrito ya no estará.
             _recibo = new ReciboVenta(
@@ -1590,6 +1652,9 @@ else
                             1,
                             _membresiaCarrito.PrecioCentavos,
                             _membresiaCarrito.PrecioCentavos)]
+                        : Array.Empty<ReciboLinea>())
+                    .Concat(lineaMembresiaCombo is not null
+                        ? [lineaMembresiaCombo]
                         : Array.Empty<ReciboLinea>())
                     .ToList(),
                 TotalCentavos: venta.TotalCentavos,
@@ -1633,6 +1698,14 @@ else
                 // Éxito-parcial: los productos ya están vendidos; la membresía
                 // puede reintentarse desde /pos o /membresías.
                 Feedback.ShowError($"Productos vendidos, pero la membresía falló: {errorMembresia}");
+            }
+
+            if (errorMembresiaCombo is not null)
+            {
+                // Éxito-parcial: la venta (y su cobro) ya quedó registrada; la
+                // membresía del combo puede reintentarse desde /membresías.
+                Feedback.ShowError(
+                    $"Productos vendidos, pero la membresía del combo falló: {errorMembresiaCombo}");
             }
 
             if (_imprimirAutoAlCobrar)

@@ -65,6 +65,7 @@ public sealed class MembresiasService : IMembresiasService
         long montoRecibidoCentavos,
         long? idSedeFrontend = null,
         int? plazoCreditoDias = null,
+        string? idVentaPosOrigen = null,
         CancellationToken ct = default)
     {
         var info = await _auth.ValidarSesionAsync(token, ct);
@@ -142,24 +143,33 @@ public sealed class MembresiasService : IMembresiasService
             UpdatedAt = ahora,
         };
 
-        var movimiento = new CajaMovimiento
+        // Combo_membresia desde POS (idVentaPosOrigen): el dinero ya entró con
+        // la venta — un solo movimiento de caja 'venta' por el precio cerrado
+        // completo — así que no se duplica el ingreso ni se genera cuenta por
+        // cobrar (el precio del combo ya cubre el plan aunque el share
+        // prorrateado sea menor a su precio de lista).
+        CajaMovimiento? movimiento = null;
+        if (idVentaPosOrigen is null)
         {
-            IdMovimiento = UuidHelper.NewV4(),
-            IdSesion = caja.IdSesion,
-            Tipo = MovimientoTipos.Ingreso,
-            Concepto = $"Venta de membresía {plan.Nombre}",
-            MontoCentavos = montoRecibidoCentavos,
-            MetodoPago = metodoPago,
-            AfectaEfectivo = true,
-            ReferenciaTipo = CajaReferenciaTipos.PagoMembresia,
-            ReferenciaId = pago.IdPago,
-            CreatedAt = ahora,
-            UpdatedAt = ahora,
-        };
-        pago.IdCajaMovimiento = movimiento.IdMovimiento;
+            movimiento = new CajaMovimiento
+            {
+                IdMovimiento = UuidHelper.NewV4(),
+                IdSesion = caja.IdSesion,
+                Tipo = MovimientoTipos.Ingreso,
+                Concepto = $"Venta de membresía {plan.Nombre}",
+                MontoCentavos = montoRecibidoCentavos,
+                MetodoPago = metodoPago,
+                AfectaEfectivo = true,
+                ReferenciaTipo = CajaReferenciaTipos.PagoMembresia,
+                ReferenciaId = pago.IdPago,
+                CreatedAt = ahora,
+                UpdatedAt = ahora,
+            };
+            pago.IdCajaMovimiento = movimiento.IdMovimiento;
+        }
 
         CuentaCobrar? cuenta = null;
-        if (montoRecibidoCentavos < plan.PrecioCentavos)
+        if (idVentaPosOrigen is null && montoRecibidoCentavos < plan.PrecioCentavos)
         {
             cuenta = new CuentaCobrar
             {
@@ -182,7 +192,8 @@ public sealed class MembresiasService : IMembresiasService
             pago,
             movimiento,
             cuenta,
-            RegistrarBitacora(info, "membresia.creada", membresia.IdMembresia, idSede, null, null),
+            RegistrarBitacora(info, "membresia.creada", membresia.IdMembresia, idSede, null,
+                idVentaPosOrigen is null ? null : $"venta_pos:{idVentaPosOrigen}"),
             ct);
 
         return membresia;
