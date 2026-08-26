@@ -1580,6 +1580,11 @@ else
             // ------------------------------------------------------------------
             if (_membresiaCarrito is not null && _carrito.Count == 0 && _combosCarrito.Count == 0)
             {
+                if (_metodoPago == MetodosPago.Credito)
+                {
+                    Feedback.ShowWarning("La membresía se vende solo de contado");
+                    return;
+                }
                 await VenderMembresiaSoloAsync(sesion);
                 return;
             }
@@ -1602,10 +1607,11 @@ else
     {
         var socio = _socioSeleccionado!;
         var plan = _membresiaCarrito!;
+        var esEfectivo = EsMetodoEfectivo;
 
         try
         {
-            await Membresias.VenderAsync(
+            var membresia = await Membresias.VenderAsync(
                 sesion.Token,
                 socio.IdSocio,
                 plan.IdPlan,
@@ -1613,7 +1619,36 @@ else
                 plan.PrecioCentavos,
                 _showSede ? _idSedeTerminal : null);
 
-            Feedback.ShowSuccess($"Membresía {plan.NombrePlan} vendida a {socio.Nombre}");
+            _recibo = new ReciboVenta(
+                Folio: membresia.IdMembresia,
+                Fecha: DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.GetCultureInfo("es-MX")),
+                MetodoPago: Capitalizar(_metodoPago),
+                Socio: $"{socio.Nombre} {socio.ApellidoPaterno}".Trim(),
+                Atendio: await ResolverAtendioCortoAsync(sesion),
+                Items: [new ReciboLinea(
+                    $"Membresía {plan.NombrePlan}",
+                    1,
+                    plan.PrecioCentavos,
+                    plan.PrecioCentavos)],
+                TotalCentavos: plan.PrecioCentavos,
+                SaldoPendienteCentavos: 0,
+                VenceTexto: null,
+                EfectivoRecibidoCentavos: esEfectivo ? _efectivoRecibido : null,
+                CambioCentavos: esEfectivo ? CambioCalculado() : null);
+
+            try
+            {
+                await CargarNegocioTicketAsync();
+                StateHasChanged();
+            }
+            catch
+            {
+                // Preview con defaults; Reimprimir reportará su propio error si aplica.
+            }
+
+            _reciboAbierto = true;
+            _enfocarReciboAlAbrir = true;
+            StateHasChanged();
         }
         catch (BusinessException ex)
         {
@@ -1765,8 +1800,12 @@ else
                         ? [lineaMembresiaCombo]
                         : Array.Empty<ReciboLinea>())
                     .ToList(),
-                TotalCentavos: venta.TotalCentavos,
-                SaldoPendienteCentavos: venta.SaldoPendienteCentavos,
+                TotalCentavos: venta.TotalCentavos
+                    + (errorMembresia is null && _membresiaCarrito is not null
+                        ? _membresiaCarrito.PrecioCentavos : 0),
+                SaldoPendienteCentavos: venta.SaldoPendienteCentavos
+                    + (errorMembresia is null && _membresiaCarrito is not null
+                        ? _membresiaCarrito.PrecioCentavos : 0),
 
                 // Vencimiento REAL de la cuenta creada (plazo usado en la venta).
                 VenceTexto: TicketVentaMapper.FormatearFechaIso(venta.SaldoVenceIsoUtc),
