@@ -2071,6 +2071,17 @@ table.data-table {
     border-color: var(--color-primary);
 }
 
+.pos-pestana-highlight {
+    background: var(--color-secondary, #ff9800);
+    color: #fff;
+    border-color: var(--color-secondary, #ff9800);
+    font-weight: 600;
+}
+
+.pos-pestana-dim {
+    opacity: 0.45;
+}
+
 .pos-card {
     display: flex;
     flex-direction: column;

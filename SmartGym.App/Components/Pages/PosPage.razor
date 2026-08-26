@@ -88,8 +88,8 @@ else
                 <div class="pos-pestanas">
                     <button type="button" class="pos-pestana @(_pestanaActiva == "todos" ? "active" : "")"
                             @onclick='() => OnPestanaChangedAsync("todos")'>Todos</button>
-                    <button type="button" class="pos-pestana @(_pestanaActiva == "promociones" ? "active" : "")"
-                            @onclick='() => OnPestanaChangedAsync("promociones")'>Promociones (@_combosPos.Count)</button>
+                    <button type="button" class="pos-pestana @(_pestanaActiva == "promociones" ? "active" : "") @(HayBusquedaActiva && TotalPromocionesContextuales > 0 ? "pos-pestana-highlight" : "") @(HayBusquedaActiva && TotalPromocionesContextuales == 0 ? "pos-pestana-dim" : "")"
+                            @onclick='() => OnPestanaChangedAsync("promociones")'>Promociones (@TotalPromocionesContextuales)</button>
                 </div>
                 <MudButton Variant="Variant.Outlined"
                            Color="Color.Primary"
@@ -1225,6 +1225,10 @@ else
     }
 
     private IReadOnlyList<PosPromocionInfo> CombosFiltradosPaginados() => _combosPaginados;
+
+    private bool HayBusquedaActiva => _query.Trim().Length > 0;
+
+    private int TotalPromocionesContextuales => CombosFiltrados().Count();
 
     private bool GrillaVacia() => _pestanaActiva == "todos" ? _productos.Count == 0 : _combosPaginados.Count == 0;
 
