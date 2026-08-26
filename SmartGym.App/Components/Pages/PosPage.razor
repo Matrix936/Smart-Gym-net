@@ -160,9 +160,34 @@ else
                         </button>
                     }
                 </div>
-                @if (_totalResultados > _productos.Count)
+                @if (_productos.Count > 0)
                 {
-                    <p class="muted" style="margin-top: 0.75rem;">Mostrando @_productos.Count de @_totalResultados — refina tu búsqueda para ver más.</p>
+                    <div class="table-footer">
+                        <span class="muted">Mostrando @_productos.Count de @_totalRegistros producto(s)</span>
+                        <div class="pagination-controls">
+                            <MudSelect T="int"
+                                       Label="Ver"
+                                       Margin="Margin.Dense"
+                                       Variant="Variant.Outlined"
+                                       OuterClass="page-size-field"
+                                       RelativeWidth="DropdownWidth.Adaptive"
+                                       Value="_tamanoPagina"
+                                       ValueChanged="OnTamanoPaginaChangedAsync">
+                                @foreach (var tamano in TamanosPagina.Validos)
+                                {
+                                    <MudSelectItem Value="@tamano">@tamano</MudSelectItem>
+                                }
+                            </MudSelect>
+                            @if (_totalPaginas > 1)
+                            {
+                                <MudPagination Count="_totalPaginas"
+                                               Selected="_pagina"
+                                               SelectedChanged="OnPaginaChangedAsync"
+                                               Color="Color.Primary"
+                                               Size="Size.Small" />
+                            }
+                        </div>
+                    </div>
                 }
             }
         </div>
@@ -542,7 +567,10 @@ else
     private string _query = "";
     private CancellationTokenSource? _debounce;
     private List<Producto> _productos = [];
-    private int _totalResultados;
+    private int _pagina = 1;
+    private int _tamanoPagina = TamanosPagina.Default;
+    private int _totalRegistros;
+    private int _totalPaginas;
 
     // Carrito: idProducto → línea (orden de inserción preservado).
     private sealed record CarritoLinea(Producto Producto, long Cantidad);
@@ -932,6 +960,7 @@ else
     private async Task OnBusquedaChanged(string value)
     {
         _query = value;
+        _pagina = 1;
         _debounce?.Cancel();
         var cts = _debounce = new CancellationTokenSource();
         try
@@ -943,6 +972,21 @@ else
         catch (TaskCanceledException)
         {
         }
+    }
+
+    private async Task OnTamanoPaginaChangedAsync(int value)
+    {
+        _tamanoPagina = value;
+        _pagina = 1;
+        await CargarProductosAsync();
+        StateHasChanged();
+    }
+
+    private async Task OnPaginaChangedAsync(int value)
+    {
+        _pagina = value;
+        await CargarProductosAsync();
+        StateHasChanged();
     }
 
     /// <summary>
@@ -1084,9 +1128,10 @@ else
         }
 
         var query = string.IsNullOrWhiteSpace(_query) ? null : _query.Trim();
-        var resultado = await Productos.BuscarAsync(sesion.Token, query, pagina: 1, tamanoPagina: TamanosPagina.Cincuenta, esActivo: true);
+        var resultado = await Productos.BuscarAsync(sesion.Token, query, _pagina, _tamanoPagina, esActivo: true);
         _productos = resultado.Items.ToList();
-        _totalResultados = resultado.TotalRegistros;
+        _totalRegistros = resultado.TotalRegistros;
+        _totalPaginas = resultado.TotalPaginas;
 
         if (_productos.Count > 0)
         {
