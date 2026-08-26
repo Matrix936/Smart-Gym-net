@@ -4,7 +4,7 @@
            Disabled="@(Disabled || IsLoading)"
            ButtonType="@(ButtonType == "submit" ? MudBlazor.ButtonType.Submit : MudBlazor.ButtonType.Button)"
            OnClick="HandleClick"
-           Class="sg-async-btn">
+           Class="@($"sg-async-btn {Class}")">
     @if (IsLoading)
     {
         <MudProgressCircular Class="sg-async-spinner" Size="Size.Small" Color="Color.Inherit" Indeterminate="true" />
@@ -19,6 +19,7 @@
 @code {
     [Parameter] public string Text { get; set; } = "Continuar";
     [Parameter] public string? ButtonType { get; set; } = "button";
+    [Parameter] public string? Class { get; set; }
 
     /// <summary>Variante visual del MudButton subyacente (Filled por defecto).</summary>
     [Parameter] public Variant Variant { get; set; } = Variant.Filled;
