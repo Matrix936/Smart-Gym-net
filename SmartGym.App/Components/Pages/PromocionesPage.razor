@@ -108,14 +108,18 @@
                         <tr>
                             <td><strong>@p.Nombre</strong></td>
                             <td>
-                                <span class="status-badge @(p.Tipo == PromocionTipos.Combo ? "status-info" : "status-warning")">
-                                    @(p.Tipo == PromocionTipos.Combo ? "Combo" : "Descuento")
+                                <span class="status-badge @ClaseBadgeTipo(p.Tipo)">
+                                    @(EtiquetaTipo(p.Tipo))
                                 </span>
                             </td>
                             <td class="muted-cell">
                                 @if (p.Tipo == PromocionTipos.Descuento)
                                 {
-                                    @($"{info.DescripcionProducto ?? "—"} · {TextoDescuento(p)}")
+                                    @($"{info.DescripcionProducto ?? "-"} · {TextoDescuento(p)}")
+                                }
+                                else if (p.Tipo == PromocionTipos.ComboMembresia)
+                                {
+                                    @(($"Plan: {info.NombrePlan} + {string.Join(" + ", info.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))} · {FormatearMonto(p.PrecioComboCentavos ?? 0)}"))
                                 }
                                 else
                                 {
@@ -1005,6 +1009,19 @@
         return inicio == "siempre" && fin == "sin fin" ? "Permanente" : $"{inicio} → {fin}";
     }
 
-    private static string FormatearMonto(long centavos) =>
+        private static string EtiquetaTipo(string tipo) => tipo switch
+    {
+        PromocionTipos.Descuento => "Descuento",
+        PromocionTipos.Combo => "Combo",
+        PromocionTipos.ComboMembresia => "Combo + Membresía",
+        _ => tipo,
+    };
+
+    private static string ClaseBadgeTipo(string tipo) => tipo switch
+    {
+        PromocionTipos.Combo or PromocionTipos.ComboMembresia => "status-info",
+        _ => "status-warning",
+    };
+private static string FormatearMonto(long centavos) =>
         (centavos / 100m).ToString("C2", CultureInfo.GetCultureInfo("es-MX"));
 }

@@ -1095,7 +1095,7 @@ else
                 .Where(p => p.Tipo == PromocionTipos.Descuento && p.IdProducto is not null)
                 .GroupBy(p => p.IdProducto!.Value)
                 .ToDictionary(g => g.Key, g => g.First());
-            _combosPos = promos.Where(p => p.Tipo == PromocionTipos.Combo).ToList();
+            _combosPos = promos.Where(p => p.Tipo == PromocionTipos.Combo || p.Tipo == PromocionTipos.ComboMembresia).ToList();
         }
         catch
         {
