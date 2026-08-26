@@ -1750,7 +1750,7 @@ else
     /// </summary>
     private void PedirVaciarCarrito()
     {
-        var lineas = _carrito.Count + _combosCarrito.Count;
+        var lineas = _carrito.Count + _combosCarrito.Count + (_membresiaCarrito is null ? 0 : 1);
         if (lineas == 0)
         {
             return;
@@ -1777,6 +1777,7 @@ else
     {
         _carrito = new Dictionary<long, CarritoLinea>();
         _combosCarrito = new Dictionary<string, CarritoComboLinea>();
+        _membresiaCarrito = null;
         _montoPagado = null;
         _efectivoRecibido = null;
         Feedback.ShowSuccess("Carrito vaciado");
