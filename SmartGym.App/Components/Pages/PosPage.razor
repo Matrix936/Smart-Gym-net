@@ -1732,7 +1732,6 @@ else
             // precio cerrado en VentaInfo (IdPlanComboMembresia/PlanShare) — el
             // dinero ya entró con la venta, así que la segunda llamada NO genera
             // otro movimiento de caja ni cuenta por cobrar.
-            ReciboLinea? lineaMembresiaCombo = null;
             string? errorMembresiaCombo = null;
             var comboMembresia = ComboMembresiaDelCarrito;
             if (comboMembresia is not null && venta.IdPlanComboMembresia is not null && _socioSeleccionado is not null)
@@ -1747,12 +1746,6 @@ else
                         venta.PlanShareCentavos,
                         _showSede ? _idSedeTerminal : null,
                         idVentaPosOrigen: venta.IdVenta);
-
-                    lineaMembresiaCombo = new ReciboLinea(
-                        $"Membresía {comboMembresia.Promo.NombrePlan}",
-                        1,
-                        venta.PlanShareCentavos,
-                        venta.PlanShareCentavos);
                 }
                 catch (BusinessException ex)
                 {
@@ -1795,9 +1788,6 @@ else
                             1,
                             _membresiaCarrito.PrecioCentavos,
                             _membresiaCarrito.PrecioCentavos)]
-                        : Array.Empty<ReciboLinea>())
-                    .Concat(lineaMembresiaCombo is not null
-                        ? [lineaMembresiaCombo]
                         : Array.Empty<ReciboLinea>())
                     .ToList(),
                 TotalCentavos: venta.TotalCentavos
