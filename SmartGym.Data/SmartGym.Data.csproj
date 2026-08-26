@@ -18,6 +18,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <InternalsVisibleTo>SmartGym.Tests</InternalsVisibleTo>
   </PropertyGroup>
 
 </Project>
