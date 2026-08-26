@@ -134,13 +134,16 @@ else
                     @foreach (var combo in CombosFiltrados())
                     {
                         var agotadoCombo = ComboAgotado(combo);
+                        var esComboMembresia = combo.Tipo == PromocionTipos.ComboMembresia;
+                        var descComponentes = string.Join(" + ", combo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"));
+                        var descCompleta = esComboMembresia ? $"Plan: {combo.NombrePlan} + {descComponentes}" : descComponentes;
                         <button type="button"
                                 class="pos-card pos-card-combo @(agotadoCombo ? "pos-card-agotado" : "")"
                                 disabled="@agotadoCombo"
-                                title="@(agotadoCombo ? "Sin stock de algún componente" : $"Agregar combo al carrito — {string.Join(" + ", combo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))}")"
+                                title="@(agotadoCombo ? "Sin stock de algún componente" : $"Agregar combo al carrito — {descCompleta}")"
                                 data-sg-pos-captura
                                 @onclick='() => AgregarComboAlCarrito(combo)'>
-                            <span class="pos-combo-badge">COMBO</span>
+                            <span class="pos-combo-badge">@(esComboMembresia ? "COMBO + PLAN" : "COMBO")</span>
                             <span class="pos-card-desc">@combo.Nombre</span>
                             <span class="pos-precios">
                                 <span class="pos-precio-tachado">@FormatearMonto(combo.PrecioListaTotalCentavos > 0 ? combo.PrecioListaTotalCentavos : combo.SubtotalComponentesCentavos)</span>
@@ -1290,12 +1293,13 @@ else
 
     /// <summary>
     /// Suma a precios de LISTA: productos sin aplicar su promo + combos
-    /// valorados por sus componentes. La diferencia con TotalCarrito() es el
-    /// ahorro de promociones — se muestra tachado junto al total cuando > 0.
+    /// valorados por su precio de lista total (fallback: suma de componentes).
+    /// La diferencia con TotalCarrito() es el ahorro de promociones — se
+    /// muestra tachado junto al total cuando > 0.
     /// </summary>
     private long TotalOriginal() =>
         _carrito.Values.Sum(l => l.Producto.PrecioVentaCentavos * l.Cantidad)
-        + _combosCarrito.Values.Sum(c => c.Promo.SubtotalComponentesCentavos * c.Cantidad)
+        + _combosCarrito.Values.Sum(c => (c.Promo.PrecioListaTotalCentavos > 0 ? c.Promo.PrecioListaTotalCentavos : c.Promo.SubtotalComponentesCentavos) * c.Cantidad)
         + (_membresiaCarrito?.PrecioCentavos ?? 0);
 
     /// <summary>
