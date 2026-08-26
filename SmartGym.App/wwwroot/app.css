@@ -2184,6 +2184,10 @@ table.data-table {
     font-size: 0.9rem;
 }
 
+.pos-cobrar {
+    margin-bottom: 0.75rem;
+}
+
 @media (max-width: 900px) {
     .pos-layout {
         flex-direction: column;
@@ -2193,6 +2197,7 @@ table.data-table {
         width: 100%;
         position: static;
         max-height: none;
+        padding-bottom: 1rem;
     }
 
     .pos-lineas {
