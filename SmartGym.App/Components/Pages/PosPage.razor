@@ -1395,7 +1395,9 @@ else
         }
     }
 
-    /// <summary>Paso 2 del cobro: registra la venta y muestra el recibo.</summary>
+    /// <summary>Paso 2 del cobro: registra la venta y muestra el recibo.
+    /// Si solo hay membresía en el carrito, salta RegistrarVentaAsync y
+    /// llama directo a VenderAsync — el backend rechaza items vacíos.</summary>
     private async Task ConfirmarCobroAsync()
     {
         var sesion = Sesion.Current;
@@ -1412,14 +1414,87 @@ else
 
         var esCredito = _metodoPago == MetodosPago.Credito;
         var esEfectivo = EsMetodoEfectivo;
+        var esContadoForzado = _membresiaCarrito is not null;
+
+        // Guard: membresía requiere socio titular.
+        if (_membresiaCarrito is not null && _socioSeleccionado is null)
+        {
+            Feedback.ShowWarning("La membresía requiere un socio titular");
+            return;
+        }
 
         _confirmacionAbierta = false;
         _cobrando = true;
         try
         {
-            // Combos como unidades propias (el server resuelve componentes y
-            // precios); productos individuales con su precio final si tienen
-            // descuento vigente.
+            // ------------------------------------------------------------------
+            // CASO 1: SOLO membresía (sin productos ni combos) → VenderAsync directo.
+            // El backend rechaza items vacíos, así que no se llama RegistrarVentaAsync.
+            // ------------------------------------------------------------------
+            if (esContadoForzado && CarritoVacio())
+            {
+                await VenderMembresiaSoloAsync(sesion);
+                return;
+            }
+
+            // ------------------------------------------------------------------
+            // CASO 2: venta normal de productos/combos (+ membresía si hay).
+            // ------------------------------------------------------------------
+            await ConfirmarCobroConProductosAsync(sesion);
+        }
+        finally
+        {
+            _cobrando = false;
+        }
+    }
+
+    /// <summary>Caso 1: carrito con SOLO membresía suelta — sin productos ni combos.
+    /// Llama directo a Membresias.VenderAsync (contado completo). No genera venta,
+    /// no muestra recibo — Feedback.Success + limpiar.</summary>
+    private async Task VenderMembresiaSoloAsync(SessionInfo sesion)
+    {
+        var socio = _socioSeleccionado!;
+        var plan = _membresiaCarrito!;
+
+        try
+        {
+            await Membresias.VenderAsync(
+                sesion.Token,
+                socio.IdSocio,
+                plan.IdPlan,
+                _metodoPago,
+                plan.PrecioCentavos,
+                _showSede ? _idSedeTerminal : null);
+
+            Feedback.ShowSuccess($"Membresía {plan.NombrePlan} vendida a {socio.Nombre}");
+        }
+        catch (BusinessException ex)
+        {
+            Feedback.ShowError(ex.Message);
+        }
+        catch
+        {
+            Feedback.ShowError("No se pudo vender la membresía");
+        }
+
+        _membresiaCarrito = null;
+        _socioSeleccionado = null;
+        _montoPagado = null;
+        _efectivoRecibido = null;
+        StateHasChanged();
+    }
+    /// <summary>
+    /// Caso 2: venta normal de productos/combos (+ membresía si hay).
+    /// Registra la venta vía RegistrarVentaAsync y luego VenderAsync para la
+    /// membresía. Muestra recibo y limpia el carrito.
+    /// </summary>
+    private async Task ConfirmarCobroConProductosAsync(SessionInfo sesion)
+    {
+        var esCredito = _metodoPago == MetodosPago.Credito;
+        var esEfectivo = EsMetodoEfectivo;
+        var _cobrando = false;
+        try
+        {
             var items = new List<VentaItem>();
             foreach (var l in _carrito.Values)
             {
