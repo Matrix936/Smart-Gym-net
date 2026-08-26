@@ -311,7 +311,7 @@ public sealed class PosService : IPosService
             IdMovimiento = UuidHelper.NewV4(),
             IdSesion = caja.IdSesion,
             Tipo = MovimientoTipos.Ingreso,
-            Concepto = "venta",
+            Concepto = "Venta de productos",
 
             // A caja solo entra lo efectivamente pagado; el resto queda en cuentas_cobrar.
             MontoCentavos = totalPagado,
@@ -421,7 +421,7 @@ public sealed class PosService : IPosService
             IdMovimiento = UuidHelper.NewV4(),
             IdSesion = caja.IdSesion,
             Tipo = MovimientoTipos.Egreso,
-            Concepto = "cancelacion_venta",
+            Concepto = "Cancelación de venta",
             MontoCentavos = venta.TotalCentavos,
             MetodoPago = venta.MetodoPago,
             AfectaEfectivo = venta.MetodoPago == "efectivo",
