@@ -87,7 +87,13 @@ else
                               @onkeydown="HandleBusquedaKeyDown" />
                 <div class="pos-pestanas">
                     <button type="button" class="pos-pestana @(_pestanaActiva == "todos" ? "active" : "")"
-                            @onclick='() => OnPestanaChangedAsync("todos")'>Todos</button>
+                            @onclick='() => OnPestanaChangedAsync("todos")'>
+                        Todos
+                        @if (HayBusquedaActiva && _totalProductosBusqueda > 0)
+                        {
+                            <span class="pos-pestana-dot"></span>
+                        }
+                    </button>
                     <button type="button" class="pos-pestana @(_pestanaActiva == "promociones" ? "active" : "")"
                             @onclick='() => OnPestanaChangedAsync("promociones")'>
                         Promociones (@TotalPromocionesContextuales)
@@ -594,6 +600,7 @@ else
     private int _totalRegistros;
     private int _totalPaginas;
     private string _pestanaActiva = "todos";
+    private int _totalProductosBusqueda;
 
     // Carrito: idProducto → línea (orden de inserción preservado).
     private sealed record CarritoLinea(Producto Producto, long Cantidad);
@@ -1176,6 +1183,7 @@ else
             _productos = resultado.Items.ToList();
             _totalRegistros = resultado.TotalRegistros;
             _totalPaginas = resultado.TotalPaginas;
+            _totalProductosBusqueda = resultado.TotalRegistros;
 
             if (_productos.Count > 0)
             {
@@ -1197,6 +1205,18 @@ else
                 .Skip((_pagina - 1) * _tamanoPagina)
                 .Take(_tamanoPagina)
                 .ToList();
+
+            // Conteo liviano de productos que coinciden con la búsqueda (para el
+            // chip "Todos" — el cajero ve cuántos productos hay sin cambiar de pestaña).
+            try
+            {
+                var conteo = await Productos.BuscarAsync(sesion.Token, query, 1, 1, esActivo: true);
+                _totalProductosBusqueda = conteo.TotalRegistros;
+            }
+            catch
+            {
+                _totalProductosBusqueda = 0;
+            }
         }
     }
 
