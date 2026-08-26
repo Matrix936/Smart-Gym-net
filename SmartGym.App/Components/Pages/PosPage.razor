@@ -741,11 +741,17 @@ else
         _atajosRef?.Dispose();
         // Libera los listeners globales de atajos y escáner (try/catch: el
         // JSRuntime puede no estar disponible al desmontar, misma regla que
-        // localStorage).
+        // localStorage). El wrapper async void captura excepciones JS async
+        // que el try/catch síncrono no alcanza (dotnet/maui#31942).
+        _ = DisposeJsAsync();
+    }
+
+    private async Task DisposeJsAsync()
+    {
         try
         {
-            _ = JS.InvokeVoidAsync("sgUi.posAtajos", null);
-            _ = JS.InvokeVoidAsync("sgUi.scanner", null);
+            await JS.InvokeVoidAsync("sgUi.posAtajos", null);
+            await JS.InvokeVoidAsync("sgUi.scanner", null);
         }
         catch
         {

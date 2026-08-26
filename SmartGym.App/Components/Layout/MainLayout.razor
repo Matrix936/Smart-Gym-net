@@ -71,7 +71,17 @@
 
         <main class="sg-content">
             <div class="content-pad">
-                @Body
+                <ErrorBoundary @ref="_errorBoundary">
+                    <ChildContent>
+                        @Body
+                    </ChildContent>
+                    <ErrorContent>
+                        <div class="pos-alert" style="margin-top:2rem;">
+                            <p><strong>Ocurrió un error inesperado.</strong></p>
+                            <p style="font-size:0.85rem;opacity:0.7;">Puede reintentar navegando a otro módulo o recargando la app.</p>
+                        </div>
+                    </ErrorContent>
+                </ErrorBoundary>
             </div>
         </main>
     </div>
@@ -112,6 +122,7 @@
     private string _fecha = string.Empty;
     private string _hora = string.Empty;
     private Timer? _reloj;
+    private ErrorBoundary? _errorBoundary;
 
     // Bloqueo por inactividad (5 min): overlay de reautorización, no logout.
     private const int MinutosInactividad = 5;
@@ -289,6 +300,17 @@
         Nav.LocationChanged -= OnUbicacionCambio;
         _reloj?.Dispose();
         _idleRef?.Dispose();
-        _ = JS.InvokeVoidAsync("sgIdle.dispose");
+        _ = DisposeJsAsync();
+    }
+
+    private async Task DisposeJsAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("sgIdle.dispose");
+        }
+        catch
+        {
+        }
     }
 }
