@@ -41,7 +41,7 @@ public sealed class MembresiasRepository : RepositoryBase, IMembresiasRepository
         await using var conn = ConnectionFactory.Open(DbPath);
         return await conn.ExecuteScalarAsync<string?>(
             new CommandDefinition(
-                "SELECT MAX(fecha_fin) FROM membresias WHERE id_socio = @idSocio AND deleted_at IS NULL",
+                "SELECT MAX(fecha_fin) FROM membresias WHERE id_socio = @idSocio AND deleted_at IS NULL AND estado IN ('activa', 'congelada')",
                 new { idSocio }, cancellationToken: ct));
     }
 
