@@ -143,7 +143,7 @@ else
                             <span class="pos-combo-badge">COMBO</span>
                             <span class="pos-card-desc">@combo.Nombre</span>
                             <span class="pos-precios">
-                                <span class="pos-precio-tachado">@FormatearMonto(combo.SubtotalComponentesCentavos)</span>
+                                <span class="pos-precio-tachado">@FormatearMonto(combo.PrecioListaTotalCentavos > 0 ? combo.PrecioListaTotalCentavos : combo.SubtotalComponentesCentavos)</span>
                                 <span class="pos-card-precio pos-precio-final">@FormatearMonto(combo.PrecioComboCentavos)</span>
                             </span>
                             <span class="muted pos-card-componentes" title="@string.Join(" + ", combo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))">
@@ -223,7 +223,7 @@ else
                             <div class="pos-linea-info">
                                 <strong>@linea.Promo.Nombre</strong>
                                 <span class="muted">
-                                    <span class="pos-precio-tachado">@FormatearMonto(linea.Promo.SubtotalComponentesCentavos)</span>
+                                    <span class="pos-precio-tachado">@FormatearMonto(linea.Promo.PrecioListaTotalCentavos > 0 ? linea.Promo.PrecioListaTotalCentavos : linea.Promo.SubtotalComponentesCentavos)</span>
                                     @($"{FormatearMonto(linea.Promo.PrecioComboCentavos)} el combo")
                                 </span>
                                 <span class="muted">@string.Join(" + ", linea.Promo.Componentes.Select(c => $"{c.Cantidad}× {c.DescripcionProducto}"))</span>
@@ -1157,6 +1157,13 @@ else
     {
         if (_cajaAbierta is null || ComboAgotado(promo))
         {
+            return;
+        }
+
+        // combo_membresia exige socio titular (la membresía incluida lo requiere).
+        if (promo.Tipo == PromocionTipos.ComboMembresia && _socioSeleccionado is null)
+        {
+            Feedback.ShowWarning("Selecciona el socio titular antes de agregar un combo con membresía");
             return;
         }
 
