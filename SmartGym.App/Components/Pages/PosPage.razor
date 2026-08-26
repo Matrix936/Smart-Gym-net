@@ -458,17 +458,18 @@ else
         else
         {
             <div class="form-fields">
-                <MudSelect T="long?" Label="Plan *" Variant="Variant.Outlined" Margin="Margin.Dense"
-                           Value="_planDialogoId" ValueChanged="OnPlanDialogoChanged">
-                    <MudSelectItem T="long?" Value="null">Selecciona un plan…</MudSelectItem>
-                    @foreach (var plan in _planesActivos)
-                    {
-                        <MudSelectItem Value="@((long?)plan.IdPlan)">@($"{plan.Nombre} — {FormatearMonto(plan.PrecioCentavos)}")</MudSelectItem>
-                    }
-                </MudSelect>
+                <MudAutocomplete T="PlanMembresia" Label="Plan *" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                 SearchFunc="@BuscarPlanesDialogoAsync"
+                                 ToStringFunc="@(p => p is null ? "" : $"{p.Nombre} - {FormatearMonto(p.PrecioCentavos)}")"
+                                 MaxItems="10"
+                                 MinCharacters="0"
+                                 ResetValueOnEmptyText="true"
+                                 Clearable="true"
+                                 Value="_planDialogoMembresia"
+                                 ValueChanged="OnPlanDialogoChanged" />
                 @if (_planDialogoMembresia is not null)
                 {
-                    <p class="muted">Se agregará al carrito como línea de contado — el socio titular se selecciona abajo.</p>
+                    <p class="muted">Se agregar� al carrito como l�nea de contado - el socio titular se selecciona abajo.</p>
                 }
             </div>
         }
@@ -587,7 +588,6 @@ else
     private MembresiaCarritoLinea? _membresiaCarrito;
     private bool _membresiaDialogoAbierto;
     private List<PlanMembresia> _planesActivos = [];
-    private long? _planDialogoId;
     private PlanMembresia? _planDialogoMembresia;
 
     private Socio? _socioSeleccionado;
@@ -996,16 +996,31 @@ else
             _planesActivos = [];
         }
 
-        _planDialogoId = null;
         _planDialogoMembresia = null;
         _membresiaDialogoAbierto = true;
         StateHasChanged();
     }
 
-    private void OnPlanDialogoChanged(long? id)
+    private void OnPlanDialogoChanged(PlanMembresia? plan)
     {
-        _planDialogoId = id;
-        _planDialogoMembresia = _planesActivos.FirstOrDefault(p => p.IdPlan == id);
+        _planDialogoMembresia = plan;
+    }
+
+    /// <summary>Búsqueda en vivo sobre planes activos — mismo patrón que productos.</summary>
+    private async Task<IEnumerable<PlanMembresia?>> BuscarPlanesDialogoAsync(string arg, CancellationToken ct)
+    {
+        try
+        {
+            var planes = await PlanesRepo.GetActivosAsync(ct);
+            var texto = arg?.Trim() ?? "";
+            return planes
+                .Where(p => texto.Length == 0 || p.Nombre.Contains(texto, StringComparison.OrdinalIgnoreCase))
+                .Cast<PlanMembresia?>();
+        }
+        catch
+        {
+            return [];
+        }
     }
 
     /// <summary>Una sola membresía por cobro — agregar otra reemplaza la pendiente con aviso.</summary>
