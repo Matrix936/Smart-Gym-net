@@ -39,6 +39,9 @@ Task<bool> SocioTieneDeudaActivaAsync(string idSocio, CancellationToken ct = def
     /// <summary>Actualiza solo el estado de la cuenta (ej. marcar incobrable). Devuelve filas afectadas.</summary>
     Task<int> CambiarEstadoAsync(string idCuenta, string nuevoEstado, string updatedAt, CancellationToken ct = default);
 
+    /// <summary>Actualiza la fecha de vencimiento de una cuenta (para tests o ajustes manuales).</summary>
+    Task<int> ActualizarFechaVencimientoAsync(string idCuenta, string nuevaFechaVencimiento, CancellationToken ct = default);
+
     /// <summary>
     /// Cobro de abono atómico (finance/cobranza): actualiza saldo y estado de la
     /// cuenta, e inserta cobro + movimiento de caja + bitácora en una transacción.

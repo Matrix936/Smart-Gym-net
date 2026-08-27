@@ -314,13 +314,18 @@ else
                                             OnClick="() => EliminarLineaCombo(linea)" />
                         </div>
                     }
-                    @* Membresía en el carrito: línea especial de contado, exige socio titular al cobrar.
-                       Sin cantidad variable: muestra "1" fijo (misma plantilla de columnas que producto/combo). *@
+                    @* Membresía en el carrito: línea especial, exige socio titular al cobrar.
+                       Hereda el método de pago global del POS. Sin cantidad variable:
+                       muestra "1" fijo (misma plantilla de columnas que producto/combo). *@
                     @if (_membresiaCarrito is not null)
                     {
                         <div class="pos-linea pos-linea-promo">
                             <div class="pos-linea-info">
                                 <strong>Membresía @(_membresiaCarrito.NombrePlan)</strong>
+                                @if (_metodoPago == MetodosPago.Credito)
+                                {
+                                    <span class="pos-badge pos-badge-credito">Crédito</span>
+                                }
                             </div>
                             <div class="pos-linea-cantidad">
                                 <span class="pos-cantidad">1</span>
@@ -515,8 +520,8 @@ else
 </MudDialog>
 
 @* Mini-form de membresía (diseño reducido de VenderMembresiaDialog):
-   solo plan — el socio es el del carrito y SIEMPRE es de contado
-   (sin plazo ni crédito). Requiere caja abierta. *@
+   solo plan — el socio es el del carrito y hereda el método de pago global
+   del POS (contado o crédito con plazo). Requiere caja abierta. *@
 <MudDialog Visible="_membresiaDialogoAbierto"
            VisibleChanged="v => _membresiaDialogoAbierto = v"
            Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = true, CloseOnEscapeKey = true })">
@@ -542,7 +547,7 @@ else
                                  ValueChanged="OnPlanDialogoChanged" />
                 @if (_planDialogoMembresia is not null)
                 {
-                    <p class="muted">Se agregará al carrito como línea de contado - el socio titular se selecciona abajo.</p>
+                    <p class="muted">Se agregará al carrito — el socio titular se selecciona abajo. El método de pago se hereda del POS.</p>
                 }
             </div>
         }
@@ -577,6 +582,7 @@ else
     [Inject] private IPromocionesService Promos { get; set; } = default!;
     [Inject] private IMembresiasService Membresias { get; set; } = default!;
     [Inject] private IPlanesMembresiaRepository PlanesRepo { get; set; } = default!;
+    [Inject] private ICuentasCobrarRepository CuentasCobrar { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private DotNetObjectReference<PosPage>? _atajosRef;
@@ -619,7 +625,8 @@ else
     private CarritoComboLinea? ComboMembresiaDelCarrito =>
         _combosCarrito.Values.FirstOrDefault(c => c.Promo.Tipo == PromocionTipos.ComboMembresia);
 
-    // Membresía vendida junto a la venta (una sola por cobro, siempre contado).
+    // Membresía vendida junto a la venta (una sola por cobro).
+    // Hereda el método de pago global del POS (puede ser contado o crédito).
     private sealed record MembresiaCarritoLinea(long IdPlan, string NombrePlan, long PrecioCentavos);
     private MembresiaCarritoLinea? _membresiaCarrito;
     private bool _membresiaDialogoAbierto;
@@ -1441,11 +1448,22 @@ else
         + _combosCarrito.Values.Sum(c => (c.Promo.PrecioListaTotalCentavos > 0 ? c.Promo.PrecioListaTotalCentavos : c.Promo.SubtotalComponentesCentavos) * c.Cantidad)
         + (_membresiaCarrito?.PrecioCentavos ?? 0);
 
+    /// <summary>Combina dos textos de vencimiento, devolviendo el más tardío
+    /// (o el no nulo si solo uno existe). Para el recibo cuando hay crédito
+    /// tanto en productos como en membresía.</summary>
+    private static string? CombinarVenceTexto(string? textoA, string? textoB)
+    {
+        if (textoA is null) return textoB;
+        if (textoB is null) return textoA;
+        // Comparar por fecha parseada: devolver el más tardío.
+        return string.Compare(textoA, textoB, StringComparison.Ordinal) >= 0 ? textoA : textoB;
+    }
+
     /// <summary>
     /// Paso 1 del cobro: valida y abre la ventana de confirmación con el total
     /// congelado. Nada se procesa hasta ConfirmarCobroAsync.
     /// </summary>
-    private void AbrirConfirmacionCobro()
+    private async Task AbrirConfirmacionCobro()
     {
         if (Sesion.Current is null || _cobrando)
         {
@@ -1463,16 +1481,10 @@ else
             return;
         }
 
-        // Membresía en carrito: exige socio titular y bloquea el método Crédito
-        // (siempre de contado — sin pago parcial ni cuenta por cobrar).
+        // Membresía en carrito: exige socio titular.
         if (_membresiaCarrito is not null && _socioSeleccionado is null)
         {
             Feedback.ShowWarning("La membresía requiere un socio titular — selecciónalo arriba");
-            return;
-        }
-        if (_membresiaCarrito is not null && _metodoPago == MetodosPago.Credito)
-        {
-            Feedback.ShowWarning("La membresía se vende solo de contado — elige otro método de pago");
             return;
         }
 
@@ -1506,6 +1518,19 @@ else
             if (_socioSeleccionado is null)
             {
                 Feedback.ShowWarning("Selecciona el socio para registrar la venta a crédito");
+                return;
+            }
+        }
+
+        // Deuda vencida: bloquear crédito si el socio tiene una deuda vencida
+        // (mismo gate que PosService.ValidarYCrearCuentaCreditoAsync, pero
+        // adelantado aquí para feedback inmediato antes de abrir confirmación).
+        if (esCredito && _socioSeleccionado is not null)
+        {
+            var hoy = DateHelper.NowIsoUtc();
+            if (await CuentasCobrar.SocioTieneDeudaVencidaAsync(_socioSeleccionado.IdSocio, hoy))
+            {
+                Feedback.ShowWarning("El socio tiene una deuda vencida — registra un abono en Cobranza antes de vender a crédito");
                 return;
             }
         }
@@ -1580,11 +1605,6 @@ else
             // ------------------------------------------------------------------
             if (_membresiaCarrito is not null && _carrito.Count == 0 && _combosCarrito.Count == 0)
             {
-                if (_metodoPago == MetodosPago.Credito)
-                {
-                    Feedback.ShowWarning("La membresía se vende solo de contado");
-                    return;
-                }
                 await VenderMembresiaSoloAsync(sesion);
                 return;
             }
@@ -1601,13 +1621,19 @@ else
     }
 
     /// <summary>Caso 1: carrito con SOLO membresía suelta — sin productos ni combos.
-    /// Llama directo a Membresias.VenderAsync (contado completo). No genera venta,
-    /// no muestra recibo — Feedback.Success + limpiar.</summary>
+    /// Llama directo a Membresias.VenderAsync. Hereda el método de pago global
+    /// del POS: si es crédito, genera cuenta por cobrar con el plazo indicado.</summary>
     private async Task VenderMembresiaSoloAsync(SessionInfo sesion)
     {
         var socio = _socioSeleccionado!;
         var plan = _membresiaCarrito!;
+        var esCredito = _metodoPago == MetodosPago.Credito;
         var esEfectivo = EsMetodoEfectivo;
+
+        // Monto realmente pagado por la membresía: en crédito viene de
+        // _montoPagado (parcial o cero); en contado siempre es el precio
+        // completo del plan.
+        var montoRecibidoCentavos = esCredito ? (_montoPagado ?? 0) : plan.PrecioCentavos;
 
         try
         {
@@ -1616,8 +1642,15 @@ else
                 socio.IdSocio,
                 plan.IdPlan,
                 _metodoPago,
-                plan.PrecioCentavos,
-                _showSede ? _idSedeTerminal : null);
+                montoRecibidoCentavos,
+                _showSede ? _idSedeTerminal : null,
+                esCredito ? _plazoCreditoDias : null);
+
+            var saldoPendiente = esCredito ? plan.PrecioCentavos - montoRecibidoCentavos : 0;
+            var venceCredito = esCredito
+                ? TicketVentaMapper.FormatearFechaIso(
+                    DateHelper.ToIsoUtc(DateTime.UtcNow.AddDays(_plazoCreditoDias)))
+                : null;
 
             _recibo = new ReciboVenta(
                 Folio: membresia.IdMembresia,
@@ -1631,8 +1664,8 @@ else
                     plan.PrecioCentavos,
                     plan.PrecioCentavos)],
                 TotalCentavos: plan.PrecioCentavos,
-                SaldoPendienteCentavos: 0,
-                VenceTexto: null,
+                SaldoPendienteCentavos: saldoPendiente,
+                VenceTexto: venceCredito,
                 EfectivoRecibidoCentavos: esEfectivo ? _efectivoRecibido : null,
                 CambioCentavos: esEfectivo ? CambioCalculado() : null);
 
@@ -1668,13 +1701,35 @@ else
     /// <summary>
     /// Caso 2: venta normal de productos/combos (+ membresía si hay).
     /// Registra la venta vía RegistrarVentaAsync y luego VenderAsync para la
-    /// membresía. Muestra recibo y limpia el carrito.
+    /// membresía. En crédito, el pago se reparte proporcionalmente entre
+    /// productos y membresía. Muestra recibo y limpia el carrito.
     /// </summary>
     private async Task ConfirmarCobroConProductosAsync(SessionInfo sesion)
     {
         var esCredito = _metodoPago == MetodosPago.Credito;
         var esEfectivo = EsMetodoEfectivo;
-        var _cobrando = false;
+
+        // Reparto proporcional del pago entre productos y membresía cuando
+        // es a crédito: cada servicio recibe solo la porción que le corresponde.
+        var membershipPrice = _membresiaCarrito?.PrecioCentavos ?? 0;
+        var productsTotal = TotalCarrito() - membershipPrice;
+        long productsPagoCentavos;
+        long membershipPagoCentavos;
+        if (esCredito)
+        {
+            var totalPago = _montoPagado ?? 0;
+            var saleTotal = productsTotal + membershipPrice;
+            productsPagoCentavos = saleTotal > 0
+                ? (long)Math.Round((double)totalPago * productsTotal / saleTotal)
+                : 0;
+            membershipPagoCentavos = totalPago - productsPagoCentavos;
+        }
+        else
+        {
+            productsPagoCentavos = 0;
+            membershipPagoCentavos = membershipPrice;
+        }
+
         try
         {
             var items = new List<VentaItem>();
@@ -1692,9 +1747,7 @@ else
                 Items = items,
                 IdSocio = _socioSeleccionado?.IdSocio,
                 MetodoPago = _metodoPago,
-                // En crédito, campo vacío = no pagó nada (queda debiendo todo);
-                // si cubre el total, el backend ni genera cuenta.
-                MontoPagadoCentavos = esCredito ? (_montoPagado ?? 0) : _montoPagado,
+                MontoPagadoCentavos = esCredito ? productsPagoCentavos : _montoPagado,
                 PlazoCreditoDias = _plazoCreditoDias,
             };
 
@@ -1715,8 +1768,9 @@ else
                         _socioSeleccionado.IdSocio,
                         _membresiaCarrito.IdPlan,
                         _metodoPago,
-                        _membresiaCarrito.PrecioCentavos,
-                        _showSede ? _idSedeTerminal : null);
+                        esCredito ? membershipPagoCentavos : _membresiaCarrito.PrecioCentavos,
+                        _showSede ? _idSedeTerminal : null,
+                        esCredito ? _plazoCreditoDias : null);
                 }
                 catch (BusinessException ex)
                 {
@@ -1759,6 +1813,10 @@ else
 
             // Recibo en pantalla (reemplaza al snackbar de "Venta registrada"):
             // snapshot ANTES de limpiar, porque el carrito ya no estará.
+            var saldoMembresia = errorMembresia is null && _membresiaCarrito is not null
+                ? _membresiaCarrito.PrecioCentavos - membershipPagoCentavos
+                : 0;
+
             _recibo = new ReciboVenta(
                 Folio: venta.IdVenta,
                 Fecha: DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.GetCultureInfo("es-MX")),
@@ -1793,12 +1851,16 @@ else
                 TotalCentavos: venta.TotalCentavos
                     + (errorMembresia is null && _membresiaCarrito is not null
                         ? _membresiaCarrito.PrecioCentavos : 0),
-                SaldoPendienteCentavos: venta.SaldoPendienteCentavos
-                    + (errorMembresia is null && _membresiaCarrito is not null
-                        ? _membresiaCarrito.PrecioCentavos : 0),
+                SaldoPendienteCentavos: venta.SaldoPendienteCentavos + saldoMembresia,
 
-                // Vencimiento REAL de la cuenta creada (plazo usado en la venta).
-                VenceTexto: TicketVentaMapper.FormatearFechaIso(venta.SaldoVenceIsoUtc),
+                // Vencimiento: el más tardío entre la venta de productos y la
+                // membresía (si ambas tienen cuenta por cobrar).
+                VenceTexto: CombinarVenceTexto(
+                    TicketVentaMapper.FormatearFechaIso(venta.SaldoVenceIsoUtc),
+                    esCredito && saldoMembresia > 0
+                        ? TicketVentaMapper.FormatearFechaIso(
+                            DateHelper.ToIsoUtc(DateTime.UtcNow.AddDays(_plazoCreditoDias)))
+                        : null),
 
                 // Efectivo/cambio capturados en la confirmación (solo efectivo).
                 EfectivoRecibidoCentavos: esEfectivo ? _efectivoRecibido : null,

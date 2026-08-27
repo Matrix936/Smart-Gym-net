@@ -152,6 +152,16 @@ public sealed class CuentasCobrarRepository : RepositoryBase, ICuentasCobrarRepo
                 new { idCuenta, nuevoEstado, updatedAt }, cancellationToken: ct));
     }
 
+    public async Task<int> ActualizarFechaVencimientoAsync(string idCuenta, string nuevaFechaVencimiento, CancellationToken ct = default)
+    {
+        await using var conn = ConnectionFactory.Open(DbPath);
+        return await conn.ExecuteAsync(
+            new CommandDefinition(
+                "UPDATE cuentas_cobrar SET fecha_vencimiento = @nuevaFechaVencimiento " +
+                "WHERE id_cuenta = @idCuenta AND deleted_at IS NULL",
+                new { idCuenta, nuevaFechaVencimiento }, cancellationToken: ct));
+    }
+
     public async Task RegistrarAbonoAsync(
         string idCuenta,
         long nuevoSaldoCentavos,

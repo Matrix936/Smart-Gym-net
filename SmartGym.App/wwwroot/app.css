@@ -2218,6 +2218,25 @@ table.data-table {
     overflow-wrap: anywhere;
 }
 
+/* Badge inline dentro de una línea del carrito (ej. "Crédito" en membresía). */
+.pos-badge {
+    display: inline-block;
+    font-size: 0.6rem;
+    font-weight: 600;
+    line-height: 1;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    vertical-align: middle;
+    margin-left: 0.35rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.pos-badge-credito {
+    background: var(--color-primary);
+    color: #fff;
+}
+
 .pos-linea-cantidad {
     display: flex;
     align-items: center;
