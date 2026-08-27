@@ -10,7 +10,7 @@
 ; requiere .NET en la máquina destino).
 
 #define MyAppName "Smart Gym"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "Cuber"
 #define MyAppExeName "Smart Gym.exe"
 ; Ruta de publish relativa a la raíz del repo (este script vive en installer\)
