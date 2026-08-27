@@ -8,6 +8,7 @@ namespace SmartGym.Tests.Data;
 /// índice nuevo sobre columna que la BD existente aún no tiene — crash
 /// silencioso 0xc000027B documentado en docs/migracion-dotnet/10).
 /// </summary>
+[Collection("DbInitializer")]
 public sealed class DbInitializerLegacyTests : IDisposable
 {
     private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"smart_gym_legacy_{Guid.NewGuid():N}.db");

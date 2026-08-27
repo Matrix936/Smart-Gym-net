@@ -303,6 +303,10 @@ public static class DbInitializer
 
                 // Regla: solo agregar nullable o con DEFAULT.
                 // NOT NULL sin DEFAULT → omitir con log (requiere backfill manual).
+                // Nota: NOT NULL DEFAULT NULL es técnicamente válido en SQLite pero
+                // semánticamente contradictorio — se permite porque no hay columnas así
+                // en el schema actual y no causa daño (SQLite llena con NULL las filas
+                // existentes al hacer ALTER, y luego las nuevas filas deben proveer un valor).
                 if (col.EsNotNull && col.DefaultExpr is null)
                 {
                     Log($"Columna {tabla}.{col.Nombre} es NOT NULL sin DEFAULT — se omite (requiere migración manual)");
