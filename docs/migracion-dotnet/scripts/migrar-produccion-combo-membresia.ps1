@@ -15,7 +15,9 @@
 #
 # Uso:
 #   1. Cerrar la aplicación Smart Gym por completo.
-#   2. Ejecutar: pwsh -NoProfile -File migrar-produccion-combo-membresia.ps1
+#   2. Copiar este .ps1 a la carpeta de instalación de la app (donde está
+#      Smart Gym.exe y Microsoft.Data.Sqlite.dll).
+#   3. Ejecutar: pwsh -NoProfile -File migrar-produccion-combo-membresia.ps1
 #      (o clic derecho > Ejecutar con PowerShell).
 # =============================================================================
 
@@ -44,8 +46,23 @@ foreach ($sufijo in @('-wal', '-shm')) {
 }
 Write-Host "Backup creado: $backup"
 
-Add-Type -Path (Get-ChildItem "$PSScriptRoot\.." -Recurse -Filter 'Microsoft.Data.Sqlite.dll' |
-    Select-Object -First 1 -ExpandProperty FullName)
+
+# ---------------------------------------------------------------------------
+# Dependencias: las DLLs viven en la carpeta de instalacion de la app.
+# Colocar este .ps1 junto a Smart Gym.exe antes de ejecutarlo.
+# ---------------------------------------------------------------------------
+$appDir = $PSScriptRoot
+
+Add-Type -Path (Join-Path $appDir 'SQLitePCLRaw.core.dll')
+Add-Type -Path (Join-Path $appDir 'SQLitePCLRaw.provider.e_sqlite3.dll')
+Add-Type -Path (Join-Path $appDir 'SQLitePCLRaw.batteries_v2.dll')
+Add-Type -Path (Join-Path $appDir 'Microsoft.Data.Sqlite.dll')
+
+# CRITICO: inicializar el provider nativo de SQLite. Sin esto,
+# SqliteConnection lanza "type initializer threw an exception" al abrirse,
+# porque fuera del host MAUI nadie llama a Batteries_V2.Init().
+[SQLitePCL.Batteries_V2]::Init()
+
 
 $conn = [Microsoft.Data.Sqlite.SqliteConnection]::new("Data Source=$dbPath")
 $conn.Open()

@@ -73,6 +73,18 @@ public static MauiApp CreateMauiApp()
 		Directory.CreateDirectory(dataDir);
 
 		var dbPath = Path.Combine(dataDir, "smart_gym.db");
+
+		// Diagnóstico: cablear log de archivo antes de Initialize para que
+		// las omisiones de índices, columnas agregadas y errores de schema
+		// queden registrados en sg_diag_render.log.
+		var diagLogPath = Path.Combine(dataDir, "sg_diag_render.log");
+		DbInitializer.RotarLogSiNecesario(diagLogPath);
+		DbInitializer.LogWarning = msg =>
+		{
+			var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {msg}{Environment.NewLine}";
+			File.AppendAllText(diagLogPath, line);
+		};
+
 		DbInitializer.Initialize(dbPath);
 		SeedPermisosSuperadmin(dbPath, dataDir);
 

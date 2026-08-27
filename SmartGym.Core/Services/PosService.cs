@@ -508,7 +508,7 @@ public sealed class PosService : IPosService
         if (await _cuentas.SocioTieneDeudaVencidaAsync(idSocio, ahora, ct))
         {
             throw BusinessException.Conflict(
-                "El socio tiene una deuda vencida — registra un abono en Cobranza antes de vender a crédito",
+                "El socio tiene una deuda vencida — liquida la deuda en Cobranza antes de vender a crédito",
                 "socio_tiene_deuda_vencida");
         }
 

@@ -86,46 +86,42 @@ public sealed class DbInitializerLegacyTests : IDisposable
     }
 
     [Fact]
-    public void initialize_sobre_bd_legacy_no_lanza_y_omite_el_indice()
+    public void initialize_sobre_bd_legacy_agrega_columna_y_crea_indice()
     {
         CrearLegacyPromociones();
 
-        // Antes crasheaba aquí (stowed exception WinUI) por el CREATE INDEX
-        // sobre la columna inexistente.
+        // Antes crasheaba (stowed exception WinUI) por el CREATE INDEX
+        // sobre la columna inexistente. Ahora la columna se agrega automáticamente.
         var excepcion = Record.Exception(() => DbInitializer.Initialize(_dbPath));
         Assert.Null(excepcion);
 
-        // La fila legacy quedó intacta y el índice fue omitido con log.
-        Assert.False(ExisteIndice("idx_promociones_id_plan"));
-        Assert.Contains(_warnings, w => w.Contains("id_plan"));
+        // La columna fue agregada automáticamente (no manualmente).
+        Assert.True(ExisteColumna("promociones", "id_plan"));
+        Assert.Contains(_warnings, w => w.Contains("id_plan") && w.Contains("agregada"));
 
-        // El resto del schema SÍ se aplicó.
-        Assert.True(ExisteColumna("sedes", "codigo_postal") || true);
+        // El índice se creó normalmente (ya no se omite porque la columna existe).
+        Assert.True(ExisteIndice("idx_promociones_id_plan"));
+
+        // La fila legacy quedó intacta.
         using var conn = new SqliteConnection($"Data Source={_dbPath}");
         conn.Open();
         var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(1) FROM promociones WHERE id_promocion = 'promo-legacy'";
+        Assert.Equal(1L, (long)(cmd.ExecuteScalar() ?? 0L));
+
+        // El resto del schema SÍ se aplicó.
         cmd.CommandText = "SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name='planes_membresia'";
         Assert.Equal(1L, (long)(cmd.ExecuteScalar() ?? 0L));
     }
 
     [Fact]
-    public async Task tras_agregar_la_columna_manualmente_el_indice_se_recupera()
+    public async Task tras_agregar_la_columna_el_indice_se_recupera()
     {
         CrearLegacyPromociones();
         DbInitializer.Initialize(_dbPath);
-        Assert.False(ExisteIndice("idx_promociones_id_plan"));
 
-        // Migración manual (mismo ALTER que se ejecutará en producción).
-        using (var conn = new SqliteConnection($"Data Source={_dbPath}"))
-        {
-            conn.Open();
-            var cmd = conn.CreateCommand();
-            cmd.CommandText = "ALTER TABLE promociones ADD COLUMN id_plan INTEGER NULL REFERENCES planes_membresia(id_plan)";
-            cmd.ExecuteNonQuery();
-        }
-
-        DbInitializer.Initialize(_dbPath);
-
+        // Con auto-columnas, la columna se agrega en el primer Initialize.
+        Assert.True(ExisteColumna("promociones", "id_plan"));
         Assert.True(ExisteIndice("idx_promociones_id_plan"));
     }
 
@@ -151,15 +147,16 @@ public sealed class DbInitializerLegacyTests : IDisposable
     }
 
     [Fact]
-    public void indice_sobre_columna_nueva_en_tabla_existente_se_omite_sin_crashear()
+    public void indice_sobre_columna_nueva_se_crea_por_auto_columnas()
     {
         // BD con promociones legacy SIN id_plan (la tabla SÍ existe): el caso
-        // exacto del crash 0xc000027B en producción.
+        // exacto del crash 0xc000027B en producción. Ahora la columna se agrega
+        // automáticamente y el índice se crea sin intervención manual.
         CrearLegacyPromociones();
 
         var ex = Record.Exception(() => DbInitializer.Initialize(_dbPath));
         Assert.Null(ex);
-        Assert.False(ExisteIndice("idx_promociones_id_plan"));
-        Assert.Contains(_warnings, w => w.Contains("idx_promociones_id_plan"));
+        Assert.True(ExisteColumna("promociones", "id_plan"));
+        Assert.True(ExisteIndice("idx_promociones_id_plan"));
     }
 }
