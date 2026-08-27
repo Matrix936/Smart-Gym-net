@@ -504,7 +504,14 @@ else
             }
             else
             {
-                <p class="muted" style="margin: 0;">Se registrará el cobro completo por @_metodoPago.</p>
+                @if (_metodoPago == MetodosPago.Credito && _montoPagado is > 0)
+                {
+                    <p class="muted" style="margin: 0;">Se registrará el cobro completo por @_metodoPago, con un adelanto de @FormatearMonto(_montoPagado.Value).</p>
+                }
+                else
+                {
+                    <p class="muted" style="margin: 0;">Se registrará el cobro completo por @_metodoPago.</p>
+                }
             }
         </div>
     </DialogContent>
@@ -1561,7 +1568,7 @@ else
             var hoy = DateHelper.NowIsoUtc();
             if (await CuentasCobrar.SocioTieneDeudaVencidaAsync(_socioSeleccionado.IdSocio, hoy))
             {
-                Feedback.ShowWarning("El socio tiene una deuda vencida — registra un abono en Cobranza antes de vender a crédito");
+                Feedback.ShowWarning("El socio tiene una deuda vencida — liquida la deuda en Cobranza antes de vender a crédito");
                 return;
             }
         }
