@@ -885,13 +885,13 @@ else
                     // (el guard de ConfirmarCobroAsync hace el resto).
                     if (PuedeConfirmarCobro())
                     {
-                        _ = ConfirmarCobroAsync();
+                        _ = ConfirmarCobroSafeAsync();
                     }
                     break;
                 }
                 if (!CarritoVacio() && _cajaAbierta is not null)
                 {
-                    AbrirConfirmacionCobro();
+                    _ = AbrirConfirmacionCobroSafeAsync();
                 }
                 break;
             case "+" or "=":
@@ -1457,6 +1457,37 @@ else
         if (textoB is null) return textoA;
         // Comparar por fecha parseada: devolver el más tardío.
         return string.Compare(textoA, textoB, StringComparison.Ordinal) >= 0 ? textoA : textoB;
+    }
+
+    /// <summary>Versión segura de AbrirConfirmacionCobro para llamadas desde
+    /// [JSInvokable] void (fire-and-forget): captura excepciones y las reporta
+    /// vía Feedback en vez de dejarlas como unobserved task exceptions.</summary>
+    private async Task AbrirConfirmacionCobroSafeAsync()
+    {
+        try
+        {
+            await AbrirConfirmacionCobro();
+        }
+        catch (Exception ex)
+        {
+            Feedback.ShowError($"Error al abrir cobro: {ex.Message}");
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Versión segura de ConfirmarCobroAsync para llamadas desde
+    /// [JSInvokable] void (fire-and-forget).</summary>
+    private async Task ConfirmarCobroSafeAsync()
+    {
+        try
+        {
+            await ConfirmarCobroAsync();
+        }
+        catch (Exception ex)
+        {
+            Feedback.ShowError($"Error al confirmar cobro: {ex.Message}");
+            StateHasChanged();
+        }
     }
 
     /// <summary>
